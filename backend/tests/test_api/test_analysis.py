@@ -149,7 +149,7 @@ class TestAnalysisInsight(_BaseAnalysisTest):
         pattern_names = {p["pattern_name"] for p in data["patterns"]}
         assert "SWING" in pattern_names
         assert data["best_pattern"] is not None
-        # Each position gets multiple pattern tags (SWING, profit-tags/STOP_LOSS, CASH)
+        # Each position gets multiple pattern tags (SWING, profit-tags/SMALL_LOSS_EXIT, CASH)
         total_count = sum(p["count"] for p in data["patterns"])
         assert total_count > 0
 
@@ -193,7 +193,7 @@ class TestAnalysisWhatIf(_BaseAnalysisTest):
         assert "original_return" in item
         assert "what_if_return" in item
         assert "delta" in item
-        assert "damage_score" in item
+        assert "impact_score" in item
 
     def test_whatif_404_for_nonexistent(self, client):
         headers = get_auth_header(client, "whatif_404@test.com")

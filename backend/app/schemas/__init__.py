@@ -17,11 +17,11 @@ from app.schemas.upload import (
 from app.schemas.analysis import (
     AnalysisRunRequest,
     AnalysisRunResponse,
+    ImpactItem,
     InsightPatternItem,
     InsightResponse,
     PositionItem,
     StatsResponse,
-    WhatIfItem,
     WhatIfResponse,
 )
 from app.schemas.report import (
@@ -46,11 +46,11 @@ __all__ = [
     "UploadResponse",
     "AnalysisRunRequest",
     "AnalysisRunResponse",
+    "ImpactItem",
     "InsightPatternItem",
     "InsightResponse",
     "PositionItem",
     "StatsResponse",
-    "WhatIfItem",
     "WhatIfResponse",
     "ReportGenerateRequest",
     "ReportGenerateResponse",

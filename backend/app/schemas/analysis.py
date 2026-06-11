@@ -57,13 +57,13 @@ class InsightResponse(BaseModel):
     worst_pattern: Optional[InsightPatternItem] = None
 
 
-class WhatIfItem(BaseModel):
+class ImpactItem(BaseModel):
     removed_pattern: str
     original_return: float
     what_if_return: float
     delta: float
-    damage_score: float
+    impact_score: float
 
 
 class WhatIfResponse(BaseModel):
-    items: list[WhatIfItem]
+    items: list[ImpactItem]

@@ -132,15 +132,15 @@ patterns:
       detail: raw trades show same-symbol same-date BUY and SELL, or entry_date == exit_date with sibling positions
     description: 日内回转交易，先买后卖或先卖后买
 
-  - name: STOP_LOSS
-    label: 止损
+  - name: SMALL_LOSS_EXIT
+    label: 小亏离场
     module: risk
     market_dependent: false
     confidence: 0.6
     rule:
       summary: 跌幅 8% 以内且 10 天内卖出
       detail: -0.08 <= pnl_pct < 0 AND holding_days <= 10
-    description: 止损离场，亏损达到预定额度时卖出
+    description: 小亏离场，亏损达到预定额度时卖出
 
   - name: QUICK_PROFIT
     label: 短线止盈

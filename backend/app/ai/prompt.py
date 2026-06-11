@@ -22,7 +22,7 @@ def build_user_prompt(analysis_data: dict) -> str:
         analysis_data: Dict with keys:
             total_trades, win_rate, total_pnl, avg_holding_days,
             patterns (list of dicts with pattern_name, count, win_rate, total_pnl),
-            what_if (list of dicts with removed_pattern, delta, damage_score).
+            what_if (list of dicts with removed_pattern, delta, impact_score).
 
     Returns:
         A formatted prompt string for the LLM.
@@ -55,7 +55,7 @@ def build_user_prompt(analysis_data: dict) -> str:
         for w in what_if:
             lines.append(
                 f"- 移除 {w['removed_pattern']}: 收益变化 {w['delta']:+.4f}, "
-                f"伤害度 {w['damage_score']:.2f}"
+                f"影响度 {w['impact_score']:.2f}"
             )
     else:
         lines.append("（暂无回测数据）")

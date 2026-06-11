@@ -8,6 +8,7 @@ Produces 20 behavior tags across three modules:
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date
+from statistics import median
 from typing import Any
 
 
@@ -139,11 +140,11 @@ class PatternEngine:
                 )
             )
 
-        # STOP_LOSS / TAKE_PROFIT
+        # SMALL_LOSS_EXIT / TAKE_PROFIT
         if -0.08 <= pos.pnl_pct < 0 and pos.holding_days <= 10:
             tags.append(
                 PatternResult(
-                    "STOP_LOSS",
+                    "SMALL_LOSS_EXIT",
                     0.6,
                     {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
                 )
@@ -175,7 +176,7 @@ class PatternEngine:
                 )
 
         # ----- Phase 3: Psychological behavior tags -----------------------
-        # REVENGE: new trade within 24h of a loss
+        # REVENGE: new trade within 24h of a significant loss with increased position
         prior_positions = sorted(
             [p for p in all_positions if p.exit_date < pos.entry_date],
             key=lambda p: p.exit_date,
@@ -183,69 +184,81 @@ class PatternEngine:
         if prior_positions:
             last_prior = prior_positions[-1]
             if last_prior.pnl < 0 and (pos.entry_date - last_prior.exit_date).days <= 1:
-                tags.append(
-                    PatternResult(
-                        "REVENGE",
-                        0.7,
-                        {
-                            "prior_pnl": last_prior.pnl,
-                            "prior_exit": str(last_prior.exit_date),
-                            "gap_days": (pos.entry_date - last_prior.exit_date).days,
-                        },
-                    )
-                )
+                # Additional conditions: significant loss + increased position
+                losing_positions = [p for p in all_positions if p.pnl < 0]
+                if losing_positions:
+                    avg_loss = sum(abs(p.pnl) for p in losing_positions) / len(losing_positions)
+                    if abs(last_prior.pnl) > avg_loss * 1.5 and pos.total_quantity > last_prior.total_quantity:
+                        tags.append(
+                            PatternResult(
+                                "REVENGE",
+                                0.7,
+                                {
+                                    "prior_pnl": last_prior.pnl,
+                                    "prior_exit": str(last_prior.exit_date),
+                                    "gap_days": (pos.entry_date - last_prior.exit_date).days,
+                                },
+                            )
+                        )
 
-        # OVERTRADING: daily frequency > 2x the user's average
+        # OVERTRADING: daily frequency > 95th percentile (need >= 20 trading days)
         date_counts = Counter(p.entry_date for p in all_positions)
-        unique_days = len(date_counts)
-        if unique_days > 1:
-            avg_per_day = len(all_positions) / unique_days
-            if date_counts[pos.entry_date] > avg_per_day * 2:
+        daily_counts = list(date_counts.values())
+        if len(daily_counts) >= 20:
+            p95 = sorted(daily_counts)[int(len(daily_counts) * 0.95)]
+            if date_counts[pos.entry_date] > p95:
                 tags.append(
                     PatternResult(
                         "OVERTRADING",
                         0.7,
                         {
                             "positions_today": date_counts[pos.entry_date],
-                            "avg_positions_per_day": round(avg_per_day, 2),
                             "total_positions": len(all_positions),
-                            "trading_days": unique_days,
+                            "trading_days": len(daily_counts),
+                            "p95_threshold": p95,
                         },
                     )
                 )
 
-        # HOLD_LOSER / CUT_WINNER: compare holding durations
+        # HOLD_LOSER / CUT_WINNER: compare holding durations using median
         winners = [p for p in all_positions if p.pnl > 0]
         losers = [p for p in all_positions if p.pnl < 0]
-        if winners and losers:
-            avg_hold_winners = sum(p.holding_days for p in winners) / len(winners)
-            avg_hold_losers = sum(p.holding_days for p in losers) / len(losers)
+        if len(winners) >= 5 and len(losers) >= 5:
+            median_hold_winners = median(p.holding_days for p in winners)
+            median_hold_losers = median(p.holding_days for p in losers)
 
-            if avg_hold_losers > avg_hold_winners * 1.5 and pos.pnl < 0 and pos.holding_days > avg_hold_losers:
+            if median_hold_losers > median_hold_winners * 1.5 and pos.pnl < 0 and pos.holding_days > median_hold_losers:
                 tags.append(
                     PatternResult(
                         "HOLD_LOSER",
                         0.7,
                         {
                             "holding_days": pos.holding_days,
-                            "avg_holding_winners": round(avg_hold_winners, 2),
-                            "avg_holding_losers": round(avg_hold_losers, 2),
+                            "median_holding_winners": median_hold_winners,
+                            "median_holding_losers": median_hold_losers,
                         },
                     )
                 )
 
-            if avg_hold_winners < avg_hold_losers * 0.5 and pos.pnl > 0 and pos.holding_days < avg_hold_winners:
+            if median_hold_winners < median_hold_losers * 0.5 and pos.pnl > 0 and pos.holding_days < median_hold_winners:
                 tags.append(
                     PatternResult(
                         "CUT_WINNER",
                         0.7,
                         {
                             "holding_days": pos.holding_days,
-                            "avg_holding_winners": round(avg_hold_winners, 2),
-                            "avg_holding_losers": round(avg_hold_losers, 2),
+                            "median_holding_winners": median_hold_winners,
+                            "median_holding_losers": median_hold_losers,
                         },
                     )
                 )
+
+        # ----- Priority resolution for overlapping tags -------------------
+        tag_names = {t.pattern_name for t in tags}
+        if "CUT_WINNER" in tag_names:
+            tags = [t for t in tags if t.pattern_name != "QUICK_PROFIT"]
+        if "HOLD_LOSER" in tag_names:
+            tags = [t for t in tags if t.pattern_name not in ("SMALL_LOSS_EXIT", "STOP_LOSS")]
 
         return tags
 

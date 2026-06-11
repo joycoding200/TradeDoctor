@@ -13,15 +13,15 @@ from app.models.user import User
 from app.engine.insight import InsightEngine
 from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
-from app.engine.whatif import WhatIfEngine
+from app.engine.whatif import BehaviorImpactAnalysis
 from app.schemas.analysis import (
     AnalysisRunRequest,
     AnalysisRunResponse,
+    ImpactItem,
     InsightPatternItem,
     InsightResponse,
     PositionItem,
     StatsResponse,
-    WhatIfItem,
     WhatIfResponse,
 )
 
@@ -204,15 +204,15 @@ def get_whatif(
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
     patterns_map = _build_patterns_map(positions)
-    items = WhatIfEngine.analyze(positions, patterns_map)
+    items = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
 
     whatif_items = [
-        WhatIfItem(
+        ImpactItem(
             removed_pattern=i.removed_pattern,
             original_return=i.original_return,
             what_if_return=i.what_if_return,
             delta=i.delta,
-            damage_score=i.damage_score,
+            impact_score=i.impact_score,
         )
         for i in items
     ]

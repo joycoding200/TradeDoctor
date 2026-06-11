@@ -185,7 +185,7 @@ check(status == 200, f"whatif returns 200 (got {status})")
 check("items" in whatif, f"whatif has items: {'items' in whatif}")
 if whatif.get("items"):
     item = whatif["items"][0]
-    for field in ["removed_pattern", "original_return", "what_if_return", "delta", "damage_score"]:
+    for field in ["removed_pattern", "original_return", "what_if_return", "delta", "impact_score"]:
         check(field in item, f"whatif item has {field}: {field in item}")
 
 

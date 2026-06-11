@@ -75,7 +75,7 @@ class TestBuildUserPrompt:
                 {
                     "removed_pattern": "SCALP",
                     "delta": 0.15,
-                    "damage_score": 1.0,
+                    "impact_score": 1.0,
                 }
             ],
         }
