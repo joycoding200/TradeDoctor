@@ -1,10 +1,12 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface PatternData {
-  pattern: string;
-  win_rate: number;
+  pattern_name: string;
   count: number;
-  [key: string]: unknown;
+  win_count: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl_pct: number;
 }
 
 interface PatternChartProps {
@@ -12,16 +14,10 @@ interface PatternChartProps {
 }
 
 const PATTERN_LABELS: Record<string, string> = {
-  CHASE: "追涨",
-  BOTTOM: "抄底",
-  BREAKOUT: "突破",
-  TREND: "趋势",
-  COUNTER_TREND: "逆势",
-  SCALP: "短线",
-  SWING: "波段",
-  POSITION: "长持",
-  PYRAMID: "加仓",
-  AVERAGE_DOWN: "补仓",
+  CHASE: "追涨", BOTTOM: "抄底", BREAKOUT: "突破", TREND: "趋势",
+  COUNTER_TREND: "逆势", BREAKDOWN: "破位", SCALP: "短线", SWING: "波段",
+  POSITION: "长持", PYRAMID: "加仓", AVERAGE_DOWN: "补仓", TURN: "做T",
+  STOP_LOSS: "止损", TAKE_PROFIT: "止盈", CASH: "空仓",
 };
 
 export default function PatternChart({ data }: PatternChartProps) {
@@ -34,9 +30,10 @@ export default function PatternChart({ data }: PatternChartProps) {
   }
 
   const chartData = data.map((d) => ({
-    name: PATTERN_LABELS[d.pattern] || d.pattern,
-    winRate: d.win_rate,
+    name: PATTERN_LABELS[d.pattern_name] || d.pattern_name,
+    winRate: +(d.win_rate * 100).toFixed(1),
     count: d.count,
+    isPositive: d.total_pnl > 0,
   }));
 
   return (
@@ -48,13 +45,9 @@ export default function PatternChart({ data }: PatternChartProps) {
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis dataKey="name" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
-          <YAxis
-            domain={[0, 1]}
-            tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-            tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
-          />
+          <YAxis unit="%" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
           <Tooltip
-            formatter={(value) => `${(Number(value) * 100).toFixed(1)}%`}
+            formatter={(value) => `${Number(value)}%`}
             contentStyle={{
               backgroundColor: "var(--bg-tertiary)",
               border: "1px solid var(--border)",
@@ -62,7 +55,11 @@ export default function PatternChart({ data }: PatternChartProps) {
               color: "var(--text-primary)",
             }}
           />
-          <Bar dataKey="winRate" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="winRate" name="胜率" radius={[4, 4, 0, 0]}>
+            {chartData.map((d, i) => (
+              <Cell key={i} fill={d.isPositive ? "#22c55e" : "#ef4444"} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

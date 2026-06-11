@@ -1,49 +1,43 @@
 interface StatsData {
   total_trades?: number;
+  total_positions?: number;
+  win_count?: number;
   win_rate?: number;
-  profit_loss_ratio?: number;
-  max_profit?: number;
-  max_loss?: number;
+  total_pnl?: number;
   avg_holding_days?: number;
+  max_win?: number;
+  max_loss?: number;
   consecutive_losses?: number;
-  [key: string]: unknown;
 }
 
 interface StatsCardsProps {
   stats: StatsData;
 }
 
-const CARD_LABELS: Record<string, string> = {
-  total_trades: "总交易次数",
-  win_rate: "胜率",
-  profit_loss_ratio: "盈亏比",
-  max_profit: "最大盈利",
-  max_loss: "最大亏损",
-  avg_holding_days: "平均持仓天数",
-  consecutive_losses: "连续亏损次数",
-};
-
-function formatValue(key: string, value: number): string {
-  if (key === "win_rate") return `${(value * 100).toFixed(1)}%`;
-  if (key === "profit_loss_ratio") return value.toFixed(2);
-  if (key === "avg_holding_days") return value.toFixed(1);
-  if (key === "total_trades" || key === "consecutive_losses") return String(Math.round(value));
-  if (key === "max_profit" || key === "max_loss") return value.toFixed(2);
-  return String(value);
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
 }
 
-function isSignificant(key: string): boolean {
-  return ["total_trades", "win_rate", "profit_loss_ratio", "max_profit", "max_loss", "avg_holding_days", "consecutive_losses"].includes(key);
+function formatMoney(value: number): string {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}`;
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
-  const entries = Object.entries(stats).filter(([k]) => isSignificant(k));
+  const cards = [
+    { label: "总交易次数", value: stats.total_positions ?? stats.total_trades ?? 0, format: "int" },
+    { label: "胜率", value: stats.win_rate ?? 0, format: "pct" },
+    { label: "总盈亏", value: stats.total_pnl ?? 0, format: "money" },
+    { label: "最大盈利", value: stats.max_win ?? 0, format: "money" },
+    { label: "最大亏损", value: stats.max_loss ?? 0, format: "money" },
+    { label: "平均持仓天数", value: stats.avg_holding_days ?? 0, format: "days" },
+  ];
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-      {entries.map(([key, value]) => (
+      {cards.map((card) => (
         <div
-          key={key}
+          key={card.label}
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderRadius: "12px",
@@ -52,20 +46,28 @@ export default function StatsCards({ stats }: StatsCardsProps) {
           className="p-4"
         >
           <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>
-            {CARD_LABELS[key] || key}
+            {card.label}
           </div>
           <div
             className="text-xl font-semibold"
             style={{
               color:
-                key === "max_loss" || (key === "win_rate" && (value as number) < 0.5)
+                card.label === "最大亏损" || (card.label === "总盈亏" && card.value < 0)
                   ? "var(--danger)"
-                  : key === "max_profit"
+                  : card.label === "最大盈利" || (card.label === "总盈亏" && card.value > 0)
                   ? "var(--success)"
+                  : card.label === "胜率" && card.value < 0.5
+                  ? "var(--danger)"
                   : "var(--text-primary)",
             }}
           >
-            {formatValue(key, value as number)}
+            {card.format === "pct"
+              ? formatPercent(card.value)
+              : card.format === "money"
+              ? formatMoney(card.value)
+              : card.format === "days"
+              ? `${card.value.toFixed(1)}天`
+              : String(card.value)}
           </div>
         </div>
       ))}
