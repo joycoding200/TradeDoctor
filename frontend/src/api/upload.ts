@@ -7,9 +7,9 @@ export async function uploadFile(file: File): Promise<any> {
 }
 
 export async function confirmFormat(rawFileId: string, sourceType: string): Promise<any> {
-  return apiPost(`/api/upload/${rawFileId}/confirm`, { source_type: sourceType });
+  return apiPost("/api/upload/confirm", { raw_file_id: rawFileId, source_type: sourceType });
 }
 
 export async function importTrades(rawFileId: string): Promise<any> {
-  return apiPost(`/api/upload/${rawFileId}/import`);
+  return apiPost("/api/upload/import", { raw_file_id: rawFileId });
 }

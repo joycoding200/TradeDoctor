@@ -1,0 +1,37 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - link "TradeLens" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e6]:
+      - link "上传" [ref=e7] [cursor=pointer]:
+        - /url: /upload
+      - link "历史" [ref=e8] [cursor=pointer]:
+        - /url: /history
+      - button "退出" [ref=e9] [cursor=pointer]
+  - main [ref=e10]:
+    - generic [ref=e95]:
+      - generic [ref=e96]:
+        - heading "分析面板" [level=1] [ref=e97]
+        - generic [ref=e98]:
+          - button "运行分析" [ref=e99] [cursor=pointer]
+          - button "生成 AI 报告" [ref=e100] [cursor=pointer]
+      - generic [ref=e101]:
+        - button "统计概览" [ref=e102] [cursor=pointer]
+        - button "归因分析" [ref=e103] [cursor=pointer]
+        - button "What If 回测" [ref=e104] [cursor=pointer]
+      - generic [ref=e105]:
+        - generic [ref=e106]:
+          - generic [ref=e107]: 总交易次数
+          - generic [ref=e108]: "12"
+        - generic [ref=e109]:
+          - generic [ref=e110]: 胜率
+          - generic [ref=e111]: 6667.0%
+        - generic [ref=e112]:
+          - generic [ref=e113]: 平均持仓天数
+          - generic [ref=e114]: "5.3"
+        - generic [ref=e115]:
+          - generic [ref=e116]: 最大亏损
+          - generic [ref=e117]: "-1000.00"
+        - generic [ref=e118]:
+          - generic [ref=e119]: 连续亏损次数
+          - generic [ref=e120]: "2"

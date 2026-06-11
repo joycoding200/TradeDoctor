@@ -4,13 +4,14 @@ import FileDropzone from "../components/FileDropzone";
 import FormatSelector from "../components/FormatSelector";
 import TradePreview from "../components/TradePreview";
 import { uploadFile, confirmFormat, importTrades } from "../api/upload";
+import { runAnalysis } from "../api/analysis";
 
 type Step = "upload" | "confirm" | "preview";
 
 interface FormatOption {
   source_type: string;
-  confidence: number;
-  description: string;
+  asset_type: string;
+  score: number;
 }
 
 export default function Upload() {
@@ -51,8 +52,11 @@ export default function Upload() {
   const handleImport = async () => {
     setLoading(true);
     try {
-      const result = await importTrades(rawFileId);
-      navigate(`/analysis/${result.analysis_id}`);
+      await importTrades(rawFileId);
+      // After import, auto-run analysis
+      const today = new Date().toISOString().split("T")[0];
+      const analysis = await runAnalysis("2020-01-01", today);
+      navigate(`/analysis/${analysis.analysis_id}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "导入失败");
     } finally {
