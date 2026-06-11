@@ -6,6 +6,7 @@ from app.models.position import Position
 from app.models.pattern import Pattern
 from app.models.analysis import Analysis
 from app.models.report import Report
+from app.models.daily_bar import DailyBar
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Pattern",
     "Analysis",
     "Report",
+    "DailyBar",
 ]

@@ -1042,3 +1042,107 @@ class TestTagCoexistence:
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" in tags
         assert "STOP_LOSS" in tags
+
+
+# ============================================================================
+# Phase 4 -- Tag Hierarchy (resolve_hierarchy)
+# ============================================================================
+
+
+class TestResolveHierarchy:
+    """Tag hierarchy: L1->L2 via context.sub_pattern."""
+
+    def test_trend_with_breakout_sets_sub_pattern(self):
+        tags = [
+            PatternResult("TREND", 0.7, {"ma20": 11, "ma60": 10}),
+            PatternResult("BREAKOUT", 0.7, {}),
+            PatternResult("SWING", 1.0, {"holding_days": 8}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        trend = next(t for t in result if t.pattern_name == "TREND")
+        assert trend.context.get("sub_pattern") == "BREAKOUT"
+
+    def test_trend_with_chase_sets_sub_pattern(self):
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("CHASE", 0.7, {}),
+            PatternResult("SWING", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        trend = next(t for t in result if t.pattern_name == "TREND")
+        assert trend.context.get("sub_pattern") == "CHASE"
+
+    def test_trend_breakout_preferred_over_chase(self):
+        """BREAKOUT appears first in the hierarchy check, so it wins."""
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("BREAKOUT", 0.7, {}),
+            PatternResult("CHASE", 0.7, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        trend = next(t for t in result if t.pattern_name == "TREND")
+        assert trend.context.get("sub_pattern") == "BREAKOUT"
+
+    def test_counter_trend_with_bottom(self):
+        tags = [
+            PatternResult("COUNTER_TREND", 0.7, {}),
+            PatternResult("BOTTOM", 0.7, {}),
+            PatternResult("SWING", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        ct = next(t for t in result if t.pattern_name == "COUNTER_TREND")
+        assert ct.context.get("sub_pattern") == "BOTTOM"
+
+    def test_counter_trend_with_breakdown(self):
+        tags = [
+            PatternResult("COUNTER_TREND", 0.7, {}),
+            PatternResult("BREAKDOWN", 0.7, {}),
+            PatternResult("POSITION", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        ct = next(t for t in result if t.pattern_name == "COUNTER_TREND")
+        assert ct.context.get("sub_pattern") == "BREAKDOWN"
+
+    def test_no_hierarchy_change_when_no_related_tags(self):
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("SWING", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        trend = next(t for t in result if t.pattern_name == "TREND")
+        assert "sub_pattern" not in trend.context
+
+    def test_no_hierarchy_for_unrelated_tags(self):
+        tags = [
+            PatternResult("SCALP", 1.0, {}),
+            PatternResult("SWING", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        assert all("sub_pattern" not in t.context for t in result)
+
+    def test_multiple_trend_tags_all_get_sub_pattern(self):
+        """If multiple positions have TREND, all should get sub_pattern."""
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("BREAKOUT", 0.7, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        for t in result:
+            if t.pattern_name == "TREND":
+                assert t.context.get("sub_pattern") == "BREAKOUT"
+
+    def test_double_hierarchy(self):
+        """TREND+COUNTER_TREND both get their sub_patterns independently."""
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("COUNTER_TREND", 0.7, {}),
+            PatternResult("BREAKOUT", 0.7, {}),
+            PatternResult("BOTTOM", 0.7, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        for t in result:
+            if t.pattern_name == "TREND":
+                assert t.context.get("sub_pattern") == "BREAKOUT"
+            if t.pattern_name == "COUNTER_TREND":
+                assert t.context.get("sub_pattern") == "BOTTOM"

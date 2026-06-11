@@ -485,6 +485,41 @@ class PatternEngine:
 
         return tags
 
+    # ------------------------------------------------------------------
+    # Phase 4 — Tag hierarchy resolution (L1 -> L2 sub_pattern)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def resolve_hierarchy(tags: list[PatternResult]) -> list[PatternResult]:
+        """Post-process tags to establish L1->L2 hierarchy via context.sub_pattern.
+
+        L1 trend/counter-trend tags get a sub_pattern:
+          TREND + BREAKOUT -> TREND.sub_pattern = BREAKOUT
+          TREND + CHASE    -> TREND.sub_pattern = CHASE
+          COUNTER_TREND + BOTTOM -> COUNTER_TREND.sub_pattern = BOTTOM
+          COUNTER_TREND + BREAKDOWN -> COUNTER_TREND.sub_pattern = BREAKDOWN
+        """
+        trend_tags = {t.pattern_name for t in tags}
+
+        if "TREND" in trend_tags and "BREAKOUT" in trend_tags:
+            for t in tags:
+                if t.pattern_name == "TREND":
+                    t.context["sub_pattern"] = "BREAKOUT"
+        elif "TREND" in trend_tags and "CHASE" in trend_tags:
+            for t in tags:
+                if t.pattern_name == "TREND":
+                    t.context["sub_pattern"] = "CHASE"
+        if "COUNTER_TREND" in trend_tags and "BOTTOM" in trend_tags:
+            for t in tags:
+                if t.pattern_name == "COUNTER_TREND":
+                    t.context["sub_pattern"] = "BOTTOM"
+        elif "COUNTER_TREND" in trend_tags and "BREAKDOWN" in trend_tags:
+            for t in tags:
+                if t.pattern_name == "COUNTER_TREND":
+                    t.context["sub_pattern"] = "BREAKDOWN"
+
+        return tags
+
 
 # -- helpers ----------------------------------------------------------------
 

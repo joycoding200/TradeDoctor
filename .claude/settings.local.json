@@ -99,7 +99,10 @@
       "Bash(git stash *)",
       "Bash(cd D:\\\\\\\\Dev\\\\\\\\Projects\\\\\\\\TradingJournalAnalyzer\\\\\\\\backend)",
       "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py -v --tb=line)",
-      "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py -v --tb=short)"
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py -v --tb=short)",
+      "Bash(python3 *)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py::TestResolveHierarchy tests/test_engine/test_whatif.py::TestWhatIfAnalyzeReplace tests/test_engine/test_whatif.py::TestWhatIfAnalyzeRule tests/test_engine/test_market_data.py -v)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py::TestResolveHierarchy tests/test_engine/test_whatif.py::TestWhatIfAnalyzeReplace tests/test_engine/test_whatif.py::TestWhatIfAnalyzeRule -v)"
     ]
   }
 }
