@@ -1,4 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { patternLabel } from "../constants/patterns";
 
 interface PatternData {
   pattern_name: string;
@@ -13,13 +14,6 @@ interface PatternChartProps {
   data: PatternData[];
 }
 
-const PATTERN_LABELS: Record<string, string> = {
-  CHASE: "追涨", BOTTOM: "抄底", BREAKOUT: "突破", TREND: "趋势",
-  COUNTER_TREND: "逆势", BREAKDOWN: "破位", SCALP: "短线", SWING: "波段",
-  POSITION: "长持", PYRAMID: "加仓", AVERAGE_DOWN: "补仓", TURN: "做T",
-  STOP_LOSS: "止损", TAKE_PROFIT: "止盈", CASH: "空仓",
-};
-
 export default function PatternChart({ data }: PatternChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -30,7 +24,7 @@ export default function PatternChart({ data }: PatternChartProps) {
   }
 
   const chartData = data.map((d) => ({
-    name: PATTERN_LABELS[d.pattern_name] || d.pattern_name,
+    name: patternLabel(d.pattern_name),
     winRate: +(d.win_rate * 100).toFixed(1),
     count: d.count,
     isPositive: d.total_pnl > 0,

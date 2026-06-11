@@ -79,7 +79,10 @@
       "Bash(pip install *)",
       "Bash(git remote *)",
       "Bash(git push *)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(npx tsc *)",
+      "Bash(.venv/Scripts/python -c \"from app.engine.pattern_config import PATTERNS, LABEL_MAP; print\\(f'{len\\(PATTERNS\\)} patterns loaded'\\); print\\(LABEL_MAP\\)\")",
+      "Bash(.venv/Scripts/python -m pytest tests/test_api/test_analysis.py::TestAnalysisStats::test_stats_returns_kpis -v --tb=short)"
     ]
   }
 }

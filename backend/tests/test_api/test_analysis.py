@@ -93,7 +93,7 @@ class TestAnalysisStats(_BaseAnalysisTest):
         assert data["total_trades"] == 4
         assert data["total_positions"] == 2
         assert data["win_count"] == 1
-        assert data["win_rate"] == 50.0
+        assert data["win_rate"] == 0.5
         assert data["total_pnl"] == -500.0  # 500 - 1000
         assert data["avg_holding_days"] == 4.5
         assert data["max_win"] == 500.0

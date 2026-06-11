@@ -4,19 +4,9 @@ import { useStats, useInsight, useWhatIf, useRunAnalysis, useGenerateReport } fr
 import StatsCards from "../components/StatsCards";
 import PatternChart from "../components/PatternChart";
 import WhatIfChart from "../components/WhatIfChart";
+import { patternLabel } from "../constants/patterns";
 
 type Tab = "stats" | "insight" | "whatif";
-
-const PATTERN_LABELS: Record<string, string> = {
-  CHASE: "追涨", BOTTOM: "抄底", BREAKOUT: "突破", TREND: "趋势",
-  COUNTER_TREND: "逆势", BREAKDOWN: "破位", SCALP: "短线", SWING: "波段",
-  POSITION: "长持", PYRAMID: "加仓", AVERAGE_DOWN: "补仓", TURN: "做T",
-  STOP_LOSS: "止损", TAKE_PROFIT: "止盈", CASH: "空仓",
-};
-
-function patternLabel(name: string): string {
-  return PATTERN_LABELS[name] || name;
-}
 
 export default function Analysis() {
   const { id } = useParams<{ id: string }>();

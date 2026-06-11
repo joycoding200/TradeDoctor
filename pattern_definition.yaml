@@ -1,0 +1,163 @@
+# TradingJournalAnalyzer — 行为标签统一定义
+# 这是前后端共享的单一真相来源，新增/修改标签只需改此文件
+# 文件位置: <project_root>/pattern_definition.yaml
+
+patterns:
+  # ============================================================
+  # 模块一：入场行为（依赖 a-stock-data 行情数据）
+  # ============================================================
+  - name: CHASE
+    label: 追涨
+    module: entry
+    market_dependent: true
+    confidence: 0.7
+    rule:
+      summary: 买入前 5 天涨幅 > 15%
+      detail: entry_close vs 5d_ago_close → change > +15%
+    description: 追涨买入，买入时股价已连续大幅上涨
+
+  - name: BOTTOM
+    label: 抄底
+    module: entry
+    market_dependent: true
+    confidence: 0.7
+    rule:
+      summary: 买入前 5 天跌幅 > 15%
+      detail: entry_close vs 5d_ago_close → change < -15%
+    description: 抄底买入，买入时股价已连续大幅下跌
+
+  - name: BREAKOUT
+    label: 突破
+    module: entry
+    market_dependent: true
+    confidence: 0.7
+    rule:
+      summary: 买入日价格创 20 日新高
+      detail: entry_close > max(prev_20d_high)
+    description: 突破买入，价格突破近期高点
+
+  - name: TREND
+    label: 趋势
+    module: entry
+    market_dependent: true
+    confidence: 0.7
+    rule:
+      summary: 买入时 20MA > 60MA
+      detail: ma20 > ma60 at entry date
+    description: 顺势交易，在均线多头排列时入场
+
+  - name: COUNTER_TREND
+    label: 逆势
+    module: entry
+    market_dependent: true
+    confidence: 0.7
+    rule:
+      summary: 买入时 20MA < 60MA
+      detail: ma20 < ma60 at entry date
+    description: 逆势交易，在均线空头排列时入场
+
+  - name: BREAKDOWN
+    label: 破位
+    module: entry
+    market_dependent: true
+    confidence: 0.7
+    rule:
+      summary: 卖出日价格创 20 日新低
+      detail: exit_close < min(prev_20d_low)
+    description: 破位离场，价格跌破近期低点时卖出
+
+  # ============================================================
+  # 模块二：持仓周期（不依赖行情数据）
+  # ============================================================
+  - name: SCALP
+    label: 短线
+    module: holding
+    market_dependent: false
+    confidence: 1.0
+    rule:
+      summary: 持仓 < 3 天
+      detail: holding_days < 3
+    description: 短线交易，持仓时间极短
+
+  - name: SWING
+    label: 波段
+    module: holding
+    market_dependent: false
+    confidence: 1.0
+    rule:
+      summary: 持仓 3 ~ 30 天
+      detail: 3 <= holding_days <= 30
+    description: 波段交易，持仓数天至数周
+
+  - name: POSITION
+    label: 长持
+    module: holding
+    market_dependent: false
+    confidence: 1.0
+    rule:
+      summary: 持仓 > 30 天
+      detail: holding_days > 30
+    description: 长期持有，持仓超过一个月
+
+  # ============================================================
+  # 模块三：仓位与风控行为（不依赖行情数据）
+  # ============================================================
+  - name: PYRAMID
+    label: 加仓
+    module: risk
+    market_dependent: false
+    confidence: 0.8
+    rule:
+      summary: 同一 symbol 盈利状态下继续买入
+      detail: same symbol & same entry_date & avg_entry_price > first_entry_avg
+    description: 金字塔加仓，在盈利头寸上追加仓位
+
+  - name: AVERAGE_DOWN
+    label: 补仓
+    module: risk
+    market_dependent: false
+    confidence: 0.8
+    rule:
+      summary: 同一 symbol 亏损状态下继续买入
+      detail: same symbol & same entry_date & pnl_pct < 0
+    description: 摊薄成本，在亏损头寸上追加仓位
+
+  - name: TURN
+    label: 做T
+    module: risk
+    market_dependent: false
+    confidence: 0.7
+    rule:
+      summary: 同一 symbol 当日有买有卖
+      detail: entry_date == exit_date
+    description: 日内回转交易，同一天完成买卖
+
+  - name: STOP_LOSS
+    label: 止损
+    module: risk
+    market_dependent: false
+    confidence: 0.6
+    rule:
+      summary: 持仓亏损后主动卖出离场
+      detail: pnl_pct < 0
+    description: 止损离场，亏损时卖出
+
+  - name: TAKE_PROFIT
+    label: 止盈
+    module: risk
+    market_dependent: false
+    confidence: 0.6
+    rule:
+      summary: 持仓盈利后主动卖出离场
+      detail: pnl_pct > 0
+    description: 止盈离场，盈利时卖出
+
+  - name: CASH
+    label: 空仓
+    module: risk
+    market_dependent: false
+    confidence: 0.5
+    rule:
+      summary: 距上一笔交易结束 > 30 天，或为分析期内首笔交易
+      detail: gap_since_last_exit > 30 days OR first_position_in_period
+    description: 空仓观望，较长时间未进行交易
