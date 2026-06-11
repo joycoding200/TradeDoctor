@@ -26,6 +26,26 @@ export default function FormatSelector({ formats, onConfirm, loading }: FormatSe
   const best = formats[0];
   const autoConfirm = best && best.score >= 0.7;
 
+  if (formats.length === 0) {
+    return (
+      <div style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px" }} className="p-6 text-center">
+        <div className="text-3xl mb-3">⚠️</div>
+        <p className="font-medium mb-2">无法识别文件格式</p>
+        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+          当前支持以下格式，请确保文件列名匹配：
+        </p>
+        <div className="text-sm text-left inline-block" style={{ color: "var(--text-secondary)", lineHeight: 2 }}>
+          {Object.entries(SOURCE_LABELS).map(([key, label]) => (
+            <div key={key}>• {label}</div>
+          ))}
+        </div>
+        <p className="text-xs mt-4" style={{ color: "var(--text-secondary)" }}>
+          也可提供标准 CSV（列名：委托时间, 证券代码, 买卖方向, 成交价格, 成交数量）
+        </p>
+      </div>
+    );
+  }
+
   if (autoConfirm) {
     const label = SOURCE_LABELS[best.source_type] || best.source_type.toUpperCase();
     return (
