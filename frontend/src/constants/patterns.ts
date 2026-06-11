@@ -20,8 +20,9 @@ export const PATTERN_LABELS: Record<string, string> = {
   AVERAGE_DOWN: "补仓",
   TURN: "做T",
   STOP_LOSS: "止损",
-  TAKE_PROFIT: "止盈",
-  CASH: "空仓",
+  QUICK_PROFIT: "短线止盈",
+  NORMAL_PROFIT: "正常止盈",
+  BIG_WIN: "大赚",
 };
 
 export const PATTERN_MODULES: Record<string, string> = {
@@ -29,7 +30,8 @@ export const PATTERN_MODULES: Record<string, string> = {
   TREND: "entry", COUNTER_TREND: "entry", BREAKDOWN: "entry",
   SCALP: "holding", SWING: "holding", POSITION: "holding",
   PYRAMID: "risk", AVERAGE_DOWN: "risk", TURN: "risk",
-  STOP_LOSS: "risk", TAKE_PROFIT: "risk", CASH: "risk",
+  STOP_LOSS: "risk", QUICK_PROFIT: "risk", NORMAL_PROFIT: "risk",
+  BIG_WIN: "risk",
 };
 
 export function patternLabel(name: string): string {

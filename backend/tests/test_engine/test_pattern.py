@@ -24,6 +24,14 @@ class _Position:
     trade_ids: list[str] = field(default_factory=lambda: ["t1", "t2"])
 
 
+@dataclass
+class _Trade:
+    """Minimal trade-like object for testing TURN detection."""
+    symbol: str = "000001"
+    side: str = "BUY"
+    date: date = date(2024, 1, 2)
+
+
 def make_pos(
     holding_days: int = 8,
     pnl_pct: float = 0.1,
@@ -125,8 +133,14 @@ class TestPositionTag:
 
 
 class TestStopLossTag:
-    def test_negative_pnl(self):
-        pos = make_pos(pnl_pct=-0.05)
+    def test_small_loss_within_stop(self):
+        """Loss within -8% and held <= 10 days is a stop loss."""
+        pos = make_pos(pnl_pct=-0.05, holding_days=5)
+        assert "STOP_LOSS" in tag_names(pos)
+
+    def test_at_boundary_minus_eight(self):
+        """Loss at exactly -8% boundary still qualifies."""
+        pos = make_pos(pnl_pct=-0.08, holding_days=3)
         assert "STOP_LOSS" in tag_names(pos)
 
     def test_confidence_point_six(self):
@@ -140,28 +154,100 @@ class TestStopLossTag:
         pos = make_pos(pnl_pct=0.1)
         assert "STOP_LOSS" not in tag_names(pos)
 
+    def test_not_tagged_when_loss_exceeds_eight_percent(self):
+        """Loss > 8% (e.g. bagholding) should NOT be tagged as disciplined stop."""
+        pos = make_pos(pnl_pct=-0.09, holding_days=5)
+        assert "STOP_LOSS" not in tag_names(pos)
+
+    def test_not_tagged_when_held_too_long(self):
+        """Loss held > 10 days should NOT be tagged as stop loss."""
+        pos = make_pos(pnl_pct=-0.05, holding_days=11)
+        assert "STOP_LOSS" not in tag_names(pos)
+
 
 class TestTakeProfitTag:
-    def test_positive_pnl(self):
-        pos = make_pos(pnl_pct=0.1)
-        assert "TAKE_PROFIT" in tag_names(pos)
+    def test_quick_profit(self):
+        """Small profit < 5% held < 5 days is QUICK_PROFIT."""
+        pos = make_pos(pnl_pct=0.03, holding_days=2)
+        tags = tag_names(pos)
+        assert "QUICK_PROFIT" in tags
+        assert "NORMAL_PROFIT" not in tags
+        assert "BIG_WIN" not in tags
 
-    def test_confidence_point_six(self):
-        pos = make_pos(pnl_pct=0.1)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "TAKE_PROFIT":
-                assert r.confidence == 0.6
+    def test_normal_profit(self):
+        """Profit between 5% and 20% is NORMAL_PROFIT."""
+        pos = make_pos(pnl_pct=0.10, holding_days=8)
+        tags = tag_names(pos)
+        assert "NORMAL_PROFIT" in tags
+        assert "QUICK_PROFIT" not in tags
+        assert "BIG_WIN" not in tags
+
+    def test_normal_profit_boundary_lower(self):
+        """Profit at exactly 5% qualifies as NORMAL_PROFIT."""
+        pos = make_pos(pnl_pct=0.05, holding_days=5)
+        tags = tag_names(pos)
+        assert "NORMAL_PROFIT" in tags
+        assert "QUICK_PROFIT" not in tags
+
+    def test_normal_profit_boundary_upper(self):
+        """Profit at exactly 20% qualifies as NORMAL_PROFIT."""
+        pos = make_pos(pnl_pct=0.20, holding_days=8)
+        tags = tag_names(pos)
+        assert "NORMAL_PROFIT" in tags
+        assert "BIG_WIN" not in tags
+
+    def test_big_win(self):
+        """Profit > 20% is BIG_WIN."""
+        pos = make_pos(pnl_pct=0.25, holding_days=10)
+        tags = tag_names(pos)
+        assert "BIG_WIN" in tags
+        assert "NORMAL_PROFIT" not in tags
+        assert "QUICK_PROFIT" not in tags
 
     def test_not_tagged_when_losing(self):
         pos = make_pos(pnl_pct=-0.05)
-        assert "TAKE_PROFIT" not in tag_names(pos)
+        tags = tag_names(pos)
+        assert "QUICK_PROFIT" not in tags
+        assert "NORMAL_PROFIT" not in tags
+        assert "BIG_WIN" not in tags
+
+    def test_quick_profit_confidence(self):
+        pos = make_pos(pnl_pct=0.03, holding_days=2)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "QUICK_PROFIT":
+                assert r.confidence == 0.6
+
+    def test_normal_profit_confidence(self):
+        pos = make_pos(pnl_pct=0.10)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "NORMAL_PROFIT":
+                assert r.confidence == 0.6
+
+    def test_big_win_confidence(self):
+        pos = make_pos(pnl_pct=0.25)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "BIG_WIN":
+                assert r.confidence == 0.6
 
 
 class TestTurnTag:
-    def test_same_day_entry_exit(self):
-        pos = make_pos(holding_days=0, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 2))
-        assert "TURN" in tag_names(pos)
+    def test_same_day_entry_exit_fallback(self):
+        """Same-day entry/exit with multiple sibling positions gets TURN (fallback)."""
+        d = date(2024, 1, 2)
+        p1 = make_pos(holding_days=0, entry_date=d, exit_date=d, pnl_pct=0.01)
+        p2 = make_pos(holding_days=0, entry_date=d, exit_date=d, pnl_pct=0.02)
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "TURN" in tags
+
+    def test_same_day_single_position_no_turn_fallback(self):
+        """Single same-day position without trades param should NOT get TURN (needs same_ep > 1)."""
+        d = date(2024, 1, 2)
+        pos = make_pos(holding_days=0, entry_date=d, exit_date=d)
+        tags = tag_names(pos, all_positions=[pos])
+        assert "TURN" not in tags
 
     def test_not_tagged_for_multi_day(self):
         pos = make_pos(holding_days=5)
@@ -169,23 +255,52 @@ class TestTurnTag:
 
     def test_confidence_point_seven(self):
         d = date(2024, 1, 2)
-        pos = make_pos(holding_days=0, entry_date=d, exit_date=d)
-        results = PatternEngine.tag_position(pos, [pos])
+        p1 = make_pos(holding_days=0, entry_date=d, exit_date=d, pnl_pct=0.01)
+        p2 = make_pos(holding_days=0, entry_date=d, exit_date=d, pnl_pct=0.02)
+        results = PatternEngine.tag_position(p2, [p1, p2])
         for r in results:
             if r.pattern_name == "TURN":
                 assert r.confidence == 0.7
 
+    def test_trades_with_both_sides_gets_turn(self):
+        """Trades with same symbol and date having both BUY/SELL gets TURN."""
+        d = date(2024, 1, 2)
+        pos = make_pos(holding_days=5, entry_date=d, exit_date=date(2024, 1, 7))
+        trades = [
+            _Trade(symbol="000001", side="BUY", date=d),
+            _Trade(symbol="000001", side="SELL", date=d),
+        ]
+        tags = tag_names(pos, all_positions=[pos], trades=trades)
+        assert "TURN" in tags
+
+    def test_trades_no_opposite_side_no_turn(self):
+        """Trades with only BUY side should NOT get TURN."""
+        d = date(2024, 1, 2)
+        pos = make_pos(holding_days=5, entry_date=d, exit_date=date(2024, 1, 7))
+        trades = [
+            _Trade(symbol="000001", side="BUY", date=d),
+        ]
+        tags = tag_names(pos, all_positions=[pos], trades=trades)
+        assert "TURN" not in tags
+
 
 class TestPyramidTag:
-    def test_multiple_entries_higher_avg(self):
-        """Second position with higher avg_entry than first gets PYRAMID."""
+    def test_position_with_profit_gets_pyramid(self):
+        """Position in profit (pnl_pct >= 0) on a multi-entry day gets PYRAMID."""
         d = date(2024, 1, 2)
         p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
         p2 = make_pos(holding_days=6, pnl_pct=0.15, entry_date=d, exit_date=date(2024, 1, 8))
-        # give p2 a higher avg_entry
-        p2.avg_entry_price = 10.5
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "PYRAMID" in tags
+
+    def test_losing_position_no_pyramid(self):
+        """Position in loss (pnl_pct < 0) should NOT get PYRAMID even with higher avg_entry."""
+        d = date(2024, 1, 2)
+        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
+        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
+        p2.avg_entry_price = 10.5
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "PYRAMID" not in tags
 
     def test_single_position_no_pyramid(self):
         pos = make_pos()
@@ -195,7 +310,6 @@ class TestPyramidTag:
         d = date(2024, 1, 2)
         p1 = make_pos(holding_days=3, entry_date=d, exit_date=date(2024, 1, 5))
         p2 = make_pos(holding_days=6, entry_date=d, exit_date=date(2024, 1, 8), pnl_pct=0.15)
-        p2.avg_entry_price = 10.5
         results = PatternEngine.tag_position(p2, [p1, p2])
         for r in results:
             if r.pattern_name == "PYRAMID":
@@ -204,12 +318,21 @@ class TestPyramidTag:
 
 class TestAverageDownTag:
     def test_multiple_entries_with_loss(self):
-        """Position with same symbol/entry_date and negative pnl gets AVERAGE_DOWN."""
+        """Position with same symbol/entry_date, lower avg_entry, and negative pnl gets AVERAGE_DOWN."""
+        d = date(2024, 1, 2)
+        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
+        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
+        p2.avg_entry_price = 9.5  # lower than first position's 10.0
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "AVERAGE_DOWN" in tags
+
+    def test_loss_without_lower_avg_not_average_down(self):
+        """Losing position but avg_entry >= first_entry_avg should NOT get AVERAGE_DOWN."""
         d = date(2024, 1, 2)
         p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
         p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
         tags = tag_names(p2, all_positions=[p1, p2])
-        assert "AVERAGE_DOWN" in tags
+        assert "AVERAGE_DOWN" not in tags
 
     def test_not_tagged_when_profitable(self):
         d = date(2024, 1, 2)
@@ -221,6 +344,7 @@ class TestAverageDownTag:
         d = date(2024, 1, 2)
         p1 = make_pos(holding_days=3, entry_date=d, exit_date=date(2024, 1, 5))
         p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
+        p2.avg_entry_price = 9.5
         results = PatternEngine.tag_position(p2, [p1, p2])
         for r in results:
             if r.pattern_name == "AVERAGE_DOWN":
@@ -230,19 +354,31 @@ class TestAverageDownTag:
 class TestCashTag:
     def test_first_position_in_period(self):
         pos = make_pos()
-        assert "CASH" in tag_names(pos, all_positions=[pos])
+        results = PatternEngine.detect_cooldowns(pos, [pos])
+        names = {r.pattern_name for r in results}
+        assert "CASH" in names
 
     def test_gap_over_30_days(self):
         p1 = make_pos(holding_days=5, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7))
         p2 = make_pos(holding_days=5, entry_date=date(2024, 2, 10), exit_date=date(2024, 2, 15))
         # gap = (2024-02-10) - (2024-01-07) = 34 days > 30
-        assert "CASH" in tag_names(p2, all_positions=[p1, p2])
+        results = PatternEngine.detect_cooldowns(p2, [p1, p2])
+        names = {r.pattern_name for r in results}
+        assert "CASH" in names
 
     def test_no_gap_no_cash(self):
         p1 = make_pos(holding_days=5, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7))
         p2 = make_pos(holding_days=5, entry_date=date(2024, 1, 10), exit_date=date(2024, 1, 15))
         # gap = (2024-01-10) - (2024-01-07) = 3 days <= 30
-        assert "CASH" not in tag_names(p2, all_positions=[p1, p2])
+        results = PatternEngine.detect_cooldowns(p2, [p1, p2])
+        names = {r.pattern_name for r in results}
+        assert "CASH" not in names
+
+    def test_not_emitted_from_tag_position(self):
+        """CASH should NOT appear in tag_position() output."""
+        pos = make_pos()
+        tags = PatternEngine.tag_position(pos, [pos])
+        assert "CASH" not in {t.pattern_name for t in tags}
 
 
 # ============================================================================
@@ -463,10 +599,23 @@ class TestNoMarketData:
 
 class TestTagCoexistence:
     def test_scalp_and_turn_can_coexist(self):
-        """A same-day trade can be both SCALP and TURN."""
+        """A same-day trade with multiple siblings can be both SCALP and TURN."""
+        d = date(2024, 1, 2)
+        p1 = make_pos(holding_days=0, entry_date=d, exit_date=d, pnl_pct=0.01)
+        p2 = make_pos(holding_days=0, entry_date=d, exit_date=d, pnl_pct=0.02)
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "SCALP" in tags
+        assert "TURN" in tags
+
+    def test_scalp_and_turn_via_trades(self):
+        """A trade can be SCALP and TURN via trades parameter even with single position."""
         d = date(2024, 1, 2)
         pos = make_pos(holding_days=0, entry_date=d, exit_date=d)
-        tags = tag_names(pos, all_positions=[pos])
+        trades = [
+            _Trade(symbol="000001", side="BUY", date=d),
+            _Trade(symbol="000001", side="SELL", date=d),
+        ]
+        tags = tag_names(pos, all_positions=[pos], trades=trades)
         assert "SCALP" in tags
         assert "TURN" in tags
 
@@ -475,6 +624,7 @@ class TestTagCoexistence:
         d = date(2024, 1, 2)
         p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
         p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
+        p2.avg_entry_price = 9.5  # lower than first position's 10.0
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" in tags
         assert "STOP_LOSS" in tags

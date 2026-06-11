@@ -5,9 +5,9 @@ import pytest
 QMT_CSV = (
     "委托时间,证券代码,证券名称,买卖方向,成交价格,成交数量,手续费\n"
     "2024-01-05 09:30:00,000001,平安银行,买入,10.50,1000,5.00\n"
-    "2024-01-10 14:00:00,000001,平安银行,卖出,11.00,1000,5.00\n"
+    "2024-01-08 14:00:00,000001,平安银行,卖出,11.00,1000,5.00\n"
     "2024-02-01 09:30:00,600001,包钢股份,买入,5.00,2000,3.00\n"
-    "2024-02-05 14:00:00,600001,包钢股份,卖出,4.50,2000,3.00"
+    "2024-02-05 14:00:00,600001,包钢股份,卖出,4.65,2000,3.00"
 )
 
 TEST_EMAIL = "analysis_api_test@test.com"
@@ -94,10 +94,10 @@ class TestAnalysisStats(_BaseAnalysisTest):
         assert data["total_positions"] == 2
         assert data["win_count"] == 1
         assert data["win_rate"] == 0.5
-        assert data["total_pnl"] == -500.0  # 500 - 1000
-        assert data["avg_holding_days"] == 4.5
+        assert data["total_pnl"] == -200.0  # 500 - 700
+        assert data["avg_holding_days"] == 3.5
         assert data["max_win"] == 500.0
-        assert data["max_loss"] == -1000.0
+        assert data["max_loss"] == -700.0
         assert data["consecutive_losses"] == 1
         assert len(data["positions"]) == 2
 
@@ -149,7 +149,7 @@ class TestAnalysisInsight(_BaseAnalysisTest):
         pattern_names = {p["pattern_name"] for p in data["patterns"]}
         assert "SWING" in pattern_names
         assert data["best_pattern"] is not None
-        # Each position gets multiple pattern tags (SWING, TAKE_PROFIT/STOP_LOSS, CASH)
+        # Each position gets multiple pattern tags (SWING, profit-tags/STOP_LOSS, CASH)
         total_count = sum(p["count"] for p in data["patterns"])
         assert total_count > 0
 

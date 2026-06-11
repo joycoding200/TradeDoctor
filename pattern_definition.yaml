@@ -108,8 +108,8 @@ patterns:
     market_dependent: false
     confidence: 0.8
     rule:
-      summary: 同一 symbol 盈利状态下继续买入
-      detail: same symbol & same entry_date & avg_entry_price > first_entry_avg
+      summary: 同一 symbol 在盈利状态下继续买入
+      detail: same symbol & same entry_date & pnl_pct >= 0
     description: 金字塔加仓，在盈利头寸上追加仓位
 
   - name: AVERAGE_DOWN
@@ -118,8 +118,8 @@ patterns:
     market_dependent: false
     confidence: 0.8
     rule:
-      summary: 同一 symbol 亏损状态下继续买入
-      detail: same symbol & same entry_date & pnl_pct < 0
+      summary: 同一 symbol 以更低价格买入但仍亏损
+      detail: same symbol & same entry_date & avg_entry_price < first_entry_avg & pnl_pct < 0
     description: 摊薄成本，在亏损头寸上追加仓位
 
   - name: TURN
@@ -128,9 +128,9 @@ patterns:
     market_dependent: false
     confidence: 0.7
     rule:
-      summary: 同一 symbol 当日有买有卖
-      detail: entry_date == exit_date
-    description: 日内回转交易，同一天完成买卖
+      summary: 同一 symbol 当日内既有买入也有卖出
+      detail: raw trades show same-symbol same-date BUY and SELL, or entry_date == exit_date with sibling positions
+    description: 日内回转交易，先买后卖或先卖后买
 
   - name: STOP_LOSS
     label: 止损
@@ -138,26 +138,36 @@ patterns:
     market_dependent: false
     confidence: 0.6
     rule:
-      summary: 持仓亏损后主动卖出离场
-      detail: pnl_pct < 0
-    description: 止损离场，亏损时卖出
+      summary: 跌幅 8% 以内且 10 天内卖出
+      detail: -0.08 <= pnl_pct < 0 AND holding_days <= 10
+    description: 止损离场，亏损达到预定额度时卖出
 
-  - name: TAKE_PROFIT
-    label: 止盈
+  - name: QUICK_PROFIT
+    label: 短线止盈
     module: risk
     market_dependent: false
     confidence: 0.6
     rule:
-      summary: 持仓盈利后主动卖出离场
-      detail: pnl_pct > 0
-    description: 止盈离场，盈利时卖出
+      summary: 小盈利 < 5% 且持仓 < 5 天
+      detail: 0 < pnl_pct < 0.05 AND holding_days < 5
+    description: 快速止盈，小幅盈利后迅速离场
 
-  - name: CASH
-    label: 空仓
+  - name: NORMAL_PROFIT
+    label: 正常止盈
     module: risk
     market_dependent: false
-    confidence: 0.5
+    confidence: 0.6
     rule:
-      summary: 距上一笔交易结束 > 30 天，或为分析期内首笔交易
-      detail: gap_since_last_exit > 30 days OR first_position_in_period
-    description: 空仓观望，较长时间未进行交易
+      summary: 盈利 5% ~ 20%
+      detail: 0.05 <= pnl_pct <= 0.20
+    description: 正常止盈，达到预期盈利目标后离场
+
+  - name: BIG_WIN
+    label: 大赚
+    module: risk
+    market_dependent: false
+    confidence: 0.6
+    rule:
+      summary: 盈利 > 20%
+      detail: pnl_pct > 0.20
+    description: 大幅盈利，收益率超过 20%

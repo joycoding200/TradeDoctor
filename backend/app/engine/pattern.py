@@ -80,7 +80,7 @@ class PatternEngine:
         if len(same_ep) > 1:
             same_ep_sorted = sorted(same_ep, key=lambda p: p.exit_date)
             first_avg = same_ep_sorted[0].avg_entry_price
-            if pos.avg_entry_price > first_avg:
+            if pos.pnl_pct >= 0:
                 tags.append(
                     PatternResult(
                         "PYRAMID",
@@ -88,20 +88,48 @@ class PatternEngine:
                         {
                             "avg_entry": pos.avg_entry_price,
                             "first_entry_avg": first_avg,
+                            "pnl_pct": pos.pnl_pct,
                         },
                     )
                 )
-            if pos.pnl_pct < 0:
+            if pos.avg_entry_price < first_avg and pos.pnl_pct < 0:
                 tags.append(
                     PatternResult(
                         "AVERAGE_DOWN",
                         0.8,
-                        {"pnl_pct": pos.pnl_pct},
+                        {
+                            "avg_entry": pos.avg_entry_price,
+                            "first_entry_avg": first_avg,
+                            "pnl_pct": pos.pnl_pct,
+                        },
                     )
                 )
 
-        # TURN -- intraday round trip
-        if pos.entry_date == pos.exit_date:
+        # TURN -- intraday round trip (做T)
+        trades = kwargs.get("trades")
+        if trades is not None:
+            # Check raw trades for same-symbol same-date opposite-side pairs
+            same_symbol_trades = [t for t in trades if t.symbol == pos.symbol]
+            dates_with_both: set = set()
+            buy_dates: set = set()
+            sell_dates: set = set()
+            for t in same_symbol_trades:
+                if t.side.upper() == "BUY":
+                    buy_dates.add(t.date)
+                elif t.side.upper() == "SELL":
+                    sell_dates.add(t.date)
+            dates_with_both = buy_dates & sell_dates
+            if dates_with_both:
+                tags.append(
+                    PatternResult(
+                        "TURN",
+                        0.7,
+                        {
+                            "turn_dates": sorted(str(d) for d in dates_with_both),
+                        },
+                    )
+                )
+        elif pos.entry_date == pos.exit_date and len(same_ep) > 1:
             tags.append(
                 PatternResult(
                     "TURN",
@@ -111,27 +139,67 @@ class PatternEngine:
             )
 
         # STOP_LOSS / TAKE_PROFIT
-        if pos.pnl_pct < 0:
+        if -0.08 <= pos.pnl_pct < 0 and pos.holding_days <= 10:
             tags.append(
                 PatternResult(
                     "STOP_LOSS",
                     0.6,
-                    {"pnl_pct": pos.pnl_pct},
+                    {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
                 )
             )
         if pos.pnl_pct > 0:
-            tags.append(
-                PatternResult(
-                    "TAKE_PROFIT",
-                    0.6,
-                    {"pnl_pct": pos.pnl_pct},
+            if pos.pnl_pct < 0.05 and pos.holding_days < 5:
+                tags.append(
+                    PatternResult(
+                        "QUICK_PROFIT",
+                        0.6,
+                        {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
+                    )
                 )
-            )
+            if 0.05 <= pos.pnl_pct <= 0.20:
+                tags.append(
+                    PatternResult(
+                        "NORMAL_PROFIT",
+                        0.6,
+                        {"pnl_pct": pos.pnl_pct},
+                    )
+                )
+            if pos.pnl_pct > 0.20:
+                tags.append(
+                    PatternResult(
+                        "BIG_WIN",
+                        0.6,
+                        {"pnl_pct": pos.pnl_pct},
+                    )
+                )
 
-        # CASH -- gap since last position > 30 calendar days
+        return tags
+
+    # ------------------------------------------------------------------
+    # Cooldown detection (separate from tag_position -- CASH is not a trade behavior)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def detect_cooldowns(
+        pos, all_positions: list
+    ) -> list[PatternResult]:
+        """Detect cooldown periods between positions.
+
+        A 'CASH' tag is emitted when the gap since the last position
+        exceeds 30 calendar days, or when this is the first position
+        in the analysis period.
+
+        Args:
+            pos: A position-like object with entry_date.
+            all_positions: All positions in the analysis period.
+
+        Returns:
+            List of PatternResult instances (may include CASH).
+        """
+        results: list[PatternResult] = []
         earlier = [p for p in all_positions if p.exit_date < pos.entry_date]
         if not earlier:
-            tags.append(
+            results.append(
                 PatternResult(
                     "CASH", 0.5, {"reason": "first position in period"}
                 )
@@ -140,7 +208,7 @@ class PatternEngine:
             last_exit = max(p.exit_date for p in earlier)
             gap = (pos.entry_date - last_exit).days
             if gap > 30:
-                tags.append(
+                results.append(
                     PatternResult(
                         "CASH",
                         0.5,
@@ -150,8 +218,7 @@ class PatternEngine:
                         },
                     )
                 )
-
-        return tags
+        return results
 
     # ------------------------------------------------------------------
     # Module 1 -- requires market-data dictionary
