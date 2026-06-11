@@ -1,8 +1,8 @@
-"""Tests for BehaviorImpactAnalysis -- counterfactual backtest simulation."""
+"""Tests for ProfitAttribution -- counterfactual backtest simulation."""
 from dataclasses import dataclass, field
 from datetime import date
 
-from app.engine.whatif import BehaviorImpactAnalysis
+from app.engine.whatif import ProfitAttribution, AttributionItem
 
 
 # -- helpers ----------------------------------------------------------------
@@ -22,6 +22,7 @@ class _Position:
     pnl: float = 0.0
     pnl_pct: float = 0.0
     trade_ids: list[str] = field(default_factory=lambda: ["t1"])
+    cost_known: bool = True
 
 
 def make_pos(
@@ -46,7 +47,7 @@ def make_pos(
 # ============================================================================
 
 
-class TestBehaviorImpactAnalysisBasic:
+class TestProfitAttributionBasic:
     """Basic what-if scenarios."""
 
     def test_returns_one_item_per_pattern(self):
@@ -55,7 +56,7 @@ class TestBehaviorImpactAnalysisBasic:
             make_pos(pnl=-50.0),
         ]
         patterns_map = {0: ["SWING"], 1: ["SCALP"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
         assert len(results) == 2
         assert {r.removed_pattern for r in results} == {"SWING", "SCALP"}
 
@@ -65,7 +66,7 @@ class TestBehaviorImpactAnalysisBasic:
             make_pos(pnl=-50.0),
         ]
         patterns_map = {0: ["SWING"], 1: ["SCALP"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
         # total_invested = 1000 + 1000 = 2000, total_pnl = 50, return = 0.025
         for r in results:
             assert r.original_return == 0.025
@@ -77,7 +78,7 @@ class TestBehaviorImpactAnalysisBasic:
             make_pos(pnl=-500.0),
         ]
         patterns_map = {0: ["A"], 1: ["A"], 2: ["TERRIBLE"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
         terrible = next(r for r in results if r.removed_pattern == "TERRIBLE")
         assert terrible.what_if_return > terrible.original_return
         assert terrible.delta > 0
@@ -88,60 +89,60 @@ class TestBehaviorImpactAnalysisBasic:
             make_pos(pnl=-50.0),
         ]
         patterns_map = {0: ["STAR"], 1: ["MEH"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
         star = next(r for r in results if r.removed_pattern == "STAR")
         assert star.what_if_return < star.original_return
         assert star.delta < 0
 
 
-class TestBehaviorImpactAnalysisImpactScore:
-    """Impact score calculation and sorting."""
+class TestProfitAttributionContribution:
+    """Contribution percentage calculation and sorting."""
 
-    def test_impact_score_sorted_descending(self):
+    def test_contribution_pct_sorted_descending(self):
         positions = [
             make_pos(pnl=500.0),
             make_pos(pnl=-200.0),
             make_pos(pnl=-50.0),
         ]
         patterns_map = {0: ["A"], 1: ["B"], 2: ["C"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
-        impact_scores = [r.impact_score for r in results]
-        assert impact_scores == sorted(impact_scores, reverse=True)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
+        scores = [r.contribution_pct for r in results]
+        assert scores == sorted(scores, reverse=True)
 
-    def test_impact_score_between_zero_and_one(self):
+    def test_contribution_pct_between_zero_and_one(self):
         positions = [
             make_pos(pnl=500.0),
             make_pos(pnl=-200.0),
             make_pos(pnl=-50.0),
         ]
         patterns_map = {0: ["A"], 1: ["B"], 2: ["C"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
         for r in results:
-            assert 0.0 <= r.impact_score <= 1.0
+            assert 0.0 <= r.contribution_pct <= 1.0
 
-    def test_impact_score_one_for_most_harmful(self):
-        """The most harmful pattern should have impact_score=1.0."""
+    def test_contribution_pct_one_for_most_harmful(self):
+        """The most harmful pattern should have contribution_pct=1.0."""
         positions = [
             make_pos(pnl=500.0),
             make_pos(pnl=-500.0),
             make_pos(pnl=50.0),
         ]
         patterns_map = {0: ["GOOD"], 1: ["BAD"], 2: ["MEH"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
-        # The pattern with largest |delta| should have impact_score 1.0
-        assert results[0].impact_score == 1.0
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
+        # The pattern with largest |delta| should have contribution_pct 1.0
+        assert results[0].contribution_pct == 1.0
 
 
-class TestBehaviorImpactAnalysisEdgeCases:
+class TestProfitAttributionEdgeCases:
     """Edge cases: empty inputs, zero values."""
 
     def test_empty_positions(self):
-        results = BehaviorImpactAnalysis.analyze_remove([], {})
+        results = ProfitAttribution.attribution_analysis([], {})
         assert results == []
 
     def test_empty_patterns_map(self):
         positions = [make_pos(pnl=100.0)]
-        results = BehaviorImpactAnalysis.analyze_remove(positions, {})
+        results = ProfitAttribution.attribution_analysis(positions, {})
         assert results == []
 
     def test_zero_invested_does_not_crash(self):
@@ -149,7 +150,7 @@ class TestBehaviorImpactAnalysisEdgeCases:
         pos = _Position(
             pnl=0.0, pnl_pct=0.0, avg_entry_price=0.0, total_quantity=0
         )
-        results = BehaviorImpactAnalysis.analyze_remove([pos], {0: ["SCALP"]})
+        results = ProfitAttribution.attribution_analysis([pos], {0: ["SCALP"]})
         assert results == []
 
     def test_all_positions_have_same_pattern(self):
@@ -159,17 +160,42 @@ class TestBehaviorImpactAnalysisEdgeCases:
             make_pos(pnl=50.0),
         ]
         patterns_map = {0: ["A"], 1: ["A"]}
-        results = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
         # When we remove "A", no positions remain -> skipped
         assert results == []
 
 
+class TestProfitAttributionCostUnknown:
+    """Positions with cost_known=False must be excluded from analysis."""
+
+    def test_cost_unknown_filtered_out(self):
+        """cost_unknown positions should not affect totals or what-if."""
+        positions = [
+            make_pos(pnl=100.0),                                     # cost_known=True
+            _Position(pnl=0.0, pnl_pct=0.0, cost_known=False),       # unknown
+            make_pos(pnl=-50.0),                                      # cost_known=True
+        ]
+        patterns_map = {0: ["GOOD"], 1: ["UNKNOWN"], 2: ["BAD"]}
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
+        # UNKNOWN pattern should not appear since its position is filtered out
+        pattern_names = {r.removed_pattern for r in results}
+        assert "UNKNOWN" not in pattern_names
+        assert len(results) == 2
+
+    def test_all_cost_unknown_returns_empty(self):
+        positions = [
+            _Position(pnl=100.0, pnl_pct=0.1, cost_known=False),
+        ]
+        results = ProfitAttribution.attribution_analysis(positions, {0: ["SCALP"]})
+        assert results == []
+
+
 # ============================================================================
-# Phase 4 — BehaviorImpactAnalysis Level 3: analyze_rule()
+# Phase 4 — ProfitAttribution Level 3: analyze_rule()
 # ============================================================================
 
 
-class TestBehaviorImpactAnalysisAnalyzeRule:
+class TestProfitAttributionAnalyzeRule:
     """Level 3: Rule simulation."""
 
     def test_stop_loss_caps_losses(self):
@@ -182,7 +208,7 @@ class TestBehaviorImpactAnalysisAnalyzeRule:
         # pos 1 has pnl_pct=-10% < -5%, cap at -5% = -10.0*100*-0.05 = -50.0
         # total_pnl_original = 70, total_invested = 3000, original_return = 0.02333...
         # simulated: 200 + (-50) + (-30) = 120, what_if_return = 120/3000 = 0.04
-        result = BehaviorImpactAnalysis.analyze_rule(positions, "stop_loss", {"loss_pct": 0.05})
+        result = ProfitAttribution.analyze_rule(positions, "stop_loss", {"loss_pct": 0.05})
         assert result is not None
         assert result["rule"] == "stop_loss_0.05"
         assert result["affected_positions"] == 1
@@ -195,7 +221,7 @@ class TestBehaviorImpactAnalysisAnalyzeRule:
             make_pos(pnl=200.0, avg_entry=10.0, qty=100),   # pnl_pct = 20%
             make_pos(pnl=-30.0, avg_entry=10.0, qty=100),   # pnl_pct = -3%
         ]
-        result = BehaviorImpactAnalysis.analyze_rule(positions, "stop_loss", {"loss_pct": 0.05})
+        result = ProfitAttribution.analyze_rule(positions, "stop_loss", {"loss_pct": 0.05})
         assert result is not None
         assert result["affected_positions"] == 0
         assert result["delta"] == 0.0
@@ -208,18 +234,31 @@ class TestBehaviorImpactAnalysisAnalyzeRule:
         ]
         # Both capped at -5%: each contributes -50 pnl
         # simulated_pnl = -100, original_pnl = -300
-        result = BehaviorImpactAnalysis.analyze_rule(positions, "stop_loss", {"loss_pct": 0.05})
+        result = ProfitAttribution.analyze_rule(positions, "stop_loss", {"loss_pct": 0.05})
         assert result is not None
         assert result["affected_positions"] == 2
 
     def test_stop_loss_zero_invested_does_not_crash(self):
         pos = _Position(pnl=-100.0, pnl_pct=-0.10, avg_entry_price=0.0, total_quantity=0)
-        result = BehaviorImpactAnalysis.analyze_rule([pos], "stop_loss", {"loss_pct": 0.05})
+        result = ProfitAttribution.analyze_rule([pos], "stop_loss", {"loss_pct": 0.05})
         assert result is not None
         assert result["original_return"] == 0.0
         assert result["what_if_return"] == 0.0
 
     def test_unknown_rule_type_returns_none(self):
         positions = [make_pos(pnl=100.0)]
-        result = BehaviorImpactAnalysis.analyze_rule(positions, "unknown_rule", {})
+        result = ProfitAttribution.analyze_rule(positions, "unknown_rule", {})
         assert result is None
+
+    def test_attribution_item_has_contribution_pct(self):
+        """Verify AttributionItem uses contribution_pct not impact_score."""
+        positions = [
+            make_pos(pnl=500.0),
+            make_pos(pnl=-200.0),
+            make_pos(pnl=-50.0),
+        ]
+        patterns_map = {0: ["A"], 1: ["B"], 2: ["C"]}
+        results = ProfitAttribution.attribution_analysis(positions, patterns_map)
+        for r in results:
+            assert hasattr(r, "contribution_pct")
+            assert not hasattr(r, "impact_score")

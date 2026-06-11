@@ -72,37 +72,37 @@ class PatternEngine:
             )
 
         # ----- Module 3: Risk & position management ---------------------
-        # PYRAMID / AVERAGE_DOWN -- need sibling positions
-        same_ep = [
-            p
-            for p in all_positions
-            if p.symbol == pos.symbol
-            and p.entry_date == pos.entry_date
+        # PYRAMID / AVERAGE_DOWN -- compare against first position of same symbol
+        same_symbol_positions = [
+            p for p in all_positions if p.symbol == pos.symbol
         ]
-        if len(same_ep) > 1:
-            same_ep_sorted = sorted(same_ep, key=lambda p: p.exit_date)
-            first_avg = same_ep_sorted[0].avg_entry_price
-            if pos.pnl_pct >= 0:
-                tags.append(
-                    PatternResult(
-                        "PYRAMID",
-                        0.8,
-                        {
-                            "avg_entry": pos.avg_entry_price,
-                            "first_entry_avg": first_avg,
-                            "pnl_pct": pos.pnl_pct,
-                        },
+        same_symbol_positions.sort(key=lambda p: p.entry_date)
+        if len(same_symbol_positions) > 1:
+            first = same_symbol_positions[0]
+            # PYRAMID: adding at a HIGHER price with time separation >= 1 day
+            if pos.avg_entry_price > first.avg_entry_price * 1.02:
+                days_gap = (pos.entry_date - first.entry_date).days
+                if days_gap >= 1:
+                    tags.append(
+                        PatternResult(
+                            "PYRAMID",
+                            0.8,
+                            {
+                                "avg_entry": pos.avg_entry_price,
+                                "first_entry_avg": first.avg_entry_price,
+                                "days_gap": days_gap,
+                            },
+                        )
                     )
-                )
-            if pos.avg_entry_price < first_avg and pos.pnl_pct < 0:
+            # AVERAGE_DOWN: adding at a significantly LOWER price (>= 5%)
+            if pos.avg_entry_price < first.avg_entry_price * 0.95:
                 tags.append(
                     PatternResult(
                         "AVERAGE_DOWN",
                         0.8,
                         {
                             "avg_entry": pos.avg_entry_price,
-                            "first_entry_avg": first_avg,
-                            "pnl_pct": pos.pnl_pct,
+                            "first_entry_avg": first.avg_entry_price,
                         },
                     )
                 )
@@ -131,7 +131,7 @@ class PatternEngine:
                         },
                     )
                 )
-        elif pos.entry_date == pos.exit_date and len(same_ep) > 1:
+        elif pos.entry_date == pos.exit_date and len(same_symbol_positions) > 1:
             tags.append(
                 PatternResult(
                     "TURN",

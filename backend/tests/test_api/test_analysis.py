@@ -193,7 +193,7 @@ class TestAnalysisWhatIf(_BaseAnalysisTest):
         assert "original_return" in item
         assert "what_if_return" in item
         assert "delta" in item
-        assert "impact_score" in item
+        assert "contribution_pct" in item
 
     def test_whatif_404_for_nonexistent(self, client):
         headers = get_auth_header(client, "whatif_404@test.com")

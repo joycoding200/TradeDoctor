@@ -22,6 +22,7 @@ class _Position:
     pnl: float = 0.0
     pnl_pct: float = 0.0
     trade_ids: list[str] = field(default_factory=lambda: ["t1"])
+    cost_known: bool = True
 
 
 def make_pos(pnl: float = 0.0, pnl_pct: float = 0.0) -> _Position:
@@ -49,6 +50,8 @@ class TestInsightEngineSingle:
         assert item.win_rate == 1.0
         assert item.total_pnl == 100.0
         assert item.avg_pnl_pct == 0.1
+        # expectancy = 1.0 * 100.0 - 0 * 0 = 100.0
+        assert item.expectancy == 100.0
 
     def test_multiple_positions_same_pattern(self):
         positions = [
@@ -66,6 +69,10 @@ class TestInsightEngineSingle:
         assert item.total_pnl == 250.0
         expected_avg = round((0.1 + (-0.05) + 0.2) / 3, 4)
         assert item.avg_pnl_pct == expected_avg
+        # expectancy = 2/3 * avg_win - 1/3 * avg_loss
+        # avg_win = (100+200)/2 = 150, avg_loss = abs(-50) = 50
+        # expectancy = 2/3 * 150 - 1/3 * 50 = 100 - 16.67 = 83.33
+        assert round(item.expectancy, 2) == 83.33
 
 
 class TestInsightEngineMultiple:
@@ -95,9 +102,9 @@ class TestInsightEngineMultiple:
 
 
 class TestInsightEngineSorting:
-    """Results must be sorted by total_pnl descending."""
+    """Results must be sorted by expectancy descending."""
 
-    def test_sorted_by_total_pnl_desc(self):
+    def test_sorted_by_expectancy_desc(self):
         positions = [
             make_pos(pnl=100.0, pnl_pct=0.1),
             make_pos(pnl=200.0, pnl_pct=0.2),
@@ -105,8 +112,21 @@ class TestInsightEngineSorting:
         ]
         patterns_map = {0: ["A"], 1: ["B"], 2: ["C"]}
         results = InsightEngine.analyze(positions, patterns_map)
-        total_pnls = [r.total_pnl for r in results]
-        assert total_pnls == sorted(total_pnls, reverse=True)
+        expectancies = [r.expectancy for r in results]
+        assert expectancies == sorted(expectancies, reverse=True)
+
+    def test_negative_expectancy_sorted_last(self):
+        """Pattern with negative expectancy should sort below positive ones."""
+        positions = [
+            make_pos(pnl=200.0, pnl_pct=0.2),   # A: win, expectancy=200
+            make_pos(pnl=-500.0, pnl_pct=-0.5),  # B: loss, expectancy=-500
+            make_pos(pnl=50.0, pnl_pct=0.05),    # C: win, expectancy=50
+        ]
+        patterns_map = {0: ["A"], 1: ["B"], 2: ["C"]}
+        results = InsightEngine.analyze(positions, patterns_map)
+        # B has negative expectancy, should be last
+        assert results[-1].pattern_name == "B"
+        assert results[-1].expectancy < 0
 
 
 class TestInsightEngineEdgeCases:
@@ -132,6 +152,8 @@ class TestInsightEngineEdgeCases:
         item = results[0]
         assert item.win_count == 0
         assert item.win_rate == 0.0
+        # expectancy = 0 * 0 - 1 * avg_loss = -40.0
+        assert item.expectancy == -40.0
 
     def test_zero_pnl_is_not_win(self):
         positions = [make_pos(pnl=0.0, pnl_pct=0.0)]
@@ -149,3 +171,52 @@ class TestInsightEngineEdgeCases:
         for r in results:
             assert r.count == 1
             assert r.total_pnl == 100.0
+
+
+class TestInsightEngineCostUnknown:
+    """Positions with cost_known=False must be excluded from statistics."""
+
+    def test_cost_unknown_filtered_out(self):
+        positions = [
+            make_pos(pnl=100.0, pnl_pct=0.1),
+            _Position(pnl=0.0, pnl_pct=0.0, cost_known=False),  # unknown cost
+        ]
+        patterns_map = {0: ["SWING"], 1: ["SCALP"]}
+        results = InsightEngine.analyze(positions, patterns_map)
+        # Only position 0 (cost_known=True) should contribute
+        assert len(results) == 1
+        assert results[0].pattern_name == "SWING"
+        assert results[0].count == 1
+        assert results[0].total_pnl == 100.0
+
+    def test_all_cost_unknown_returns_empty(self):
+        positions = [
+            _Position(pnl=0.0, pnl_pct=0.0, cost_known=False),
+        ]
+        patterns_map = {0: ["SCALP"]}
+        results = InsightEngine.analyze(positions, patterns_map)
+        assert results == []
+
+    def test_mixed_cost_known_and_unknown(self):
+        positions = [
+            make_pos(pnl=200.0, pnl_pct=0.2),     # cost_known=True
+            _Position(pnl=0.0, pnl_pct=0.0, cost_known=False),
+            make_pos(pnl=-50.0, pnl_pct=-0.05),   # cost_known=True
+        ]
+        patterns_map = {0: ["PYRAMID"], 1: ["PYRAMID"], 2: ["SCALP"]}
+        results = InsightEngine.analyze(positions, patterns_map)
+        # Only positions 0 and 2 should contribute
+        pyramid = next(r for r in results if r.pattern_name == "PYRAMID")
+        assert pyramid.count == 1
+        assert pyramid.total_pnl == 200.0
+
+        scalp = next(r for r in results if r.pattern_name == "SCALP")
+        assert scalp.count == 1
+        assert scalp.total_pnl == -50.0
+
+    def test_zero_expectancy_when_no_wins_and_no_losses(self):
+        """Position with pnl=0.0 -> avg_win=0, avg_loss=0 -> expectancy=0."""
+        positions = [make_pos(pnl=0.0, pnl_pct=0.0)]
+        patterns_map = {0: ["SCALP"]}
+        results = InsightEngine.analyze(positions, patterns_map)
+        assert results[0].expectancy == 0.0

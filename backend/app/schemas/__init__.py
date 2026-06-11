@@ -17,7 +17,7 @@ from app.schemas.upload import (
 from app.schemas.analysis import (
     AnalysisRunRequest,
     AnalysisRunResponse,
-    ImpactItem,
+    AttributionItem,
     InsightPatternItem,
     InsightResponse,
     PositionItem,
@@ -46,7 +46,7 @@ __all__ = [
     "UploadResponse",
     "AnalysisRunRequest",
     "AnalysisRunResponse",
-    "ImpactItem",
+    "AttributionItem",
     "InsightPatternItem",
     "InsightResponse",
     "PositionItem",

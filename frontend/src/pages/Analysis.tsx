@@ -148,7 +148,7 @@ export default function Analysis() {
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium">{patternLabel(item.removed_pattern)}</span>
                     <span className="text-sm" style={{ color: item.delta > 0.01 ? "var(--success)" : "var(--text-secondary)" }}>
-                      影响指数: {(item.impact_score * 100).toFixed(0)}%
+                      影响指数: {(item.contribution_pct * 100).toFixed(0)}%
                     </span>
                   </div>
                   <div className="h-6 bg-muted rounded relative overflow-hidden" style={{ backgroundColor: "var(--bg-tertiary)" }}>

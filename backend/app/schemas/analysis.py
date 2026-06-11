@@ -50,21 +50,25 @@ class InsightPatternItem(BaseModel):
     win_rate: float
     total_pnl: float
     avg_pnl_pct: float
+    expectancy: float = 0.0
 
 
 class InsightResponse(BaseModel):
-    patterns: list[InsightPatternItem]
+    patterns: list[InsightPatternItem]  # all patterns (backward compat)
+    entry_patterns: list[InsightPatternItem] = []
+    holding_patterns: list[InsightPatternItem] = []
+    risk_patterns: list[InsightPatternItem] = []
     best_pattern: Optional[InsightPatternItem] = None
     worst_pattern: Optional[InsightPatternItem] = None
 
 
-class ImpactItem(BaseModel):
+class AttributionItem(BaseModel):
     removed_pattern: str
     original_return: float
     what_if_return: float
     delta: float
-    impact_score: float
+    contribution_pct: float
 
 
 class WhatIfResponse(BaseModel):
-    items: list[ImpactItem]
+    items: list[AttributionItem]

@@ -23,6 +23,7 @@ class _Position:
     pnl: float = 0.0
     pnl_pct: float = 0.0
     trade_ids: list[str] = field(default_factory=lambda: ["t1", "t2"])
+    cost_known: bool = True
 
 
 @dataclass
@@ -39,13 +40,14 @@ def make_pos(
     symbol: str = "000001",
     entry_date: date | None = None,
     exit_date: date | None = None,
+    avg_entry_price: float = 10.0,
 ) -> _Position:
     """Create a test position with derived fields."""
     if entry_date is None:
         entry_date = date(2024, 1, 2)
     if exit_date is None:
         exit_date = entry_date + timedelta(days=holding_days)
-    avg_entry = 10.0
+    avg_entry = avg_entry_price
     avg_exit = round(avg_entry * (1 + pnl_pct), 4)
     qty = 100
     return _Position(
@@ -327,31 +329,49 @@ class TestTurnTag:
 
 
 class TestPyramidTag:
-    def test_position_with_profit_gets_pyramid(self):
-        """Position in profit (pnl_pct >= 0) on a multi-entry day gets PYRAMID."""
-        d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=0.15, entry_date=d, exit_date=date(2024, 1, 8))
+    """PYRAMID: adding to a position at a HIGHER price, with time separation >= 1 day."""
+
+    def test_position_higher_price_with_gap_gets_pyramid(self):
+        """Position with higher entry price than first position of same symbol and 1+ day gap gets PYRAMID."""
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)  # 3 days later
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=10.5, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
+        # avg_entry_price 10.5 > 10.0 * 1.02 = 10.2, gap = 3 days >= 1
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "PYRAMID" in tags
 
-    def test_losing_position_no_pyramid(self):
-        """Position in loss (pnl_pct < 0) should NOT get PYRAMID even with higher avg_entry."""
+    def test_same_date_no_pyramid(self):
+        """Zero day gap should NOT get PYRAMID."""
         d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
-        p2.avg_entry_price = 10.5
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d, exit_date=d + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=10.5, entry_date=d, exit_date=d + timedelta(days=5), holding_days=5)
+        # gap = 0 days, fails >= 1
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "PYRAMID" not in tags
 
-    def test_single_position_no_pyramid(self):
-        pos = make_pos()
-        assert "PYRAMID" not in tag_names(pos)
+    def test_price_not_high_enough_no_pyramid(self):
+        """Price increase less than 2% should NOT get PYRAMID."""
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=10.15, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
+        # 10.15 < 10.0 * 1.02 = 10.2, fails
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "PYRAMID" not in tags
+
+    def test_first_position_no_pyramid(self):
+        """The first position for a symbol should never get PYRAMID."""
+        d = date(2024, 1, 2)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d, exit_date=d + timedelta(days=3), holding_days=3)
+        tags = tag_names(p1, all_positions=[p1])
+        assert "PYRAMID" not in tags
 
     def test_confidence_point_eight(self):
-        d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, entry_date=d, exit_date=date(2024, 1, 8), pnl_pct=0.15)
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=10.5, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
         results = PatternEngine.tag_position(p2, [p1, p2])
         for r in results:
             if r.pattern_name == "PYRAMID":
@@ -359,34 +379,49 @@ class TestPyramidTag:
 
 
 class TestAverageDownTag:
-    def test_multiple_entries_with_loss(self):
-        """Position with same symbol/entry_date, lower avg_entry, and negative pnl gets AVERAGE_DOWN."""
-        d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
-        p2.avg_entry_price = 9.5  # lower than first position's 10.0
+    """AVERAGE_DOWN: adding to a position at a significantly LOWER price (>= 5% lower)."""
+
+    def test_lower_price_gets_average_down(self):
+        """Position with entry price at least 5% lower than first position of same symbol gets AVERAGE_DOWN."""
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=9.4, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
+        # 9.4 < 10.0 * 0.95 = 9.5, qualifies
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" in tags
 
-    def test_loss_without_lower_avg_not_average_down(self):
-        """Losing position but avg_entry >= first_entry_avg should NOT get AVERAGE_DOWN."""
-        d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
+    def test_price_not_low_enough_no_average_down(self):
+        """Price decline less than 5% should NOT get AVERAGE_DOWN."""
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=9.6, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
+        # 9.6 > 10.0 * 0.95 = 9.5, fails
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" not in tags
 
-    def test_not_tagged_when_profitable(self):
+    def test_higher_price_not_average_down(self):
+        """Higher entry price should NOT get AVERAGE_DOWN."""
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=10.5, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "AVERAGE_DOWN" not in tags
+
+    def test_first_position_no_average_down(self):
+        """The first position for a symbol should never get AVERAGE_DOWN."""
         d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 8))
-        assert "AVERAGE_DOWN" not in tag_names(p2, all_positions=[p1, p2])
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d, exit_date=d + timedelta(days=3), holding_days=3)
+        tags = tag_names(p1, all_positions=[p1])
+        assert "AVERAGE_DOWN" not in tags
 
     def test_confidence_point_eight(self):
-        d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
-        p2.avg_entry_price = 9.5
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(avg_entry_price=9.4, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
         results = PatternEngine.tag_position(p2, [p1, p2])
         for r in results:
             if r.pattern_name == "AVERAGE_DOWN":
@@ -1111,10 +1146,11 @@ class TestTagCoexistence:
 
     def test_small_loss_exit_and_average_down_can_coexist(self):
         """A losing position in a multi-entry day is both."""
-        d = date(2024, 1, 2)
-        p1 = make_pos(holding_days=3, pnl_pct=0.1, entry_date=d, exit_date=date(2024, 1, 5))
-        p2 = make_pos(holding_days=6, pnl_pct=-0.05, entry_date=d, exit_date=date(2024, 1, 8))
-        p2.avg_entry_price = 9.5  # lower than first position's 10.0
+        d1 = date(2024, 1, 2)
+        d2 = date(2024, 1, 5)
+        p1 = make_pos(pnl_pct=0.05, avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
+        p2 = make_pos(pnl_pct=-0.05, avg_entry_price=9.4, entry_date=d2, exit_date=d2 + timedelta(days=5), holding_days=5)
+        # avg_entry 9.4 < 10.0 * 0.95 = 9.5 -> AVERAGE_DOWN
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" in tags
         assert "SMALL_LOSS_EXIT" in tags

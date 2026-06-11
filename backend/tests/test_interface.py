@@ -156,7 +156,7 @@ class TestAnalysisContracts:
             assert "original_return" in item
             assert "what_if_return" in item
             assert "delta" in item
-            assert "impact_score" in item
+            assert "contribution_pct" in item
 
     def test_analysis_404_bad_id(self, client):
         headers = self._auth_and_import(client)

@@ -18,7 +18,7 @@ from app.models.user import User
 from app.engine.insight import InsightEngine
 from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
-from app.engine.whatif import BehaviorImpactAnalysis
+from app.engine.whatif import ProfitAttribution
 from app.schemas.report import (
     ReportGenerateRequest,
     ReportGenerateResponse,
@@ -89,7 +89,7 @@ def _build_analysis_data(trades, positions, insight_items, whatif_items) -> dict
             {
                 "removed_pattern": i.removed_pattern,
                 "delta": i.delta,
-                "impact_score": i.impact_score,
+                "contribution_pct": i.contribution_pct,
             }
             for i in whatif_items
         ],
@@ -119,7 +119,7 @@ async def generate_report(
 
     # Run insight and what-if engines
     insight_items = InsightEngine.analyze(positions, patterns_map)
-    whatif_items = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+    whatif_items = ProfitAttribution.attribution_analysis(positions, patterns_map)
 
     # Build AI prompt
     analysis_data = _build_analysis_data(trades, positions, insight_items, whatif_items)

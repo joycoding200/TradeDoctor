@@ -1,27 +1,30 @@
-"""Behavior impact analysis: counterfactual backtest removing selected behavior patterns."""
+"""Profit attribution: counterfactual backtest removing selected behavior patterns."""
 from dataclasses import dataclass
 
 
 @dataclass
-class ImpactItem:
+class AttributionItem:
     """Result of removing a single behavioral pattern from the portfolio."""
 
     removed_pattern: str
     original_return: float
     what_if_return: float
     delta: float
-    impact_score: float
+    contribution_pct: float  # percentage contribution to total PnL
 
 
-class BehaviorImpactAnalysis:
+class ProfitAttribution:
     """Simulate portfolio return after removing positions tagged with a pattern."""
 
     @staticmethod
-    def analyze_remove(positions, patterns_map: dict[int, list[str]]) -> list[ImpactItem]:
+    def attribution_analysis(positions, patterns_map: dict[int, list[str]]) -> list[AttributionItem]:
         """Run what-if analysis for each unique pattern.
 
+        Excludes positions where cost_known is False (pre-existing positions
+        with estimated cost basis).
+
         For each pattern, removes all positions tagged with it and
-        recomputes the portfolio return. The impact_score quantifies
+        recomputes the portfolio return. The contribution_pct quantifies
         how much the pattern affected the overall result (0 = no effect,
         1 = most harmful/helpful).
 
@@ -31,26 +34,37 @@ class BehaviorImpactAnalysis:
             patterns_map: {position_index: [pattern_name, ...]}.
 
         Returns:
-            List of ImpactItem sorted by impact_score descending.
+            List of AttributionItem sorted by contribution_pct descending.
         """
+        # Filter out positions with unknown cost basis
+        valid_indices = {
+            i for i, p in enumerate(positions)
+            if getattr(p, "cost_known", True)
+        }
+        valid_positions = [p for i, p in enumerate(positions) if i in valid_indices]
+
+        if not valid_positions:
+            return []
+
         total_invested = sum(
-            p.avg_entry_price * p.total_quantity for p in positions
+            p.avg_entry_price * p.total_quantity for p in valid_positions
         )
-        total_pnl = sum(p.pnl for p in positions)
+        total_pnl = sum(p.pnl for p in valid_positions)
         original_return = (
             total_pnl / total_invested if total_invested > 0 else 0.0
         )
 
         all_patterns: set[str] = set()
-        for pats in patterns_map.values():
-            all_patterns.update(pats)
+        for i, pats in patterns_map.items():
+            if i in valid_indices:
+                all_patterns.update(pats)
 
-        results: list[ImpactItem] = []
+        results: list[AttributionItem] = []
         for pattern_name in all_patterns:
             filtered = [
                 p
                 for i, p in enumerate(positions)
-                if pattern_name not in patterns_map.get(i, [])
+                if i in valid_indices and pattern_name not in patterns_map.get(i, [])
             ]
             if not filtered:
                 continue
@@ -66,24 +80,24 @@ class BehaviorImpactAnalysis:
             )
 
             results.append(
-                ImpactItem(
+                AttributionItem(
                     removed_pattern=pattern_name,
                     original_return=round(original_return, 4),
                     what_if_return=round(what_if_return, 4),
                     delta=round(what_if_return - original_return, 4),
-                    impact_score=0.0,
+                    contribution_pct=0.0,
                 )
             )
 
-        # Normalize impact scores
+        # Normalize contribution percentages
         if results:
             max_delta = max(abs(r.delta) for r in results)
             for r in results:
-                r.impact_score = (
+                r.contribution_pct = (
                     round(abs(r.delta) / max_delta, 4) if max_delta > 0 else 0.0
                 )
 
-        results.sort(key=lambda x: x.impact_score, reverse=True)
+        results.sort(key=lambda x: x.contribution_pct, reverse=True)
         return results
 
     # ------------------------------------------------------------------

@@ -13,11 +13,11 @@ from app.models.user import User
 from app.engine.insight import InsightEngine
 from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
-from app.engine.whatif import BehaviorImpactAnalysis
+from app.engine.whatif import ProfitAttribution
 from app.schemas.analysis import (
     AnalysisRunRequest,
     AnalysisRunResponse,
-    ImpactItem,
+    AttributionItem,
     InsightPatternItem,
     InsightResponse,
     PositionItem,
@@ -26,6 +26,31 @@ from app.schemas.analysis import (
 )
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
+
+# Pattern module mapping (synchronized with pattern_definition.yaml)
+PATTERN_MODULES: dict[str, str] = {
+    "CHASE": "entry",
+    "BOTTOM": "entry",
+    "BREAKOUT": "entry",
+    "TREND": "entry",
+    "COUNTER_TREND": "entry",
+    "BREAKDOWN": "entry",
+    "SCALP": "holding",
+    "SWING": "holding",
+    "POSITION": "holding",
+    "PYRAMID": "risk",
+    "AVERAGE_DOWN": "risk",
+    "TURN": "risk",
+    "SMALL_LOSS_EXIT": "risk",
+    "QUICK_PROFIT": "risk",
+    "NORMAL_PROFIT": "risk",
+    "BIG_WIN": "risk",
+    "FOMO": "risk",
+    "REVENGE": "risk",
+    "OVERTRADING": "risk",
+    "HOLD_LOSER": "risk",
+    "CUT_WINNER": "risk",
+}
 
 
 @router.post(
@@ -107,17 +132,22 @@ def get_stats(
     total_trades = len(trades)
     total_positions = len(positions)
     unknown_cost_count = sum(1 for p in positions if not getattr(p, "cost_known", True))
-    win_count = sum(1 for p in positions if p.pnl > 0)
-    win_rate = (win_count / total_positions) if total_positions > 0 else 0.0
-    total_pnl = sum(p.pnl for p in positions)
+
+    # Use only valid positions (cost_known == True) for all KPIs
+    valid_positions = [p for p in positions if getattr(p, "cost_known", True)]
+    valid_count = len(valid_positions)
+
+    win_count = sum(1 for p in valid_positions if p.pnl > 0)
+    win_rate = (win_count / valid_count) if valid_count > 0 else 0.0
+    total_pnl = sum(p.pnl for p in valid_positions)
     avg_holding_days = (
-        sum(p.holding_days for p in positions) / total_positions
-        if total_positions > 0
+        sum(p.holding_days for p in valid_positions) / valid_count
+        if valid_count > 0
         else 0.0
     )
-    max_win = max((p.pnl for p in positions), default=0.0)
-    max_loss = min((p.pnl for p in positions), default=0.0)
-    consecutive_losses = _compute_consecutive_losses(positions)
+    max_win = max((p.pnl for p in valid_positions), default=0.0)
+    max_loss = min((p.pnl for p in valid_positions), default=0.0)
+    consecutive_losses = _compute_consecutive_losses(valid_positions)
 
     position_items = [
         PositionItem(
@@ -160,6 +190,11 @@ def _build_patterns_map(positions):
     return patterns_map
 
 
+def _module_for_pattern(pattern_name: str) -> str:
+    """Return the module name for a pattern (entry/holding/risk)."""
+    return PATTERN_MODULES.get(pattern_name, "risk")
+
+
 @router.get("/{analysis_id}/insight", response_model=InsightResponse)
 def get_insight(
     analysis_id: str,
@@ -173,23 +208,32 @@ def get_insight(
     patterns_map = _build_patterns_map(positions)
     items = InsightEngine.analyze(positions, patterns_map)
 
-    pattern_items = [
-        InsightPatternItem(
+    def to_pattern_item(i) -> InsightPatternItem:
+        return InsightPatternItem(
             pattern_name=i.pattern_name,
             count=i.count,
             win_count=i.win_count,
             win_rate=round(i.win_rate, 4),
             total_pnl=i.total_pnl,
             avg_pnl_pct=round(i.avg_pnl_pct, 4),
+            expectancy=round(i.expectancy, 4),
         )
-        for i in items
-    ]
+
+    pattern_items = [to_pattern_item(i) for i in items]
+
+    # Group patterns by module
+    entry_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "entry"]
+    holding_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "holding"]
+    risk_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "risk"]
 
     best = pattern_items[0] if pattern_items else None
     worst = pattern_items[-1] if len(pattern_items) > 1 else None
 
     return InsightResponse(
         patterns=pattern_items,
+        entry_patterns=entry_patterns,
+        holding_patterns=holding_patterns,
+        risk_patterns=risk_patterns,
         best_pattern=best,
         worst_pattern=worst,
     )
@@ -206,15 +250,15 @@ def get_whatif(
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
     patterns_map = _build_patterns_map(positions)
-    items = BehaviorImpactAnalysis.analyze_remove(positions, patterns_map)
+    items = ProfitAttribution.attribution_analysis(positions, patterns_map)
 
     whatif_items = [
-        ImpactItem(
+        AttributionItem(
             removed_pattern=i.removed_pattern,
             original_return=i.original_return,
             what_if_return=i.what_if_return,
             delta=i.delta,
-            impact_score=i.impact_score,
+            contribution_pct=i.contribution_pct,
         )
         for i in items
     ]
