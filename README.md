@@ -1,4 +1,4 @@
-# TradeLens — 交易日志分析器
+# TradingJournalAnalyzer — 交易日志分析器
 
 上传交割单，AI 分析亏损原因并生成改善建议。A 股散户 + 期货散户的交易行为诊断工具。
 

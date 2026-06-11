@@ -76,7 +76,10 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('win_rate:', d['win_rate']\\)\")",
       "Bash(python *)",
       "Bash(npx playwright *)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)"
     ]
   }
 }

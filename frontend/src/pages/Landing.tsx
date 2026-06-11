@@ -7,7 +7,7 @@ export default function Landing() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
       <h1 className="text-4xl font-bold mb-4">
-        TradeLens
+        TradingJournalAnalyzer
       </h1>
       <p className="text-lg mb-8" style={{ color: "var(--text-secondary)", maxWidth: "480px" }}>
         上传您的交易交割单，AI 将分析您的交易行为，找出亏损原因并生成改善建议。

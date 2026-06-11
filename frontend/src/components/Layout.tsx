@@ -20,7 +20,7 @@ export default function Layout() {
         className="flex items-center justify-between px-6 py-3"
       >
         <Link to="/" className="text-lg font-bold no-underline" style={{ color: "var(--accent)" }}>
-          TradeLens
+          TradingJournalAnalyzer
         </Link>
         <div className="flex items-center gap-4">
           {isLoggedIn ? (

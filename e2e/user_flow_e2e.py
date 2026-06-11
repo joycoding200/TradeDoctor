@@ -48,7 +48,7 @@ def check(condition, msg):
 def run():
     global PASS, FAIL
     print("=" * 60)
-    print("TradeLens E2E User Flow Test")
+    print("TradingJournalAnalyzer E2E User Flow Test")
     print("=" * 60)
 
     with sync_playwright() as p:
@@ -60,7 +60,7 @@ def run():
             # ─── Landing Page ───────────────────────────────
             print("\n── 1. Landing Page ──")
             page.goto(FRONTEND, wait_until="networkidle")
-            check("TradeLens" in page.title() or page.locator("nav").is_visible(),
+            check("TradingJournalAnalyzer" in page.title() or page.locator("nav").is_visible(),
                   "landing page loads with nav")
 
             # ─── Register ────────────────────────────────────
