@@ -1,10 +1,11 @@
 """Pattern engine for tagging positions with behavioral labels.
 
-Produces 15 behavior tags across three modules:
+Produces 20 behavior tags across three modules:
   Module 1 - Entry behavior (market-data dependent)
   Module 2 - Holding period
-  Module 3 - Risk & position management
+  Module 3 - Risk & position management (incl. Phase 3 psychological tags)
 """
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -173,6 +174,79 @@ class PatternEngine:
                     )
                 )
 
+        # ----- Phase 3: Psychological behavior tags -----------------------
+        # REVENGE: new trade within 24h of a loss
+        prior_positions = sorted(
+            [p for p in all_positions if p.exit_date < pos.entry_date],
+            key=lambda p: p.exit_date,
+        )
+        if prior_positions:
+            last_prior = prior_positions[-1]
+            if last_prior.pnl < 0 and (pos.entry_date - last_prior.exit_date).days <= 1:
+                tags.append(
+                    PatternResult(
+                        "REVENGE",
+                        0.7,
+                        {
+                            "prior_pnl": last_prior.pnl,
+                            "prior_exit": str(last_prior.exit_date),
+                            "gap_days": (pos.entry_date - last_prior.exit_date).days,
+                        },
+                    )
+                )
+
+        # OVERTRADING: daily frequency > 2x the user's average
+        date_counts = Counter(p.entry_date for p in all_positions)
+        unique_days = len(date_counts)
+        if unique_days > 1:
+            avg_per_day = len(all_positions) / unique_days
+            if date_counts[pos.entry_date] > avg_per_day * 2:
+                tags.append(
+                    PatternResult(
+                        "OVERTRADING",
+                        0.7,
+                        {
+                            "positions_today": date_counts[pos.entry_date],
+                            "avg_positions_per_day": round(avg_per_day, 2),
+                            "total_positions": len(all_positions),
+                            "trading_days": unique_days,
+                        },
+                    )
+                )
+
+        # HOLD_LOSER / CUT_WINNER: compare holding durations
+        winners = [p for p in all_positions if p.pnl > 0]
+        losers = [p for p in all_positions if p.pnl < 0]
+        if winners and losers:
+            avg_hold_winners = sum(p.holding_days for p in winners) / len(winners)
+            avg_hold_losers = sum(p.holding_days for p in losers) / len(losers)
+
+            if avg_hold_losers > avg_hold_winners * 1.5 and pos.pnl < 0 and pos.holding_days > avg_hold_losers:
+                tags.append(
+                    PatternResult(
+                        "HOLD_LOSER",
+                        0.7,
+                        {
+                            "holding_days": pos.holding_days,
+                            "avg_holding_winners": round(avg_hold_winners, 2),
+                            "avg_holding_losers": round(avg_hold_losers, 2),
+                        },
+                    )
+                )
+
+            if avg_hold_winners < avg_hold_losers * 0.5 and pos.pnl > 0 and pos.holding_days < avg_hold_winners:
+                tags.append(
+                    PatternResult(
+                        "CUT_WINNER",
+                        0.7,
+                        {
+                            "holding_days": pos.holding_days,
+                            "avg_holding_winners": round(avg_hold_winners, 2),
+                            "avg_holding_losers": round(avg_hold_losers, 2),
+                        },
+                    )
+                )
+
         return tags
 
     # ------------------------------------------------------------------
@@ -286,6 +360,27 @@ class PatternEngine:
                         {
                             "change_pct": round(chg, 4),
                             "from_date": d5,
+                        },
+                    )
+                )
+
+        # -- FOMO: entry near day's high after streak of up days -------
+        if entry_idx >= 5:
+            up_count = 0
+            for i in range(entry_idx - 5, entry_idx):
+                prev = symbol_data[dates[i - 1]]["close"]
+                curr = symbol_data[dates[i]]["close"]
+                if curr > prev:
+                    up_count += 1
+            if up_count >= 3 and entry_close >= entry_data["high"] * 0.98:
+                tags.append(
+                    PatternResult(
+                        "FOMO",
+                        0.7,
+                        {
+                            "up_days_5": up_count,
+                            "entry_close": entry_close,
+                            "day_high": entry_data["high"],
                         },
                     )
                 )

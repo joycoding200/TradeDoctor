@@ -1,4 +1,4 @@
-"""Tests for pattern engine -- all 15 behavioral tags."""
+"""Tests for pattern engine -- all 20 behavioral tags (Phase 3)."""
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -704,6 +704,290 @@ class TestBreakdownTag:
         )
         md = _make_market_data(dates, closes, lows=lows)
         assert "BREAKDOWN" not in _market_tags(pos, md)
+
+
+# ============================================================================
+# Phase 3 — Psychological behavior tags (risk module)
+# ============================================================================
+
+
+class TestRevengeTag:
+    """REVENGE: new trade opened within 24h after a losing position."""
+
+    def test_revenge_after_loss(self):
+        """New position within 1 day after a loser gets REVENGE."""
+        p1 = make_pos(pnl_pct=-0.05, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 5), holding_days=3)
+        p2 = make_pos(entry_date=date(2024, 1, 6))  # gap = 1 day
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "REVENGE" in tags
+
+    def test_not_revenge_when_profitable_prior(self):
+        """Prior position with profit does not trigger REVENGE."""
+        p1 = make_pos(pnl_pct=0.05, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 5), holding_days=3)
+        p2 = make_pos(entry_date=date(2024, 1, 6))
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "REVENGE" not in tags
+
+    def test_not_revenge_when_gap_too_large(self):
+        """Gap > 1 day does not trigger REVENGE."""
+        p1 = make_pos(pnl_pct=-0.05, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 5), holding_days=3)
+        p2 = make_pos(entry_date=date(2024, 1, 10))  # gap = 5 days
+        tags = tag_names(p2, all_positions=[p1, p2])
+        assert "REVENGE" not in tags
+
+    def test_not_revenge_when_no_prior(self):
+        """No prior position -> no REVENGE."""
+        pos = make_pos()
+        tags = tag_names(pos, all_positions=[pos])
+        assert "REVENGE" not in tags
+
+    def test_revenge_confidence(self):
+        p1 = make_pos(pnl_pct=-0.05, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 5), holding_days=3)
+        p2 = make_pos(entry_date=date(2024, 1, 6))
+        results = PatternEngine.tag_position(p2, [p1, p2])
+        for r in results:
+            if r.pattern_name == "REVENGE":
+                assert r.confidence == 0.7
+
+
+class TestOverTradingTag:
+    """OVERTRADING: daily frequency significantly above average."""
+
+    def test_overtrading_detected(self):
+        """Day with 5 positions vs avg ~2.3 gets tagged."""
+        d1, d2, d3 = date(2024, 1, 2), date(2024, 1, 5), date(2024, 1, 8)
+        positions = [
+            make_pos(symbol="A", entry_date=d1),
+            make_pos(symbol="B", entry_date=d1),
+            make_pos(symbol="C", entry_date=d1),
+            make_pos(symbol="D", entry_date=d1),
+            make_pos(symbol="E", entry_date=d1),
+            make_pos(symbol="F", entry_date=d2),
+            make_pos(symbol="G", entry_date=d3),
+        ]
+        tags = tag_names(positions[0], all_positions=positions)
+        assert "OVERTRADING" in tags
+
+    def test_not_overtrading_when_normal(self):
+        """Normal frequency does not trigger OVERTRADING."""
+        d1, d2, d3 = date(2024, 1, 2), date(2024, 1, 5), date(2024, 1, 8)
+        positions = [
+            make_pos(symbol="A", entry_date=d1),
+            make_pos(symbol="B", entry_date=d2),
+            make_pos(symbol="C", entry_date=d3),
+        ]
+        tags = tag_names(positions[0], all_positions=positions)
+        assert "OVERTRADING" not in tags
+
+    def test_not_overtrading_when_only_one_trading_day(self):
+        """With only 1 unique trading day, don't tag."""
+        positions = [
+            make_pos(symbol="A", entry_date=date(2024, 1, 2)),
+            make_pos(symbol="B", entry_date=date(2024, 1, 2)),
+        ]
+        tags = tag_names(positions[0], all_positions=positions)
+        assert "OVERTRADING" not in tags
+
+    def test_all_positions_on_day_get_tagged(self):
+        """All positions sharing the high-frequency day get tagged; others don't."""
+        d1, d2, d3 = date(2024, 1, 2), date(2024, 1, 5), date(2024, 1, 8)
+        positions = [
+            make_pos(symbol="A", entry_date=d1),
+            make_pos(symbol="B", entry_date=d1),
+            make_pos(symbol="C", entry_date=d1),
+            make_pos(symbol="D", entry_date=d1),
+            make_pos(symbol="E", entry_date=d1),
+            make_pos(symbol="F", entry_date=d2),
+            make_pos(symbol="G", entry_date=d3),
+        ]
+        assert "OVERTRADING" in tag_names(positions[0], all_positions=positions)
+        assert "OVERTRADING" in tag_names(positions[3], all_positions=positions)
+        assert "OVERTRADING" not in tag_names(positions[5], all_positions=positions)
+
+    def test_overtrading_confidence(self):
+        d1, d2, d3 = date(2024, 1, 2), date(2024, 1, 5), date(2024, 1, 8)
+        positions = [
+            make_pos(symbol="A", entry_date=d1),
+            make_pos(symbol="B", entry_date=d1),
+            make_pos(symbol="C", entry_date=d1),
+            make_pos(symbol="D", entry_date=d1),
+            make_pos(symbol="E", entry_date=d1),
+            make_pos(symbol="F", entry_date=d2),
+            make_pos(symbol="G", entry_date=d3),
+        ]
+        results = PatternEngine.tag_position(positions[0], positions)
+        for r in results:
+            if r.pattern_name == "OVERTRADING":
+                assert r.confidence == 0.7
+
+
+class TestHoldLoserTag:
+    """HOLD_LOSER: holding losers much longer than winners."""
+
+    def test_hold_loser_detected(self):
+        """Loser held longer than winner avg * 1.5 and above avg loser hold."""
+        positions = [
+            make_pos(pnl_pct=0.05, holding_days=2, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 4), symbol="A"),
+            make_pos(pnl_pct=0.10, holding_days=4, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 6), symbol="B"),
+            make_pos(pnl_pct=-0.03, holding_days=5, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7), symbol="C"),
+            make_pos(pnl_pct=-0.05, holding_days=12, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 14), symbol="D"),
+        ]
+        # avg_hold_winners=3, avg_hold_losers=8.5
+        # 8.5 > 3*1.5=4.5 ✓, target D: pnl<0 ✓, 12 > 8.5 ✓
+        tags = tag_names(positions[3], all_positions=positions)
+        assert "HOLD_LOSER" in tags
+
+    def test_not_hold_loser_when_no_losers(self):
+        all_winners = [
+            make_pos(pnl_pct=0.05, holding_days=3),
+            make_pos(pnl_pct=0.10, holding_days=5),
+        ]
+        tags = tag_names(all_winners[0], all_positions=all_winners)
+        assert "HOLD_LOSER" not in tags
+
+    def test_not_hold_loser_when_no_winners(self):
+        all_losers = [
+            make_pos(pnl_pct=-0.05, holding_days=8),
+            make_pos(pnl_pct=-0.03, holding_days=5),
+        ]
+        tags = tag_names(all_losers[0], all_positions=all_losers)
+        assert "HOLD_LOSER" not in tags
+
+    def test_not_hold_loser_when_ratio_below_threshold(self):
+        """Ratio below 1.5 doesn't trigger."""
+        positions = [
+            make_pos(pnl_pct=0.05, holding_days=8, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 10), symbol="A"),
+            make_pos(pnl_pct=0.10, holding_days=10, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 12), symbol="B"),
+            make_pos(pnl_pct=-0.05, holding_days=10, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 12), symbol="C"),
+            make_pos(pnl_pct=-0.03, holding_days=11, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 13), symbol="D"),
+        ]
+        # avg_hold_winners=9, avg_hold_losers=10.5
+        # 10.5 > 9*1.5=13.5? No -> no tag
+        tags = tag_names(positions[3], all_positions=positions)
+        assert "HOLD_LOSER" not in tags
+
+    def test_hold_loser_confidence(self):
+        positions = [
+            make_pos(pnl_pct=0.05, holding_days=2, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 4), symbol="A"),
+            make_pos(pnl_pct=0.10, holding_days=4, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 6), symbol="B"),
+            make_pos(pnl_pct=-0.03, holding_days=5, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7), symbol="C"),
+            make_pos(pnl_pct=-0.05, holding_days=12, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 14), symbol="D"),
+        ]
+        results = PatternEngine.tag_position(positions[3], positions)
+        for r in results:
+            if r.pattern_name == "HOLD_LOSER":
+                assert r.confidence == 0.7
+
+
+class TestCutWinnerTag:
+    """CUT_WINNER: cutting winners short while letting losers run."""
+
+    def test_cut_winner_detected(self):
+        """Winner cut shorter than loser avg * 0.5 and below avg winner hold."""
+        positions = [
+            make_pos(pnl_pct=0.05, holding_days=2, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 4), symbol="A"),
+            make_pos(pnl_pct=0.10, holding_days=3, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 5), symbol="B"),
+            make_pos(pnl_pct=-0.03, holding_days=8, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 10), symbol="C"),
+            make_pos(pnl_pct=-0.05, holding_days=10, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 12), symbol="D"),
+        ]
+        # avg_hold_winners=2.5, avg_hold_losers=9
+        # 2.5 < 9*0.5=4.5 ✓, target A: pnl>0 ✓, 2 < 2.5 ✓
+        tags = tag_names(positions[0], all_positions=positions)
+        assert "CUT_WINNER" in tags
+
+    def test_not_cut_winner_when_no_winners(self):
+        all_losers = [
+            make_pos(pnl_pct=-0.05, holding_days=8),
+            make_pos(pnl_pct=-0.03, holding_days=5),
+        ]
+        tags = tag_names(all_losers[0], all_positions=all_losers)
+        assert "CUT_WINNER" not in tags
+
+    def test_not_cut_winner_when_no_losers(self):
+        all_winners = [
+            make_pos(pnl_pct=0.05, holding_days=3),
+            make_pos(pnl_pct=0.10, holding_days=5),
+        ]
+        tags = tag_names(all_winners[0], all_positions=all_winners)
+        assert "CUT_WINNER" not in tags
+
+    def test_not_cut_winner_when_ratio_above_threshold(self):
+        """Ratio above 0.5 doesn't trigger."""
+        positions = [
+            make_pos(pnl_pct=0.05, holding_days=8, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 10), symbol="A"),
+            make_pos(pnl_pct=0.10, holding_days=9, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 11), symbol="B"),
+            make_pos(pnl_pct=-0.05, holding_days=10, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 12), symbol="C"),
+            make_pos(pnl_pct=-0.03, holding_days=12, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 14), symbol="D"),
+        ]
+        # avg_hold_winners=8.5, avg_hold_losers=11
+        # 8.5 < 11*0.5=5.5? No -> no tag
+        tags = tag_names(positions[0], all_positions=positions)
+        assert "CUT_WINNER" not in tags
+
+    def test_cut_winner_confidence(self):
+        positions = [
+            make_pos(pnl_pct=0.05, holding_days=2, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 4), symbol="A"),
+            make_pos(pnl_pct=0.10, holding_days=3, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 5), symbol="B"),
+            make_pos(pnl_pct=-0.03, holding_days=8, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 10), symbol="C"),
+            make_pos(pnl_pct=-0.05, holding_days=10, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 12), symbol="D"),
+        ]
+        results = PatternEngine.tag_position(positions[0], positions)
+        for r in results:
+            if r.pattern_name == "CUT_WINNER":
+                assert r.confidence == 0.7
+
+
+class TestFomoTag:
+    """FOMO: entry near day's high after streak of up days."""
+
+    def test_fomo_detected(self):
+        """3+ up days in last 5 and entry near high."""
+        dates = [f"2024-01-{d:02d}" for d in range(2, 27)]  # 25 days
+        closes = [10.0] * 19 + [10.3, 10.5, 10.8, 11.0, 11.3] + [12.0]
+        # 5 up days before entry ✓, entry_close=12.0
+        highs = [c * 1.03 for c in closes]
+        highs[-1] = 12.1  # 12.0 >= 12.1*0.98=11.858 ✓
+        pos = make_pos(entry_date=date(2024, 1, 26))
+        md = _make_market_data(dates, closes, highs=highs)
+        assert "FOMO" in _market_tags(pos, md)
+
+    def test_not_fomo_when_no_up_days(self):
+        """Flat before entry -> no FOMO."""
+        dates = [f"2024-01-{d:02d}" for d in range(2, 27)]
+        closes = [10.0] * 24 + [12.0]
+        pos = make_pos(entry_date=date(2024, 1, 26))
+        md = _make_market_data(dates, closes)
+        assert "FOMO" not in _market_tags(pos, md)
+
+    def test_not_fomo_when_not_near_high(self):
+        """Entry not close to day's high -> no FOMO."""
+        dates = [f"2024-01-{d:02d}" for d in range(2, 27)]
+        closes = [10.0] * 19 + [10.3, 10.5, 10.8, 11.0, 11.3] + [11.5]
+        highs = [c * 1.03 for c in closes]
+        # entry high = 11.5*1.03=11.845, 11.5 >= 11.845*0.98=11.608? No!
+        pos = make_pos(entry_date=date(2024, 1, 26))
+        md = _make_market_data(dates, closes, highs=highs)
+        assert "FOMO" not in _market_tags(pos, md)
+
+    def test_not_fomo_when_insufficient_data(self):
+        """Less than 5 days of data -> no FOMO."""
+        dates = [f"2024-01-{d:02d}" for d in range(2, 7)]  # 5 days
+        closes = [10.0, 10.3, 10.5, 10.8, 11.0]
+        pos = make_pos(entry_date=date(2024, 1, 6))
+        md = _make_market_data(dates, closes)
+        assert "FOMO" not in _market_tags(pos, md)
+
+    def test_fomo_confidence(self):
+        dates = [f"2024-01-{d:02d}" for d in range(2, 27)]
+        closes = [10.0] * 19 + [10.3, 10.5, 10.8, 11.0, 11.3] + [12.0]
+        highs = [c * 1.03 for c in closes]
+        highs[-1] = 12.1
+        pos = make_pos(entry_date=date(2024, 1, 26))
+        md = _make_market_data(dates, closes, highs=highs)
+        results = PatternEngine.tag_market_patterns(pos, md)
+        for r in results:
+            if r.pattern_name == "FOMO":
+                assert r.confidence == 0.7
 
 
 # ============================================================================

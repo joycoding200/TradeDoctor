@@ -96,7 +96,10 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_api/test_analysis.py::TestAnalysisStats::test_stats_returns_kpis -v --tb=long)",
       "Bash(echo \"Exit code: $?\")",
       "Bash(git pull *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(cd D:\\\\\\\\Dev\\\\\\\\Projects\\\\\\\\TradingJournalAnalyzer\\\\\\\\backend)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py -v --tb=line)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py -v --tb=short)"
     ]
   }
 }
