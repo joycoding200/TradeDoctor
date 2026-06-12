@@ -19,11 +19,55 @@ class PatternResult:
     pattern_name: str
     confidence: float
     context: dict[str, Any] = field(default_factory=dict)
-    is_outcome: bool = False  # True for post-hoc result tags (not behavioral)
+    category: str = ""  # "entry", "market", "holding", "risk"
 
 
 class PatternEngine:
     """Assign behavioral pattern tags to positions."""
+
+    CATEGORY_MAP = {
+        "CHASE": "entry", "BOTTOM": "entry", "BREAKOUT": "entry",
+        "TREND": "market", "COUNTER_TREND": "market", "BREAKDOWN": "market",
+        "SCALP": "holding", "SWING": "holding", "POSITION": "holding",
+        "PYRAMID": "risk", "AVERAGE_DOWN": "risk", "TURN": "risk",
+        "TIGHT_STOP": "risk", "TRAILING_STOP": "risk",
+        "TIME_EXIT": "risk", "LARGE_LOSS_EXIT": "risk",
+        "FOMO": "entry",
+    }
+
+    @staticmethod
+    def resolve_per_category(tags: list[PatternResult]) -> list[PatternResult]:
+        """Keep only the highest-confidence tag per category."""
+        best: dict[str, PatternResult] = {}
+        for t in tags:
+            cat = PatternEngine.CATEGORY_MAP.get(t.pattern_name, "")
+            t.category = cat
+            if not cat:
+                continue  # skip tags not in CATEGORY_MAP (e.g. psychological)
+            if cat not in best or t.confidence > best[cat].confidence:
+                best[cat] = t
+        return list(best.values())
+
+    @staticmethod
+    def compute_outcome(pos) -> dict:
+        """Compute outcome classification (NOT a behavior pattern).
+
+        Returns:
+            dict with keys: pnl, pnl_pct, label (one of BIG_WIN, NORMAL_PROFIT,
+            QUICK_PROFIT, SMALL_LOSS, LARGE_LOSS, or None for zero PnL).
+        """
+        outcome = {"pnl": pos.pnl, "pnl_pct": pos.pnl_pct, "label": None}
+        if pos.pnl_pct > 0.20:
+            outcome["label"] = "BIG_WIN"
+        elif pos.pnl_pct >= 0.05:
+            outcome["label"] = "NORMAL_PROFIT"
+        elif pos.pnl_pct > 0:
+            outcome["label"] = "QUICK_PROFIT"
+        elif pos.pnl_pct < 0 and pos.pnl_pct >= -0.08:
+            outcome["label"] = "SMALL_LOSS"
+        elif pos.pnl_pct < -0.08:
+            outcome["label"] = "LARGE_LOSS"
+        return outcome
 
     # ------------------------------------------------------------------
     # Module 2 & 3 -- available without market data
@@ -192,46 +236,7 @@ class PatternEngine:
                 )
             )
 
-        # SMALL_LOSS_EXIT / TAKE_PROFIT (outcome tags)
-        if -0.08 <= pos.pnl_pct < 0 and pos.holding_days <= 10:
-            tags.append(
-                PatternResult(
-                    "SMALL_LOSS_EXIT",
-                    0.6,
-                    {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
-                    is_outcome=True,
-                )
-            )
-        if pos.pnl_pct > 0:
-            if pos.pnl_pct < 0.05 and pos.holding_days < 5:
-                tags.append(
-                    PatternResult(
-                        "QUICK_PROFIT",
-                        0.6,
-                        {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
-                        is_outcome=True,
-                    )
-                )
-            if 0.05 <= pos.pnl_pct <= 0.20:
-                tags.append(
-                    PatternResult(
-                        "NORMAL_PROFIT",
-                        0.6,
-                        {"pnl_pct": pos.pnl_pct},
-                        is_outcome=True,
-                    )
-                )
-            if pos.pnl_pct > 0.20:
-                tags.append(
-                    PatternResult(
-                        "BIG_WIN",
-                        0.6,
-                        {"pnl_pct": pos.pnl_pct},
-                        is_outcome=True,
-                    )
-                )
-
-        # ----- Fix 6: Exit pattern dimension -----------------------------
+        # ----- Exit pattern dimension -----------------------------
         # TIGHT_STOP: loss -2% to -5% within 3 days
         if -0.05 <= pos.pnl_pct <= -0.02 and pos.holding_days <= 3:
             tags.append(

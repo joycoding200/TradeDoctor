@@ -132,50 +132,6 @@ patterns:
       detail: raw trades show same-symbol same-date BUY and SELL, or entry_date == exit_date with sibling positions
     description: 日内回转交易，先买后卖或先卖后买
 
-  - name: SMALL_LOSS_EXIT
-    label: 小亏离场
-    module: risk
-    market_dependent: false
-    is_outcome: true
-    confidence: 0.6
-    rule:
-      summary: 跌幅 8% 以内且 10 天内卖出
-      detail: -0.08 <= pnl_pct < 0 AND holding_days <= 10
-    description: 小亏离场，亏损达到预定额度时卖出
-
-  - name: QUICK_PROFIT
-    label: 短线止盈
-    module: risk
-    market_dependent: false
-    is_outcome: true
-    confidence: 0.6
-    rule:
-      summary: 小盈利 < 5% 且持仓 < 5 天
-      detail: 0 < pnl_pct < 0.05 AND holding_days < 5
-    description: 快速止盈，小幅盈利后迅速离场
-
-  - name: NORMAL_PROFIT
-    label: 正常止盈
-    module: risk
-    market_dependent: false
-    is_outcome: true
-    confidence: 0.6
-    rule:
-      summary: 盈利 5% ~ 20%
-      detail: 0.05 <= pnl_pct <= 0.20
-    description: 正常止盈，达到预期盈利目标后离场
-
-  - name: BIG_WIN
-    label: 大赚
-    module: risk
-    market_dependent: false
-    is_outcome: true
-    confidence: 0.6
-    rule:
-      summary: 盈利 > 20%
-      detail: pnl_pct > 0.20
-    description: 大幅盈利，收益率超过 20%
-
   # ============================================================
   # 离场行为标签（不依赖行情数据）
   # ============================================================
@@ -232,14 +188,13 @@ patterns:
       detail: 5日内>=3天上涨, 且买入价接近日内高点(>=high*0.98)
     description: 害怕错过上涨，在连续上涨后追高买入
 
-  # ============================================================
-  # Phase 4 — 心理行为标签（AI推测层，不出现在硬标签中）
-  # ============================================================
+# ============================================================
+# 心理行为标签（AI推测层，不出现在行为统计中）
+# 由 PatternEngine.detect_psychological_patterns() 独立检测
+# ============================================================
+psychological_patterns:
   - name: PSY_FOMO
     label: 害怕错过（心理）
-    module: risk
-    market_dependent: false
-    is_psychological: true
     confidence: 0.3
     rule:
       summary: 连续买入价上涨（基于交易记录）
@@ -248,9 +203,6 @@ patterns:
 
   - name: POSSIBLE_REVENGE
     label: 可能报复交易
-    module: risk
-    market_dependent: false
-    is_psychological: true
     confidence: 0.3
     rule:
       summary: 重大亏损后 24 小时内开新仓且仓位更大
@@ -259,9 +211,6 @@ patterns:
 
   - name: OVERTRADING
     label: 过度交易
-    module: risk
-    market_dependent: false
-    is_psychological: true
     confidence: 0.5
     rule:
       summary: 单日交易次数超过个人均值+2个标准差且>=5次
@@ -270,9 +219,6 @@ patterns:
 
   - name: HOLD_LOSER
     label: 死扛亏损
-    module: risk
-    market_dependent: false
-    is_psychological: true
     confidence: 0.5
     rule:
       summary: 亏损持仓时间显著长于盈利持仓
@@ -281,11 +227,9 @@ patterns:
 
   - name: CUT_WINNER
     label: 过早止盈
-    module: risk
-    market_dependent: false
-    is_psychological: true
     confidence: 0.5
     rule:
       summary: 盈利持仓时间显著短于亏损持仓
       detail: median_hold_winners < median_hold_losers * 0.5 AND pos.holding_days < median_hold_winners
     description: 盈利时急于落袋为安，持仓时间远短于亏损交易
+

@@ -19,10 +19,6 @@ export const PATTERN_LABELS: Record<string, string> = {
   PYRAMID: "加仓",
   AVERAGE_DOWN: "补仓",
   TURN: "做T",
-  SMALL_LOSS_EXIT: "小亏离场",
-  QUICK_PROFIT: "短线止盈",
-  NORMAL_PROFIT: "正常止盈",
-  BIG_WIN: "大赚",
   // 模块四：离场行为
   TIGHT_STOP: "止损",
   TRAILING_STOP: "移动止损",
@@ -30,7 +26,7 @@ export const PATTERN_LABELS: Record<string, string> = {
   LARGE_LOSS_EXIT: "恐慌离场",
   // 入场行为（行情依赖）
   FOMO: "害怕错过",
-  // Phase 4: 心理行为标签（AI推测层）
+  // 心理行为标签（AI推测层）
   PSY_FOMO: "害怕错过（心理）",
   POSSIBLE_REVENGE: "可能报复交易",
   OVERTRADING: "过度交易",
@@ -43,12 +39,8 @@ export const PATTERN_MODULES: Record<string, string> = {
   TREND: "entry", COUNTER_TREND: "entry", BREAKDOWN: "entry",
   SCALP: "holding", SWING: "holding", POSITION: "holding",
   PYRAMID: "risk", AVERAGE_DOWN: "risk", TURN: "risk",
-  SMALL_LOSS_EXIT: "risk", QUICK_PROFIT: "risk", NORMAL_PROFIT: "risk",
-  BIG_WIN: "risk",
   TIGHT_STOP: "exit", TRAILING_STOP: "exit", TIME_EXIT: "exit", LARGE_LOSS_EXIT: "exit",
   FOMO: "entry",
-  PSY_FOMO: "risk", POSSIBLE_REVENGE: "risk", OVERTRADING: "risk",
-  HOLD_LOSER: "risk", CUT_WINNER: "risk",
 };
 
 export function patternLabel(name: string): string {

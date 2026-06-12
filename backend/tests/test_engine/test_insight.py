@@ -271,3 +271,85 @@ class TestResolvePrimary:
         result = InsightEngine._resolve_primary(patterns_map)
         assert 0 in result
         assert 1 not in result
+
+
+# ============================================================================
+# Fix: analyze_by_category — per-category insight
+# ============================================================================
+
+
+class TestAnalyzeByCategory:
+    """InsightEngine.analyze_by_category() — per-category aggregation."""
+
+    def test_basic_by_category(self):
+        positions = [
+            make_pos(pnl=100.0, pnl_pct=0.1),
+            make_pos(pnl=50.0, pnl_pct=0.05),
+            make_pos(pnl=-30.0, pnl_pct=-0.03),
+        ]
+        category_map = {
+            0: {"entry": "BREAKOUT", "holding": "SWING"},
+            1: {"entry": "TREND"},
+            2: {"holding": "SCALP", "risk": "TURN"},
+        }
+        result = InsightEngine.analyze_by_category(positions, category_map)
+        assert "entry" in result
+        assert "holding" in result
+        assert "risk" in result
+        assert len(result["entry"]) == 2  # BREAKOUT, TREND
+        assert len(result["holding"]) == 2  # SWING, SCALP
+        assert len(result["risk"]) == 1  # TURN
+
+    def test_category_aggregates_count_and_pnl(self):
+        positions = [
+            make_pos(pnl=100.0, pnl_pct=0.1),
+            make_pos(pnl=50.0, pnl_pct=0.05),
+            make_pos(pnl=-30.0, pnl_pct=-0.03),
+        ]
+        category_map = {
+            0: {"entry": "BREAKOUT"},
+            1: {"entry": "BREAKOUT"},
+            2: {"entry": "BREAKOUT"},
+        }
+        result = InsightEngine.analyze_by_category(positions, category_map)
+        assert len(result["entry"]) == 1  # only BREAKOUT
+        item = result["entry"][0]
+        assert item.pattern_name == "BREAKOUT"
+        assert item.count == 3
+        assert item.win_count == 2
+        assert item.total_pnl == 120.0  # 100 + 50 - 30
+
+    def test_empty_category_map(self):
+        result = InsightEngine.analyze_by_category([make_pos()], {})
+        assert result == {}
+
+    def test_empty_positions(self):
+        result = InsightEngine.analyze_by_category([], {})
+        assert result == {}
+
+    def test_cost_unknown_filtered_out(self):
+        class _Pos:
+            def __init__(self, pnl, pnl_pct, cost_known=True):
+                self.pnl = pnl
+                self.pnl_pct = pnl_pct
+                self.cost_known = cost_known
+        positions = [
+            _Pos(100.0, 0.1, True),
+            _Pos(50.0, 0.05, False),  # unknown cost
+        ]
+        category_map = {0: {"entry": "BREAKOUT"}, 1: {"entry": "TREND"}}
+        result = InsightEngine.analyze_by_category(positions, category_map)
+        assert "entry" in result
+        assert len(result["entry"]) == 1  # only BREAKOUT (position 0)
+        assert result["entry"][0].pattern_name == "BREAKOUT"
+
+    def test_all_cost_unknown_returns_empty(self):
+        class _Pos:
+            def __init__(self, pnl, pnl_pct, cost_known=True):
+                self.pnl = pnl
+                self.pnl_pct = pnl_pct
+                self.cost_known = cost_known
+        positions = [_Pos(100.0, 0.1, False)]
+        category_map = {0: {"entry": "BREAKOUT"}}
+        result = InsightEngine.analyze_by_category(positions, category_map)
+        assert result == {}

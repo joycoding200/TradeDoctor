@@ -20,6 +20,7 @@ from app.schemas.analysis import (
     AttributionItem,
     InsightPatternItem,
     InsightResponse,
+    OutcomeItem,
     PositionItem,
     StatsResponse,
     WhatIfResponse,
@@ -41,20 +42,11 @@ PATTERN_MODULES: dict[str, str] = {
     "PYRAMID": "risk",
     "AVERAGE_DOWN": "risk",
     "TURN": "risk",
-    "SMALL_LOSS_EXIT": "risk",
-    "QUICK_PROFIT": "risk",
-    "NORMAL_PROFIT": "risk",
-    "BIG_WIN": "risk",
     "TIGHT_STOP": "exit",
     "TRAILING_STOP": "exit",
     "TIME_EXIT": "exit",
     "LARGE_LOSS_EXIT": "exit",
     "FOMO": "entry",
-    "PSY_FOMO": "risk",
-    "POSSIBLE_REVENGE": "risk",
-    "OVERTRADING": "risk",
-    "HOLD_LOSER": "risk",
-    "CUT_WINNER": "risk",
 }
 
 
@@ -154,6 +146,18 @@ def get_stats(
     max_loss = min((p.pnl for p in valid_positions), default=0.0)
     consecutive_losses = _compute_consecutive_losses(valid_positions)
 
+    # Outcome distribution
+    outcome_counts: dict[str, int] = {}
+    for p in valid_positions:
+        outcome = PatternEngine.compute_outcome(p)
+        label = outcome["label"]
+        if label:
+            outcome_counts[label] = outcome_counts.get(label, 0) + 1
+    outcome_distribution = [
+        OutcomeItem(label=label, count=count)
+        for label, count in sorted(outcome_counts.items())
+    ]
+
     position_items = [
         PositionItem(
             symbol=p.symbol,
@@ -182,17 +186,19 @@ def get_stats(
         max_win=round(max_win, 2),
         max_loss=round(max_loss, 2),
         consecutive_losses=consecutive_losses,
+        outcome_distribution=outcome_distribution,
         positions=position_items,
     )
 
 
-def _build_patterns_map(positions) -> dict[int, list[tuple[str, float]]]:
-    """Tag each position and return {index: [(pattern_name, confidence), ...]}."""
-    patterns_map: dict[int, list[tuple[str, float]]] = {}
+def _build_category_map(positions) -> dict[int, dict[str, str]]:
+    """Tag each position and return {index: {category: pattern_name}}."""
+    category_map: dict[int, dict[str, str]] = {}
     for i, pos in enumerate(positions):
         results = PatternEngine.tag_position(pos, positions)
-        patterns_map[i] = [(r.pattern_name, r.confidence) for r in results]
-    return patterns_map
+        resolved = PatternEngine.resolve_per_category(results)
+        category_map[i] = {r.category: r.pattern_name for r in resolved if r.category}
+    return category_map
 
 
 def _module_for_pattern(pattern_name: str) -> str:
@@ -210,14 +216,8 @@ def get_insight(
     analysis = _load_analysis(analysis_id, current_user.id, db)
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
-    patterns_map = _build_patterns_map(positions)
-    # Resolve primary pattern per position for PnL attribution
-    primary_map = InsightEngine._resolve_primary(patterns_map)
-    # Convert to list[str] format expected by analyze
-    patterns_map_flat: dict[int, list[str]] = {
-        i: [p] for i, p in primary_map.items()
-    }
-    items = InsightEngine.analyze(positions, patterns_map_flat)
+    category_map = _build_category_map(positions)
+    items_by_cat = InsightEngine.analyze_by_category(positions, category_map)
 
     def to_pattern_item(i) -> InsightPatternItem:
         return InsightPatternItem(
@@ -230,24 +230,31 @@ def get_insight(
             expectancy=round(i.expectancy, 4),
         )
 
-    pattern_items = [to_pattern_item(i) for i in items]
+    # Flat list + per-category lists
+    all_items = []
+    cat_items: dict[str, list[InsightPatternItem]] = {}
+    for cat, cat_insight_items in items_by_cat.items():
+        converted = [to_pattern_item(i) for i in cat_insight_items]
+        cat_items[cat] = converted
+        all_items.extend(converted)
 
-    # Group patterns by module
-    entry_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "entry"]
-    holding_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "holding"]
-    risk_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "risk"]
-    exit_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "exit"]
+    # Group by module for backward compat
+    entry_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "entry"]
+    holding_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "holding"]
+    risk_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "risk"]
+    exit_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "exit"]
 
-    significant = [p for p in pattern_items if p.count >= 5]
+    significant = [p for p in all_items if p.count >= 5]
     best = significant[0] if significant else None
     worst = significant[-1] if len(significant) > 1 else None
 
     return InsightResponse(
-        patterns=pattern_items,
+        patterns=all_items,
         entry_patterns=entry_patterns,
         holding_patterns=holding_patterns,
         risk_patterns=risk_patterns,
         exit_patterns=exit_patterns,
+        categories=cat_items,
         best_pattern=best,
         worst_pattern=worst,
     )
@@ -263,12 +270,12 @@ def get_whatif(
     analysis = _load_analysis(analysis_id, current_user.id, db)
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
-    patterns_map = _build_patterns_map(positions)
-    # Use primary pattern per position (same as insight) to avoid double-counting
-    primary_map = InsightEngine._resolve_primary(patterns_map)
-    patterns_map_names: dict[int, list[str]] = {
-        i: [p] for i, p in primary_map.items()
-    }
+    category_map = _build_category_map(positions)
+    # Use entry patterns per position for behavioral what-if
+    patterns_map_names: dict[int, list[str]] = {}
+    for idx, cats in category_map.items():
+        if "entry" in cats:
+            patterns_map_names[idx] = [cats["entry"]]
     items = ProfitAttribution.attribution_analysis(positions, patterns_map_names)
 
     whatif_items = [

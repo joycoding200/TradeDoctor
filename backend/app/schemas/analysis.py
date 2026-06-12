@@ -29,6 +29,11 @@ class PositionItem(BaseModel):
     trade_ids: list[str]
 
 
+class OutcomeItem(BaseModel):
+    label: str
+    count: int
+
+
 class StatsResponse(BaseModel):
     total_trades: int
     total_positions: int
@@ -40,6 +45,7 @@ class StatsResponse(BaseModel):
     max_win: float
     max_loss: float
     consecutive_losses: int
+    outcome_distribution: list[OutcomeItem] = []
     positions: list[PositionItem]
 
 
@@ -59,6 +65,7 @@ class InsightResponse(BaseModel):
     holding_patterns: list[InsightPatternItem] = []
     risk_patterns: list[InsightPatternItem] = []
     exit_patterns: list[InsightPatternItem] = []
+    categories: dict[str, list[InsightPatternItem]] = {}
     best_pattern: Optional[InsightPatternItem] = None
     worst_pattern: Optional[InsightPatternItem] = None
 

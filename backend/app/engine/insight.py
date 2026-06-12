@@ -122,3 +122,59 @@ class InsightEngine:
 
         results.sort(key=lambda x: x.total_pnl, reverse=True)
         return results
+
+    @staticmethod
+    def analyze_by_category(positions, category_map: dict[int, dict[str, str]]) -> dict[str, list[InsightItem]]:
+        """Analyze positions grouped by (category, pattern) pairs.
+
+        Args:
+            positions: List of position-like objects with .pnl and .pnl_pct.
+            category_map: {position_index: {category: pattern_name}}.
+
+        Returns:
+            {category_name: [InsightItem sorted by sample-weight score]}.
+        """
+        import math
+
+        valid_indices = [
+            i for i, p in enumerate(positions)
+            if getattr(p, "cost_known", True)
+        ]
+
+        by_category: dict[str, dict[str, dict]] = {}
+        for i in valid_indices:
+            pos = positions[i]
+            cats = category_map.get(i, {})
+            for cat, pat_name in cats.items():
+                if cat not in by_category:
+                    by_category[cat] = {}
+                if pat_name not in by_category[cat]:
+                    by_category[cat][pat_name] = {"positions": [], "wins": 0}
+                by_category[cat][pat_name]["positions"].append(pos)
+                if pos.pnl > 0:
+                    by_category[cat][pat_name]["wins"] += 1
+
+        result = {}
+        for cat, pat_data in by_category.items():
+            items = []
+            for pat_name, data in pat_data.items():
+                positions_in_cat = data["positions"]
+                count = len(positions_in_cat)
+                if count == 0:
+                    continue
+                total_pnl = sum(p.pnl for p in positions_in_cat)
+                wins = data["wins"]
+                win_rate = wins / count
+                expectancy = InsightItem.compute(positions_in_cat, pat_name)
+                # Sample-size-weighted score
+                weight = math.log(max(count, 5)) / math.log(5)
+                weighted_score = total_pnl * weight
+                items.append(InsightItem(
+                    pattern_name=pat_name, count=count, win_count=wins,
+                    win_rate=round(win_rate, 4), total_pnl=round(total_pnl, 2),
+                    avg_pnl_pct=round(sum(p.pnl_pct for p in positions_in_cat) / count, 4),
+                    expectancy=round(expectancy, 2),
+                ))
+            items.sort(key=lambda x: x.total_pnl * (math.log(max(x.count, 5)) / math.log(5)), reverse=True)
+            result[cat] = items
+        return result

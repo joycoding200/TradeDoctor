@@ -183,105 +183,69 @@ class TestPositionTag:
 # ============================================================================
 
 
-class TestSmallLossExitTag:
-    def test_small_loss_within_stop(self):
-        """Loss within -8% and held <= 10 days is a small loss exit."""
-        pos = make_pos(pnl_pct=-0.05, holding_days=5)
-        assert "SMALL_LOSS_EXIT" in tag_names(pos)
-
-    def test_at_boundary_minus_eight(self):
-        """Loss at exactly -8% boundary still qualifies."""
-        pos = make_pos(pnl_pct=-0.08, holding_days=3)
-        assert "SMALL_LOSS_EXIT" in tag_names(pos)
-
-    def test_confidence_point_six(self):
-        pos = make_pos(pnl_pct=-0.05)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "SMALL_LOSS_EXIT":
-                assert r.confidence == 0.6
-
-    def test_not_tagged_when_profitable(self):
-        pos = make_pos(pnl_pct=0.1)
-        assert "SMALL_LOSS_EXIT" not in tag_names(pos)
-
-    def test_not_tagged_when_loss_exceeds_eight_percent(self):
-        """Loss > 8% (e.g. bagholding) should NOT be tagged as small loss exit."""
-        pos = make_pos(pnl_pct=-0.09, holding_days=5)
-        assert "SMALL_LOSS_EXIT" not in tag_names(pos)
-
-    def test_not_tagged_when_held_too_long(self):
-        """Loss held > 10 days should NOT be tagged as small loss exit."""
-        pos = make_pos(pnl_pct=-0.05, holding_days=11)
-        assert "SMALL_LOSS_EXIT" not in tag_names(pos)
-
-
-class TestTakeProfitTag:
-    def test_quick_profit(self):
-        """Small profit < 5% held < 5 days is QUICK_PROFIT."""
-        pos = make_pos(pnl_pct=0.03, holding_days=2)
-        tags = tag_names(pos)
-        assert "QUICK_PROFIT" in tags
-        assert "NORMAL_PROFIT" not in tags
-        assert "BIG_WIN" not in tags
-
-    def test_normal_profit(self):
-        """Profit between 5% and 20% is NORMAL_PROFIT."""
-        pos = make_pos(pnl_pct=0.10, holding_days=8)
-        tags = tag_names(pos)
-        assert "NORMAL_PROFIT" in tags
-        assert "QUICK_PROFIT" not in tags
-        assert "BIG_WIN" not in tags
-
-    def test_normal_profit_boundary_lower(self):
-        """Profit at exactly 5% qualifies as NORMAL_PROFIT."""
-        pos = make_pos(pnl_pct=0.05, holding_days=5)
-        tags = tag_names(pos)
-        assert "NORMAL_PROFIT" in tags
-        assert "QUICK_PROFIT" not in tags
-
-    def test_normal_profit_boundary_upper(self):
-        """Profit at exactly 20% qualifies as NORMAL_PROFIT."""
-        pos = make_pos(pnl_pct=0.20, holding_days=8)
-        tags = tag_names(pos)
-        assert "NORMAL_PROFIT" in tags
-        assert "BIG_WIN" not in tags
+class TestComputeOutcome:
+    """PatternEngine.compute_outcome() produces outcome labels, not behavior tags."""
 
     def test_big_win(self):
-        """Profit > 20% is BIG_WIN."""
+        pos = make_pos(pnl_pct=0.25, holding_days=10)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "BIG_WIN"
+
+    def test_normal_profit(self):
+        pos = make_pos(pnl_pct=0.10, holding_days=8)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "NORMAL_PROFIT"
+
+    def test_normal_profit_boundary_lower(self):
+        pos = make_pos(pnl_pct=0.05, holding_days=5)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "NORMAL_PROFIT"
+
+    def test_normal_profit_boundary_upper(self):
+        pos = make_pos(pnl_pct=0.20, holding_days=8)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "NORMAL_PROFIT"
+
+    def test_quick_profit(self):
+        pos = make_pos(pnl_pct=0.03, holding_days=2)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "QUICK_PROFIT"
+
+    def test_small_loss(self):
+        pos = make_pos(pnl_pct=-0.05, holding_days=5)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "SMALL_LOSS"
+
+    def test_small_loss_at_boundary(self):
+        pos = make_pos(pnl_pct=-0.08, holding_days=3)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "SMALL_LOSS"
+
+    def test_large_loss(self):
+        pos = make_pos(pnl_pct=-0.25, holding_days=5)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "LARGE_LOSS"
+
+    def test_large_loss_beyond_eight(self):
+        pos = make_pos(pnl_pct=-0.09, holding_days=5)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] == "LARGE_LOSS"
+
+    def test_zero_pnl_has_no_label(self):
+        pos = make_pos(pnl_pct=0.0, holding_days=1)
+        result = PatternEngine.compute_outcome(pos)
+        assert result["label"] is None
+
+    def test_outcome_not_in_tag_position(self):
+        """Outcome tags should NOT appear in tag_position() results."""
         pos = make_pos(pnl_pct=0.25, holding_days=10)
         tags = tag_names(pos)
-        assert "BIG_WIN" in tags
-        assert "NORMAL_PROFIT" not in tags
-        assert "QUICK_PROFIT" not in tags
-
-    def test_not_tagged_when_losing(self):
-        pos = make_pos(pnl_pct=-0.05)
-        tags = tag_names(pos)
-        assert "QUICK_PROFIT" not in tags
-        assert "NORMAL_PROFIT" not in tags
         assert "BIG_WIN" not in tags
-
-    def test_quick_profit_confidence(self):
-        pos = make_pos(pnl_pct=0.03, holding_days=2)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "QUICK_PROFIT":
-                assert r.confidence == 0.6
-
-    def test_normal_profit_confidence(self):
-        pos = make_pos(pnl_pct=0.10)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "NORMAL_PROFIT":
-                assert r.confidence == 0.6
-
-    def test_big_win_confidence(self):
-        pos = make_pos(pnl_pct=0.25)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "BIG_WIN":
-                assert r.confidence == 0.6
+        assert "NORMAL_PROFIT" not in tags
+        assert "QUICK_PROFIT" not in tags
+        assert "SMALL_LOSS_EXIT" not in tags
+        assert "SMALL_LOSS" not in tags
+        assert "LARGE_LOSS" not in tags
 
 
 class TestTurnTag:
@@ -849,8 +813,8 @@ class TestTagCoexistence:
         assert "SCALP" in tags
         assert "TURN" in tags
 
-    def test_small_loss_exit_and_average_down_can_coexist(self):
-        """A losing position in a multi-entry day is both."""
+    def test_average_down_with_loss(self):
+        """A losing position in a multi-entry day gets AVERAGE_DOWN."""
         d1 = date(2024, 1, 2)
         d2 = date(2024, 1, 5)
         p1 = make_pos(pnl_pct=0.05, avg_entry_price=10.0, entry_date=d1, exit_date=d1 + timedelta(days=3), holding_days=3)
@@ -858,7 +822,6 @@ class TestTagCoexistence:
         # avg_entry 9.4 < 10.0 * 0.95 = 9.5 -> AVERAGE_DOWN
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" in tags
-        assert "SMALL_LOSS_EXIT" in tags
 
 
 # ============================================================================
@@ -1117,57 +1080,67 @@ class TestDetectPsychologicalPatterns:
 
 
 # ============================================================================
-# Fix 1: Outcome vs Behavior tag separation (is_outcome flag)
+# Fix 1: Outcome separation — compute_outcome replaces is_outcome flag
 # ============================================================================
 
 
-class TestIsOutcomeFlag:
-    """PatternResult.is_outcome must be True for outcome tags, False for behavior tags."""
+class TestCategoryField:
+    """PatternResult.category is set by resolve_per_category() based on CATEGORY_MAP."""
 
-    def test_small_loss_exit_is_outcome(self):
-        pos = make_pos(pnl_pct=-0.05, holding_days=5)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "SMALL_LOSS_EXIT":
-                assert r.is_outcome is True
+    def test_category_map_has_all_behavior_tags(self):
+        """CATEGORY_MAP covers all behavioral pattern names."""
+        expected = {
+            "CHASE", "BOTTOM", "BREAKOUT",
+            "TREND", "COUNTER_TREND", "BREAKDOWN",
+            "SCALP", "SWING", "POSITION",
+            "PYRAMID", "AVERAGE_DOWN", "TURN",
+            "TIGHT_STOP", "TRAILING_STOP", "TIME_EXIT", "LARGE_LOSS_EXIT",
+            "FOMO",
+        }
+        assert set(PatternEngine.CATEGORY_MAP.keys()) == expected
 
-    def test_quick_profit_is_outcome(self):
-        pos = make_pos(pnl_pct=0.03, holding_days=2)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "QUICK_PROFIT":
-                assert r.is_outcome is True
+    def test_resolve_per_category_keeps_highest_confidence(self):
+        tags = [
+            PatternResult("CHASE", 0.5, {}),
+            PatternResult("FOMO", 0.7, {}),
+            PatternResult("SWING", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_per_category(tags)
+        result_by_name = {r.pattern_name: r for r in result}
+        # CHASE (entry, 0.5) and FOMO (entry, 0.7) -> FOMO wins
+        assert "FOMO" in result_by_name
+        assert "CHASE" not in result_by_name
+        assert result_by_name["FOMO"].category == "entry"
+        assert result_by_name["SWING"].category == "holding"
 
-    def test_normal_profit_is_outcome(self):
-        pos = make_pos(pnl_pct=0.10, holding_days=8)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "NORMAL_PROFIT":
-                assert r.is_outcome is True
+    def test_resolve_per_category_different_categories_all_kept(self):
+        tags = [
+            PatternResult("BREAKOUT", 0.7, {}),  # entry
+            PatternResult("SWING", 1.0, {}),      # holding
+            PatternResult("PYRAMID", 0.8, {}),    # risk
+        ]
+        result = PatternEngine.resolve_per_category(tags)
+        assert len(result) == 3
 
-    def test_big_win_is_outcome(self):
-        pos = make_pos(pnl_pct=0.25, holding_days=10)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name == "BIG_WIN":
-                assert r.is_outcome is True
+    def test_resolve_per_category_empty_returns_empty(self):
+        assert PatternEngine.resolve_per_category([]) == []
 
-    def test_behavior_tags_not_outcome(self):
-        """SCALP, SWING, POSITION, PYRAMID, AVERAGE_DOWN, TURN are behavior tags (not outcome)."""
-        pos = make_pos(pnl_pct=0.05, holding_days=8)
-        results = PatternEngine.tag_position(pos, [pos])
-        behavior_tags = {"SCALP", "SWING", "POSITION", "PYRAMID", "AVERAGE_DOWN", "TURN"}
-        for r in results:
-            if r.pattern_name in behavior_tags:
-                assert r.is_outcome is False, f"{r.pattern_name} should not be outcome"
+    def test_resolve_per_category_same_category_only_highest(self):
+        """Only the highest confidence tag per category survives."""
+        tags = [
+            PatternResult("SCALP", 1.0, {}),    # holding
+            PatternResult("SWING", 0.8, {}),    # holding
+            PatternResult("POSITION", 0.6, {}), # holding
+        ]
+        result = PatternEngine.resolve_per_category(tags)
+        assert len(result) == 1
+        assert result[0].pattern_name == "SCALP"
+        assert result[0].category == "holding"
 
-    def test_close_patterns_have_is_outcome(self):
-        """The 4 close/outcome tags should all have is_outcome=True."""
-        pos = make_pos(pnl_pct=-0.05, holding_days=5)
-        results = PatternEngine.tag_position(pos, [pos])
-        for r in results:
-            if r.pattern_name in ("SMALL_LOSS_EXIT", "QUICK_PROFIT", "NORMAL_PROFIT", "BIG_WIN"):
-                assert r.is_outcome is True
+    def test_psychological_tags_not_in_category_map(self):
+        """PSY_FOMO, POSSIBLE_REVENGE, OVERTRADING must NOT be in CATEGORY_MAP."""
+        for tag in ("PSY_FOMO", "POSSIBLE_REVENGE", "OVERTRADING"):
+            assert tag not in PatternEngine.CATEGORY_MAP
 
 
 # ============================================================================
