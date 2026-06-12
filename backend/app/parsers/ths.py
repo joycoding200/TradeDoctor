@@ -39,7 +39,7 @@ class ThsParser(BaseParser):
                     datetime=pd.to_datetime(row["发生日期"]),
                     symbol=symbol,
                     exchange=_get_exchange(symbol),
-                    side="BUY" if raw_side == "买" else "SELL",
+                    side="BUY" if "买" in raw_side else "SELL",
                     quantity=float(row["成交数量"]),
                     price=float(row["成交价格"]),
                     commission=float(row.get("手续费", 0) or 0),

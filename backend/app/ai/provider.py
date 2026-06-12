@@ -21,11 +21,14 @@ class LLMProvider(ABC):
 class OpenAIProvider(LLMProvider):
     """OpenAI-compatible chat completions API."""
 
-    def __init__(self) -> None:
+    def __init__(self, base_url: str | None = None, model: str | None = None) -> None:
         import openai
 
-        self.client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
-        self.model = settings.openai_model
+        kwargs = {"api_key": settings.openai_api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self.client = openai.AsyncOpenAI(**kwargs)
+        self.model = model or settings.openai_model
 
     async def generate(self, system_prompt: str, user_prompt: str) -> str:
         response = await self.client.chat.completions.create(
@@ -92,11 +95,15 @@ def get_llm() -> LLMProvider:
     provider = settings.ai_provider.lower()
     if provider == "openai":
         return OpenAIProvider()
+    if provider == "openrouter":
+        base_url = settings.ai_base_url or "https://openrouter.ai/api/v1"
+        model = settings.ai_model or settings.openai_model
+        return OpenAIProvider(base_url=base_url, model=model)
     if provider == "claude":
         return ClaudeProvider()
     if provider == "deepseek":
         return DeepSeekProvider()
     raise ValueError(
         f"Unknown AI provider: '{settings.ai_provider}'. "
-        f"Expected one of: openai, claude, deepseek."
+        f"Expected one of: openai, claude, deepseek, openrouter."
     )

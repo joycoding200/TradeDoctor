@@ -271,11 +271,12 @@ def get_whatif(
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
     category_map = _build_category_map(positions)
-    # Use entry patterns per position for behavioral what-if
+    # Use all available category patterns per position for behavioral what-if
     patterns_map_names: dict[int, list[str]] = {}
     for idx, cats in category_map.items():
-        if "entry" in cats:
-            patterns_map_names[idx] = [cats["entry"]]
+        names = list(cats.values())
+        if names:
+            patterns_map_names[idx] = names
     items = ProfitAttribution.attribution_analysis(positions, patterns_map_names)
 
     whatif_items = [

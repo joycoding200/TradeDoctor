@@ -16,6 +16,7 @@ class ReportGenerateResponse(BaseModel):
 
 class ReportResponse(BaseModel):
     id: str
+    analysis_id: str | None = None
     analysis_input: dict
     ai_provider: str
     report_content: str

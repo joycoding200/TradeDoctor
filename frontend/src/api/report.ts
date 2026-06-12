@@ -1,7 +1,7 @@
 import { apiGet, apiPost } from "./client";
 
 export async function generateReport(analysisId: string): Promise<any> {
-  return apiPost(`/api/report/${analysisId}/generate`);
+  return apiPost("/api/report/generate", { analysis_id: analysisId });
 }
 
 export async function getReport(id: string): Promise<any> {
@@ -9,5 +9,5 @@ export async function getReport(id: string): Promise<any> {
 }
 
 export async function listReports(): Promise<any> {
-  return apiGet("/api/report");
+  return apiGet("/api/reports");
 }

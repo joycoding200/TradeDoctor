@@ -14,6 +14,9 @@ class Report(Base):
     user_id = Column(
         String(36), ForeignKey("users.id"), nullable=False, index=True
     )
+    analysis_id = Column(
+        String(36), ForeignKey("analyses.id"), nullable=True, index=True
+    )
     analysis_input = Column(JSON, nullable=False)
     ai_provider = Column(String(20), nullable=False)
     report_content = Column(Text, nullable=False)

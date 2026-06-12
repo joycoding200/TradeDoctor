@@ -1,4 +1,4 @@
-import { apiPost, apiUpload } from "./client";
+import { apiDelete, apiPost, apiUpload } from "./client";
 
 export async function uploadFile(file: File): Promise<any> {
   const formData = new FormData();
@@ -12,4 +12,8 @@ export async function confirmFormat(rawFileId: string, sourceType: string): Prom
 
 export async function importTrades(rawFileId: string): Promise<any> {
   return apiPost("/api/upload/import", { raw_file_id: rawFileId });
+}
+
+export async function clearTrades(): Promise<any> {
+  return apiDelete("/api/upload/trades");
 }

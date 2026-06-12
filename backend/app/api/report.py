@@ -147,6 +147,7 @@ async def generate_report(
     # Save
     report = Report(
         user_id=current_user.id,
+        analysis_id=body.analysis_id,
         analysis_input=analysis_data,
         ai_provider=settings.ai_provider,
         report_content=report_content,
@@ -176,6 +177,7 @@ def get_report(
 
     return ReportResponse(
         id=report.id,
+        analysis_id=report.analysis_id,
         analysis_input=report.analysis_input,
         ai_provider=report.ai_provider,
         report_content=report.report_content,

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.jwt import get_current_user
 from app.database import get_db
+from app.models.analysis import Analysis
 from app.models.raw_file import RawFile
 from app.models.trade import Trade
 from app.models.user import User
@@ -144,3 +145,16 @@ def import_trades(
     db.commit()
 
     return ImportResponse(imported_count=len(trades))
+
+
+@router.delete("/trades", status_code=status.HTTP_200_OK)
+def clear_trades(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete all trades and analyses for the current user."""
+    user_id = current_user.id
+    db.query(Analysis).filter(Analysis.user_id == user_id).delete()
+    db.query(Trade).filter(Trade.user_id == user_id).delete()
+    db.commit()
+    return {"detail": "ok"}

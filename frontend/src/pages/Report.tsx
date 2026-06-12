@@ -126,7 +126,7 @@ export default function Report() {
               ),
             }}
           >
-            {data.content || data.report || ""}
+            {data.report_content || ""}
           </ReactMarkdown>
         </div>
       </div>

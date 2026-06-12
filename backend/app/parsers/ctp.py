@@ -36,7 +36,7 @@ class CTPParser(BaseParser):
         for _, row in df.iterrows():
             symbol = str(row["合约代码"]).strip()
             raw_side = str(row["买卖"]).strip()
-            side = "BUY" if raw_side == "买" else "SELL"
+            side = "BUY" if "买" in raw_side else "SELL"
             multiplier = _get_multiplier(symbol)
             price = float(row["成交价"])
             quantity = float(row["成交量"])

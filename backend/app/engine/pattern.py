@@ -30,8 +30,8 @@ class PatternEngine:
         "TREND": "market", "COUNTER_TREND": "market", "BREAKDOWN": "market",
         "SCALP": "holding", "SWING": "holding", "POSITION": "holding",
         "PYRAMID": "risk", "AVERAGE_DOWN": "risk", "TURN": "risk",
-        "TIGHT_STOP": "risk", "TRAILING_STOP": "risk",
-        "TIME_EXIT": "risk", "LARGE_LOSS_EXIT": "risk",
+        "TIGHT_STOP": "exit", "TRAILING_STOP": "exit",
+        "TIME_EXIT": "exit", "LARGE_LOSS_EXIT": "exit",
         "FOMO": "entry",
     }
 
