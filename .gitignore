@@ -17,6 +17,7 @@ env/
 # Testing
 .pytest_cache/
 test.db
+testfiles/
 
 # Environment
 .env
@@ -24,3 +25,4 @@ test.db
 # OS
 .DS_Store
 Thumbs.db
+.playwright-mcp/

@@ -29,10 +29,10 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   const cards = [
     { label: "完整交易", value: stats.total_positions ?? 0, format: "int" },
     { label: "成交记录", value: stats.total_trades ?? 0, format: "int" },
-    { label: "胜率", value: stats.win_rate ?? 0, format: "pct" },
+    { label: "交易胜率", value: stats.win_rate ?? 0, format: "pct" },
     { label: "总盈亏", value: stats.total_pnl ?? 0, format: "money" },
-    { label: "最大盈利", value: stats.max_win ?? 0, format: "money" },
-    { label: "最大亏损", value: stats.max_loss ?? 0, format: "money" },
+    { label: "单笔最大盈利", value: stats.max_win ?? 0, format: "money" },
+    { label: "单笔最大亏损", value: stats.max_loss ?? 0, format: "money" },
     { label: "平均持仓天数", value: stats.avg_holding_days ?? 0, format: "days" },
   ];
 
@@ -61,11 +61,11 @@ export default function StatsCards({ stats }: StatsCardsProps) {
               className="text-xl font-semibold"
               style={{
                 color:
-                  card.label === "最大亏损" || (card.label === "总盈亏" && card.value < 0)
+                  card.label === "单笔最大亏损" || (card.label === "总盈亏" && card.value < 0)
                     ? "var(--danger)"
-                    : card.label === "最大盈利" || (card.label === "总盈亏" && card.value > 0)
+                    : card.label === "单笔最大盈利" || (card.label === "总盈亏" && card.value > 0)
                     ? "var(--success)"
-                    : card.label === "胜率" && card.value < 0.5
+                    : card.label === "交易胜率" && card.value < 0.5
                     ? "var(--danger)"
                     : "var(--text-primary)",
               }}

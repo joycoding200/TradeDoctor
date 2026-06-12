@@ -277,7 +277,11 @@ class SmartParser(BaseParser):
         future_score = column_scores.get(future_col or "", {}).get("FUTURES_SYMBOL", 0)
         is_future = future_score > stock_score and future_score > 0.3
 
-        comm_col = best_col("COMMISSION")
+        # Find ALL commission/fee columns (佣金, 印花税, 过户费, 其他杂费 etc.)
+        comm_cols = [
+            col for col, scores in column_scores.items()
+            if scores.get("COMMISSION", 0) > 0.3
+        ]
         margin_col = best_col("MARGIN") if is_future else None
 
         if not all([date_col, symbol_col, direction_col, price_col, qty_col]):
@@ -320,8 +324,13 @@ class SmartParser(BaseParser):
                     multiplier = None
 
                 comm = 0.0
-                if comm_col and pd.notna(row.get(comm_col)):
-                    comm = float(row[comm_col])
+                for c in comm_cols:
+                    val = row.get(c)
+                    if pd.notna(val):
+                        try:
+                            comm += float(val)
+                        except (ValueError, TypeError):
+                            pass
 
                 margin = None
                 if margin_col and pd.notna(row.get(margin_col)):
@@ -337,6 +346,7 @@ class SmartParser(BaseParser):
                     commission=comm,
                     margin=margin,
                     multiplier=multiplier,
+                    asset_type="future" if is_future else "stock",
                 ))
             except (ValueError, KeyError, TypeError):
                 continue

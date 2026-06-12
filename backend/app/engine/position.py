@@ -72,24 +72,27 @@ class PositionBuilder:
         long_queue: deque = deque()
 
         for trade in trades:
+            trade_comm = getattr(trade, 'commission', 0) or 0
             if trade.side == "BUY":
                 long_queue.append(
-                    (trade.quantity, trade.price, trade.id, trade.datetime)
+                    (trade.quantity, trade.price, trade.id, trade.datetime, trade_comm)
                 )
             else:
                 remaining = trade.quantity
                 sell_trade_ids = [trade.id]
                 total_cost = 0.0
                 total_qty = 0.0
+                total_buy_comm = 0.0  # Accumulated buy-side fees
                 entry_date: date | None = None
 
                 while remaining > 0 and long_queue:
-                    buy_qty, buy_price, buy_id, buy_dt = long_queue[0]
+                    buy_qty, buy_price, buy_id, buy_dt, bc = long_queue[0]
                     if entry_date is None:
                         entry_date = buy_dt.date()
 
                     matched = min(remaining, buy_qty)
                     total_cost += matched * buy_price
+                    total_buy_comm += (matched / buy_qty) * bc if buy_qty > 0 else 0
                     total_qty += matched
                     sell_trade_ids.append(buy_id)
                     remaining -= matched
@@ -102,6 +105,7 @@ class PositionBuilder:
                             buy_price,
                             buy_id,
                             buy_dt,
+                            bc * (1 - matched / buy_qty),
                         )
 
                 # Handle orphan sell: pre-existing position with unknown cost
@@ -127,10 +131,12 @@ class PositionBuilder:
 
                 if total_qty > 0:
                     avg_entry = total_cost / total_qty
-                    pnl = (trade.price - avg_entry) * total_qty
+                    # PnL = sell proceeds - buy cost - all fees
+                    sell_comm = trade_comm  # sell-side fees
+                    pnl = (trade.price - avg_entry) * total_qty - total_buy_comm - sell_comm
                     pnl_pct = (
-                        (trade.price - avg_entry) / avg_entry
-                        if avg_entry != 0
+                        pnl / (avg_entry * total_qty + total_buy_comm)
+                        if avg_entry != 0 and total_qty != 0
                         else 0.0
                     )
                     exit_date = trade.datetime.date()
@@ -197,20 +203,21 @@ class PositionBuilder:
         as positions with unknown cost basis.
         """
         positions: list[PositionResult] = []
-        buy_batches: list = []  # (qty, price, id, dt)
-        sell_batches: list = []  # (qty, price, id, dt)
+        buy_batches: list = []  # (qty, price, id, dt, comm)
+        sell_batches: list = []  # (qty, price, id, dt, comm)
         cum_buys = 0.0
         cum_sells = 0.0
 
         for trade in trades:
+            trade_comm = getattr(trade, 'commission', 0) or 0
             if trade.side == "BUY":
                 buy_batches.append(
-                    (trade.quantity, trade.price, trade.id, trade.datetime)
+                    (trade.quantity, trade.price, trade.id, trade.datetime, trade_comm)
                 )
                 cum_buys += trade.quantity
             else:  # SELL
                 sell_batches.append(
-                    (trade.quantity, trade.price, trade.id, trade.datetime)
+                    (trade.quantity, trade.price, trade.id, trade.datetime, trade_comm)
                 )
                 cum_sells += trade.quantity
 
@@ -246,22 +253,27 @@ class PositionBuilder:
             if cum_sells >= cum_buys and cum_buys > 0:
                 total_buy_qty = sum(b[0] for b in buy_batches)
                 total_buy_cost = sum(b[0] * b[1] for b in buy_batches)
+                total_buy_comm = sum(b[4] for b in buy_batches)
                 avg_entry = total_buy_cost / total_buy_qty if total_buy_qty > 0 else 0.0
 
                 # Match sells against buys proportionally
                 matched_sell_qty = 0.0
                 matched_sell_revenue = 0.0
+                matched_sell_comm = 0.0
                 remaining = cum_buys
                 for s in sell_batches:
                     take = min(s[0], remaining)
+                    ratio = take / s[0] if s[0] > 0 else 0
                     matched_sell_qty += take
                     matched_sell_revenue += take * s[1]
+                    matched_sell_comm += ratio * s[4]
                     remaining -= take
                     if remaining <= 0:
                         break
 
                 avg_exit = matched_sell_revenue / matched_sell_qty if matched_sell_qty > 0 else 0.0
-                pnl = matched_sell_revenue - total_buy_cost
+                # PnL = sell proceeds - buy cost - all fees
+                pnl = matched_sell_revenue - total_buy_cost - total_buy_comm - matched_sell_comm
 
                 entry_date = buy_batches[0][3].date()
                 exit_date = sell_batches[0][3].date()
@@ -270,6 +282,7 @@ class PositionBuilder:
 
                 excess = cum_sells - cum_buys
                 num_buys = len(buy_batches)
+                invested = total_buy_cost + total_buy_comm
 
                 positions.append(
                     PositionResult(
@@ -282,7 +295,7 @@ class PositionBuilder:
                         avg_entry_price=round(avg_entry, 4),
                         avg_exit_price=round(avg_exit, 4),
                         pnl=round(pnl, 2),
-                        pnl_pct=round(pnl / total_buy_cost, 4) if total_buy_cost > 0 else 0.0,
+                        pnl_pct=round(pnl / invested, 4) if invested > 0 else 0.0,
                         trade_ids=all_ids,
                         cost_known=True,
                         entry_count=num_buys,
@@ -301,7 +314,8 @@ class PositionBuilder:
                     for s in reversed(sell_batches):
                         if remaining_excess > 0:
                             take = min(s[0], remaining_excess)
-                            new_sell_batches.insert(0, (take, s[1], s[2], s[3]))
+                            ratio = take / s[0] if s[0] > 0 else 0
+                            new_sell_batches.insert(0, (take, s[1], s[2], s[3], ratio * s[4]))
                             remaining_excess -= take
                     sell_batches = new_sell_batches
                     cum_sells = excess

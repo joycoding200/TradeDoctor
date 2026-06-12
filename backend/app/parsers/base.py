@@ -17,6 +17,8 @@ class TradeData:
     commission: float = 0.0
     margin: float | None = None
     multiplier: int | None = None
+    id: str | None = None  # populated from DB record when available
+    asset_type: str = "stock"  # "stock" or "future"
 
 
 class BaseParser(ABC):
