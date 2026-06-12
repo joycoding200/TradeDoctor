@@ -19,6 +19,7 @@ class PatternResult:
     pattern_name: str
     confidence: float
     context: dict[str, Any] = field(default_factory=dict)
+    is_outcome: bool = False  # True for post-hoc result tags (not behavioral)
 
 
 class PatternEngine:
@@ -191,13 +192,14 @@ class PatternEngine:
                 )
             )
 
-        # SMALL_LOSS_EXIT / TAKE_PROFIT
+        # SMALL_LOSS_EXIT / TAKE_PROFIT (outcome tags)
         if -0.08 <= pos.pnl_pct < 0 and pos.holding_days <= 10:
             tags.append(
                 PatternResult(
                     "SMALL_LOSS_EXIT",
                     0.6,
                     {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
+                    is_outcome=True,
                 )
             )
         if pos.pnl_pct > 0:
@@ -207,6 +209,7 @@ class PatternEngine:
                         "QUICK_PROFIT",
                         0.6,
                         {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
+                        is_outcome=True,
                     )
                 )
             if 0.05 <= pos.pnl_pct <= 0.20:
@@ -215,6 +218,7 @@ class PatternEngine:
                         "NORMAL_PROFIT",
                         0.6,
                         {"pnl_pct": pos.pnl_pct},
+                        is_outcome=True,
                     )
                 )
             if pos.pnl_pct > 0.20:
@@ -223,8 +227,47 @@ class PatternEngine:
                         "BIG_WIN",
                         0.6,
                         {"pnl_pct": pos.pnl_pct},
+                        is_outcome=True,
                     )
                 )
+
+        # ----- Fix 6: Exit pattern dimension -----------------------------
+        # TIGHT_STOP: loss -2% to -5% within 3 days
+        if -0.05 <= pos.pnl_pct <= -0.02 and pos.holding_days <= 3:
+            tags.append(
+                PatternResult(
+                    "TIGHT_STOP",
+                    0.8,
+                    {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
+                )
+            )
+        # TRAILING_STOP: held > 10 days, exited with profit 0-10%
+        if pos.holding_days > 10 and 0 < pos.pnl_pct <= 0.10:
+            tags.append(
+                PatternResult(
+                    "TRAILING_STOP",
+                    0.6,
+                    {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
+                )
+            )
+        # TIME_EXIT: held > 30 days, absolute PnL < 5%
+        if pos.holding_days > 30 and abs(pos.pnl_pct) < 0.05:
+            tags.append(
+                PatternResult(
+                    "TIME_EXIT",
+                    0.6,
+                    {"pnl_pct": pos.pnl_pct, "holding_days": pos.holding_days},
+                )
+            )
+        # PANIC_EXIT: loss > 20%
+        if pos.pnl_pct < -0.20:
+            tags.append(
+                PatternResult(
+                    "PANIC_EXIT",
+                    0.9,
+                    {"pnl_pct": pos.pnl_pct},
+                )
+            )
 
         # ----- Priority resolution for overlapping tags -------------------
         tag_names = {t.pattern_name for t in tags}
@@ -473,7 +516,10 @@ class PatternEngine:
 
     @staticmethod
     def resolve_hierarchy(tags: list[PatternResult]) -> list[PatternResult]:
-        """Post-process tags to establish L1->L2 hierarchy via context.sub_pattern.
+        """Post-process tags to establish L1->L2 hierarchy and deduplicate overlaps.
+
+        Overlaps resolved:
+          BREAKOUT + CHASE -> keep BREAKOUT (more specific), REMOVE CHASE
 
         L1 trend/counter-trend tags get a sub_pattern:
           TREND + BREAKOUT -> TREND.sub_pattern = BREAKOUT
@@ -481,21 +527,26 @@ class PatternEngine:
           COUNTER_TREND + BOTTOM -> COUNTER_TREND.sub_pattern = BOTTOM
           COUNTER_TREND + BREAKDOWN -> COUNTER_TREND.sub_pattern = BREAKDOWN
         """
-        trend_tags = {t.pattern_name for t in tags}
+        tag_names = {t.pattern_name for t in tags}
 
-        if "TREND" in trend_tags and "BREAKOUT" in trend_tags:
+        # BREAKOUT + CHASE overlap: keep BREAKOUT, remove CHASE
+        if "BREAKOUT" in tag_names and "CHASE" in tag_names:
+            tags = [t for t in tags if t.pattern_name != "CHASE"]
+            tag_names.discard("CHASE")
+
+        if "TREND" in tag_names and "BREAKOUT" in tag_names:
             for t in tags:
                 if t.pattern_name == "TREND":
                     t.context["sub_pattern"] = "BREAKOUT"
-        elif "TREND" in trend_tags and "CHASE" in trend_tags:
+        elif "TREND" in tag_names and "CHASE" in tag_names:
             for t in tags:
                 if t.pattern_name == "TREND":
                     t.context["sub_pattern"] = "CHASE"
-        if "COUNTER_TREND" in trend_tags and "BOTTOM" in trend_tags:
+        if "COUNTER_TREND" in tag_names and "BOTTOM" in tag_names:
             for t in tags:
                 if t.pattern_name == "COUNTER_TREND":
                     t.context["sub_pattern"] = "BOTTOM"
-        elif "COUNTER_TREND" in trend_tags and "BREAKDOWN" in trend_tags:
+        elif "COUNTER_TREND" in tag_names and "BREAKDOWN" in tag_names:
             for t in tags:
                 if t.pattern_name == "COUNTER_TREND":
                     t.context["sub_pattern"] = "BREAKDOWN"
@@ -531,7 +582,7 @@ class PatternEngine:
         if not positions:
             return results
 
-        # --- REVENGE: new trade within 24h of significant loss ---
+        # --- POSSIBLE_REVENGE: new trade within 24h of significant loss ---
         for pos in positions:
             prior_positions = sorted(
                 [p for p in positions if p.exit_date < pos.entry_date],
@@ -546,8 +597,8 @@ class PatternEngine:
                         if abs(last_prior.pnl) > avg_loss * 1.5 and pos.total_quantity > last_prior.total_quantity:
                             results.append(
                                 PatternResult(
-                                    "REVENGE",
-                                    0.5,  # lower confidence for AI suggestion
+                                    "POSSIBLE_REVENGE",
+                                    0.3,  # low confidence for AI suggestion
                                     {
                                         "prior_pnl": last_prior.pnl,
                                         "prior_exit": str(last_prior.exit_date),
@@ -556,14 +607,16 @@ class PatternEngine:
                                 )
                             )
 
-        # --- OVERTRADING: daily frequency > 95th percentile ---
+        # --- OVERTRADING: daily frequency > user's avg + 2*std (90-day baseline) ---
         if len(positions) >= 20:
             date_counts = Counter(p.entry_date for p in positions)
             daily_counts = list(date_counts.values())
             if len(daily_counts) >= 20:
-                p95 = sorted(daily_counts)[int(len(daily_counts) * 0.95)]
+                avg = sum(daily_counts) / len(daily_counts)
+                std = (sum((d - avg) ** 2 for d in daily_counts) / len(daily_counts)) ** 0.5
+                threshold = max(avg + 2 * std, 5)  # at least 5
                 for pos in positions:
-                    if date_counts[pos.entry_date] > p95:
+                    if date_counts[pos.entry_date] > threshold:
                         results.append(
                             PatternResult(
                                 "OVERTRADING",
@@ -572,7 +625,9 @@ class PatternEngine:
                                     "positions_today": date_counts[pos.entry_date],
                                     "total_positions": len(positions),
                                     "trading_days": len(daily_counts),
-                                    "p95_threshold": p95,
+                                    "threshold": round(threshold, 2),
+                                    "daily_avg": round(avg, 2),
+                                    "daily_std": round(std, 2),
                                 },
                             )
                         )
@@ -611,7 +666,7 @@ class PatternEngine:
                         )
                     )
 
-        # --- FOMO (simplified, trade-based only) ---
+        # --- PSY_FOMO (simplified, trade-based only) ---
         if all_trades is not None and len(all_trades) >= 10:
             for pos in positions:
                 symbol_trades = sorted(
@@ -625,8 +680,8 @@ class PatternEngine:
                         if all(prices[i] < prices[i + 1] for i in range(len(prices) - 1)):
                             results.append(
                                 PatternResult(
-                                    "FOMO",
-                                    0.4,
+                                    "PSY_FOMO",
+                                    0.3,
                                     {
                                         "consecutive_buy_price_increase": True,
                                         "recent_prices": prices,

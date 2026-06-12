@@ -136,6 +136,7 @@ patterns:
     label: 小亏离场
     module: risk
     market_dependent: false
+    is_outcome: true
     confidence: 0.6
     rule:
       summary: 跌幅 8% 以内且 10 天内卖出
@@ -146,6 +147,7 @@ patterns:
     label: 短线止盈
     module: risk
     market_dependent: false
+    is_outcome: true
     confidence: 0.6
     rule:
       summary: 小盈利 < 5% 且持仓 < 5 天
@@ -156,6 +158,7 @@ patterns:
     label: 正常止盈
     module: risk
     market_dependent: false
+    is_outcome: true
     confidence: 0.6
     rule:
       summary: 盈利 5% ~ 20%
@@ -166,6 +169,7 @@ patterns:
     label: 大赚
     module: risk
     market_dependent: false
+    is_outcome: true
     confidence: 0.6
     rule:
       summary: 盈利 > 20%
@@ -173,14 +177,115 @@ patterns:
     description: 大幅盈利，收益率超过 20%
 
   # ============================================================
-  # Phase 3 — 心理行为标签（AI推测层，不出现在硬标签中）
+  # 离场行为标签（不依赖行情数据）
+  # ============================================================
+  - name: TIGHT_STOP
+    label: 止损
+    module: exit
+    market_dependent: false
+    confidence: 0.8
+    rule:
+      summary: 跌幅 2%~5%，3 天内卖出
+      detail: -0.05 <= pnl_pct <= -0.02 AND holding_days <= 3
+    description: 严格止损，价格微幅下跌后迅速离场
+
+  - name: TRAILING_STOP
+    label: 移动止损
+    module: exit
+    market_dependent: false
+    confidence: 0.6
+    rule:
+      summary: 持仓 > 10 天，盈利 0%~10%
+      detail: holding_days > 10 AND 0 < pnl_pct <= 0.10
+    description: 移动止损离场，持仓较久后微利退出
+
+  - name: TIME_EXIT
+    label: 时间止损
+    module: exit
+    market_dependent: false
+    confidence: 0.6
+    rule:
+      summary: 持仓 > 30 天，盈亏 < 5%
+      detail: holding_days > 30 AND abs(pnl_pct) < 0.05
+    description: 时间止损，持仓过久后因时间成本离场
+
+  - name: PANIC_EXIT
+    label: 恐慌离场
+    module: exit
+    market_dependent: false
+    confidence: 0.9
+    rule:
+      summary: 亏损 > 20%
+      detail: pnl_pct < -0.20
+    description: 恐慌性离场，出现大幅亏损后卖出
+
+  # ============================================================
+  # Phase 3 — 入场行为（依赖 a-stock-data 行情数据）
   # ============================================================
   - name: FOMO
     label: 害怕错过
-    module: risk
+    module: entry
     market_dependent: true
     confidence: 0.7
     rule:
       summary: 连续上涨后追高买入（接近日内高点）
       detail: 5日内>=3天上涨, 且买入价接近日内高点(>=high*0.98)
     description: 害怕错过上涨，在连续上涨后追高买入
+
+  # ============================================================
+  # Phase 4 — 心理行为标签（AI推测层，不出现在硬标签中）
+  # ============================================================
+  - name: PSY_FOMO
+    label: 害怕错过（心理）
+    module: risk
+    market_dependent: false
+    is_psychological: true
+    confidence: 0.3
+    rule:
+      summary: 连续买入价上涨（基于交易记录）
+      detail: 3笔以上连续买单价格递增
+    description: 基于交易记录推测的害怕错过心理
+
+  - name: POSSIBLE_REVENGE
+    label: 可能报复交易
+    module: risk
+    market_dependent: false
+    is_psychological: true
+    confidence: 0.3
+    rule:
+      summary: 重大亏损后 24 小时内开新仓且仓位更大
+      detail: prior_loss > avg_loss*1.5 AND gap <= 1d AND qty > prior_qty
+    description: 大幅亏损后急于翻本，开仓量增大
+
+  - name: OVERTRADING
+    label: 过度交易
+    module: risk
+    market_dependent: false
+    is_psychological: true
+    confidence: 0.5
+    rule:
+      summary: 单日交易次数超过个人均值+2个标准差且>=5次
+      detail: daily_count > avg+2*std AND daily_count >= 5
+    description: 单日交易频率远高于个人平均水平
+
+  - name: HOLD_LOSER
+    label: 死扛亏损
+    module: risk
+    market_dependent: false
+    is_psychological: true
+    confidence: 0.5
+    rule:
+      summary: 亏损持仓时间显著长于盈利持仓
+      detail: median_hold_losers > median_hold_winners * 1.5 AND pos.holding_days > median_hold_losers
+    description: 亏损时不愿意止损，持仓时间远超盈利交易
+
+  - name: CUT_WINNER
+    label: 过早止盈
+    module: risk
+    market_dependent: false
+    is_psychological: true
+    confidence: 0.5
+    rule:
+      summary: 盈利持仓时间显著短于亏损持仓
+      detail: median_hold_winners < median_hold_losers * 0.5 AND pos.holding_days < median_hold_winners
+    description: 盈利时急于落袋为安，持仓时间远短于亏损交易

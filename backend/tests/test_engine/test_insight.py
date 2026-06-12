@@ -220,3 +220,54 @@ class TestInsightEngineCostUnknown:
         patterns_map = {0: ["SCALP"]}
         results = InsightEngine.analyze(positions, patterns_map)
         assert results[0].expectancy == 0.0
+
+
+# ============================================================================
+# Fix 7: _resolve_primary — PnL attribution to primary pattern only
+# ============================================================================
+
+
+class TestResolvePrimary:
+    """InsightEngine._resolve_primary picks one pattern per position."""
+
+    def test_picks_highest_confidence(self):
+        patterns_map = {
+            0: [("SWING", 1.0), ("CHASE", 0.5)],
+        }
+        result = InsightEngine._resolve_primary(patterns_map)
+        assert result[0] == "SWING"
+
+    def test_ties_broken_by_exit_module(self):
+        """Exit patterns (priority 0) win ties over entry (priority 1)."""
+        patterns_map = {
+            0: [("SWING", 1.0), ("TIGHT_STOP", 0.8), ("CHASE", 0.8)],
+        }
+        result = InsightEngine._resolve_primary(patterns_map)
+        # TIGHT_STOP (exit) and CHASE (entry) have same confidence 0.8
+        # After sorting: SWING 1.0, then among 0.8, TIGHT_STOP (exit=0) beats CHASE (entry=1)
+        assert result[0] == "SWING"
+
+    def test_returns_empty_for_empty_map(self):
+        result = InsightEngine._resolve_primary({})
+        assert result == {}
+
+    def test_all_positions_get_primary(self):
+        patterns_map = {
+            0: [("SCALP", 1.0)],
+            1: [("SWING", 1.0), ("TREND", 0.7)],
+            2: [("CHASE", 0.5)],
+        }
+        result = InsightEngine._resolve_primary(patterns_map)
+        assert len(result) == 3
+        assert result[0] == "SCALP"
+        assert result[1] == "SWING"
+        assert result[2] == "CHASE"
+
+    def test_empty_position_skipped(self):
+        patterns_map = {
+            0: [("SWING", 1.0)],
+            1: [],
+        }
+        result = InsightEngine._resolve_primary(patterns_map)
+        assert 0 in result
+        assert 1 not in result

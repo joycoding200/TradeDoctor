@@ -45,8 +45,13 @@ PATTERN_MODULES: dict[str, str] = {
     "QUICK_PROFIT": "risk",
     "NORMAL_PROFIT": "risk",
     "BIG_WIN": "risk",
-    "FOMO": "risk",
-    "REVENGE": "risk",
+    "TIGHT_STOP": "exit",
+    "TRAILING_STOP": "exit",
+    "TIME_EXIT": "exit",
+    "PANIC_EXIT": "exit",
+    "FOMO": "entry",
+    "PSY_FOMO": "risk",
+    "POSSIBLE_REVENGE": "risk",
     "OVERTRADING": "risk",
     "HOLD_LOSER": "risk",
     "CUT_WINNER": "risk",
@@ -181,12 +186,12 @@ def get_stats(
     )
 
 
-def _build_patterns_map(positions):
-    """Tag each position and return {index: [pattern_name, ...]}."""
-    patterns_map: dict[int, list[str]] = {}
+def _build_patterns_map(positions) -> dict[int, list[tuple[str, float]]]:
+    """Tag each position and return {index: [(pattern_name, confidence), ...]}."""
+    patterns_map: dict[int, list[tuple[str, float]]] = {}
     for i, pos in enumerate(positions):
         results = PatternEngine.tag_position(pos, positions)
-        patterns_map[i] = [r.pattern_name for r in results]
+        patterns_map[i] = [(r.pattern_name, r.confidence) for r in results]
     return patterns_map
 
 
@@ -206,7 +211,13 @@ def get_insight(
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
     patterns_map = _build_patterns_map(positions)
-    items = InsightEngine.analyze(positions, patterns_map)
+    # Resolve primary pattern per position for PnL attribution
+    primary_map = InsightEngine._resolve_primary(patterns_map)
+    # Convert to list[str] format expected by analyze
+    patterns_map_flat: dict[int, list[str]] = {
+        i: [p] for i, p in primary_map.items()
+    }
+    items = InsightEngine.analyze(positions, patterns_map_flat)
 
     def to_pattern_item(i) -> InsightPatternItem:
         return InsightPatternItem(
@@ -225,6 +236,7 @@ def get_insight(
     entry_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "entry"]
     holding_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "holding"]
     risk_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "risk"]
+    exit_patterns = [p for p in pattern_items if _module_for_pattern(p.pattern_name) == "exit"]
 
     best = pattern_items[0] if pattern_items else None
     worst = pattern_items[-1] if len(pattern_items) > 1 else None
@@ -234,6 +246,7 @@ def get_insight(
         entry_patterns=entry_patterns,
         holding_patterns=holding_patterns,
         risk_patterns=risk_patterns,
+        exit_patterns=exit_patterns,
         best_pattern=best,
         worst_pattern=worst,
     )
@@ -250,7 +263,11 @@ def get_whatif(
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
     patterns_map = _build_patterns_map(positions)
-    items = ProfitAttribution.attribution_analysis(positions, patterns_map)
+    # Extract just pattern names for ProfitAttribution (which uses list[str])
+    patterns_map_names: dict[int, list[str]] = {
+        i: [name for name, _ in pats] for i, pats in patterns_map.items()
+    }
+    items = ProfitAttribution.attribution_analysis(positions, patterns_map_names)
 
     whatif_items = [
         AttributionItem(

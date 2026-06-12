@@ -1,7 +1,7 @@
 /**
  * Pattern label mappings — source of truth: /pattern_definition.yaml
  * Update the YAML file first, then sync this file.
- * Generated from: pattern_definition.yaml (20 patterns, 3 modules)
+ * Generated from: pattern_definition.yaml (28 patterns, 4 modules)
  */
 export const PATTERN_LABELS: Record<string, string> = {
   // 模块一：入场行为（行情依赖）
@@ -23,8 +23,19 @@ export const PATTERN_LABELS: Record<string, string> = {
   QUICK_PROFIT: "短线止盈",
   NORMAL_PROFIT: "正常止盈",
   BIG_WIN: "大赚",
-  // Phase 3: 心理行为标签（AI推测层）
+  // 模块四：离场行为
+  TIGHT_STOP: "止损",
+  TRAILING_STOP: "移动止损",
+  TIME_EXIT: "时间止损",
+  PANIC_EXIT: "恐慌离场",
+  // 入场行为（行情依赖）
   FOMO: "害怕错过",
+  // Phase 4: 心理行为标签（AI推测层）
+  PSY_FOMO: "害怕错过（心理）",
+  POSSIBLE_REVENGE: "可能报复交易",
+  OVERTRADING: "过度交易",
+  HOLD_LOSER: "死扛亏损",
+  CUT_WINNER: "过早止盈",
 };
 
 export const PATTERN_MODULES: Record<string, string> = {
@@ -34,7 +45,10 @@ export const PATTERN_MODULES: Record<string, string> = {
   PYRAMID: "risk", AVERAGE_DOWN: "risk", TURN: "risk",
   SMALL_LOSS_EXIT: "risk", QUICK_PROFIT: "risk", NORMAL_PROFIT: "risk",
   BIG_WIN: "risk",
-  FOMO: "risk",
+  TIGHT_STOP: "exit", TRAILING_STOP: "exit", TIME_EXIT: "exit", PANIC_EXIT: "exit",
+  FOMO: "entry",
+  PSY_FOMO: "risk", POSSIBLE_REVENGE: "risk", OVERTRADING: "risk",
+  HOLD_LOSER: "risk", CUT_WINNER: "risk",
 };
 
 export function patternLabel(name: string): string {

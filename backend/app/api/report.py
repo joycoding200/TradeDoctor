@@ -111,15 +111,25 @@ async def generate_report(
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
 
-    # Build patterns map
-    patterns_map: dict[int, list[str]] = {}
+    # Build patterns map with confidence scores
+    patterns_map: dict[int, list[tuple[str, float]]] = {}
     for i, pos in enumerate(positions):
         results = PatternEngine.tag_position(pos, positions)
-        patterns_map[i] = [r.pattern_name for r in results]
+        patterns_map[i] = [(r.pattern_name, r.confidence) for r in results]
+
+    # Resolve primary pattern per position for insight PnL attribution
+    primary_map = InsightEngine._resolve_primary(patterns_map)
+    patterns_map_flat: dict[int, list[str]] = {
+        i: [p] for i, p in primary_map.items()
+    }
 
     # Run insight and what-if engines
-    insight_items = InsightEngine.analyze(positions, patterns_map)
-    whatif_items = ProfitAttribution.attribution_analysis(positions, patterns_map)
+    insight_items = InsightEngine.analyze(positions, patterns_map_flat)
+    # WhatIf uses all patterns (not just primary)
+    patterns_map_names: dict[int, list[str]] = {
+        i: [name for name, _ in pats] for i, pats in patterns_map.items()
+    }
+    whatif_items = ProfitAttribution.attribution_analysis(positions, patterns_map_names)
 
     # Build AI prompt
     analysis_data = _build_analysis_data(trades, positions, insight_items, whatif_items)

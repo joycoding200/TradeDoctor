@@ -118,7 +118,8 @@
       "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py --tb=short)",
       "Bash(.venv/Scripts/python -m pytest --tb=short)",
       "Bash(.venv/Scripts/python -m pytest tests/test_engine/test_pattern.py::TestDetectPsychologicalPatterns --tb=long)",
-      "Bash(.venv/Scripts/python -m pytest tests/test_engine/ --tb=short)"
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/ --tb=short)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_engine/ -q)"
     ]
   },
   "enableAllProjectMcpServers": true,

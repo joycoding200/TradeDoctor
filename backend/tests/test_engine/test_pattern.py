@@ -4,6 +4,12 @@ from datetime import date, datetime, timedelta
 
 from app.engine.pattern import PatternEngine, PatternResult
 
+# ============================================================================
+# Test data notes for some psychological tests:
+# - OVERTRADING uses avg + 2*std >= 5 rather than global 95th percentile.
+# - PSY_FOMO (0.3) replaces old FOMO (0.4) in detect_psychological_patterns.
+# - POSSIBLE_REVENGE (0.3) replaces old REVENGE (0.5).
+
 
 # -- helpers ----------------------------------------------------------------
 
@@ -971,8 +977,8 @@ class TestDetectPsychologicalPatterns:
         results = PatternEngine.detect_psychological_patterns([], all_trades=[])
         assert results == []
 
-    def test_revenge_detected(self):
-        """Revenge: new trade within 24h of significant loss."""
+    def test_possible_revenge_detected(self):
+        """POSSIBLE_REVENGE: new trade within 24h of significant loss."""
         # We need 2 losing positions so avg_loss < abs(big_loss)
         positions = [
             make_pos(pnl_pct=-0.1, symbol="S1", holding_days=5,
@@ -985,27 +991,22 @@ class TestDetectPsychologicalPatterns:
         positions[2].total_quantity = 200  # larger than prior (100)
         results = PatternEngine.detect_psychological_patterns(positions)
         names = {r.pattern_name for r in results}
-        assert "REVENGE" in names
+        assert "POSSIBLE_REVENGE" in names
 
     def test_overtrading_detected(self):
-        """Overtrading: need >=20 distinct trading days + one day with count > p95."""
+        """Overtrading: need >=20 days, one day with count > avg+2*std and >=5."""
         positions = []
-        # 19 dates with 1 position each
-        for i in range(19):
+        # 20 dates with 1 position each
+        for i in range(20):
             positions.append(make_pos(
                 pnl_pct=0.01, holding_days=1,
                 entry_date=date(2024, 1, 2 + i), exit_date=date(2024, 1, 3 + i)))
-        # 1 date with 2 positions
-        for i in range(2):
+        # 1 date with 6 positions (avg ~1.05, std ~1.07, threshold ~3.19, max(3.19,5)=5, 6>5)
+        for i in range(6):
             positions.append(make_pos(
                 pnl_pct=0.01, holding_days=1,
-                entry_date=date(2024, 1, 22), exit_date=date(2024, 1, 23)))
-        # 1 date with 4 positions (> p95 when daily_counts=21)
-        for i in range(4):
-            positions.append(make_pos(
-                pnl_pct=0.01, holding_days=1,
-                entry_date=date(2024, 1, 24), exit_date=date(2024, 1, 25)))
-        # total: 19 + 2 + 4 = 25 positions, 21 distinct dates
+                entry_date=date(2024, 1, 23), exit_date=date(2024, 1, 24)))
+        # total: 20 + 6 = 26 positions, 21 distinct dates
         results = PatternEngine.detect_psychological_patterns(positions)
         names = {r.pattern_name for r in results}
         assert "OVERTRADING" in names
@@ -1075,3 +1076,283 @@ class TestDetectPsychologicalPatterns:
         results = PatternEngine.detect_psychological_patterns(positions)
         for r in results:
             assert r.confidence <= 0.5, f"{r.pattern_name} has confidence {r.confidence} > 0.5"
+
+    def test_psy_fomo_has_lower_confidence(self):
+        """PSY_FOMO from detect_psychological_patterns has confidence 0.3."""
+        positions = []
+        for i in range(10):
+            positions.append(make_pos(pnl_pct=0.1, holding_days=1,
+                                      entry_date=date(2024, 1, 2 + i),
+                                      exit_date=date(2024, 1, 3 + i)))
+        trades = [
+            _Trade(symbol="S1", side="BUY", datetime=datetime(2024, 1, 5, 9, 30)),
+            _Trade(symbol="S1", side="BUY", datetime=datetime(2024, 1, 6, 9, 30)),
+            _Trade(symbol="S1", side="BUY", datetime=datetime(2024, 1, 7, 9, 30)),
+            _Trade(symbol="S1", side="BUY", datetime=datetime(2024, 1, 8, 9, 30)),
+            _Trade(symbol="S1", side="BUY", datetime=datetime(2024, 1, 9, 9, 30)),
+        ]
+        for t in trades:
+            t.price = 10.0
+        # First position has 3+ buy trades with increasing prices to trigger PSY_FOMO
+        results = PatternEngine.detect_psychological_patterns(positions, all_trades=trades)
+        for r in results:
+            if r.pattern_name == "PSY_FOMO":
+                assert r.confidence == 0.3
+
+    def test_possible_revenge_confidence(self):
+        """POSSIBLE_REVENGE from detect_psychological_patterns has confidence 0.3."""
+        positions = [
+            make_pos(pnl_pct=-0.1, symbol="S1", holding_days=5,
+                     entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7)),
+            make_pos(pnl_pct=-0.6, symbol="S1", holding_days=5,
+                     entry_date=date(2024, 1, 8), exit_date=date(2024, 1, 13)),
+            make_pos(pnl_pct=0.1, symbol="S2", holding_days=3,
+                     entry_date=date(2024, 1, 14), exit_date=date(2024, 1, 17)),
+        ]
+        positions[2].total_quantity = 200
+        results = PatternEngine.detect_psychological_patterns(positions)
+        for r in results:
+            if r.pattern_name == "POSSIBLE_REVENGE":
+                assert r.confidence == 0.3
+
+
+# ============================================================================
+# Fix 1: Outcome vs Behavior tag separation (is_outcome flag)
+# ============================================================================
+
+
+class TestIsOutcomeFlag:
+    """PatternResult.is_outcome must be True for outcome tags, False for behavior tags."""
+
+    def test_small_loss_exit_is_outcome(self):
+        pos = make_pos(pnl_pct=-0.05, holding_days=5)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "SMALL_LOSS_EXIT":
+                assert r.is_outcome is True
+
+    def test_quick_profit_is_outcome(self):
+        pos = make_pos(pnl_pct=0.03, holding_days=2)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "QUICK_PROFIT":
+                assert r.is_outcome is True
+
+    def test_normal_profit_is_outcome(self):
+        pos = make_pos(pnl_pct=0.10, holding_days=8)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "NORMAL_PROFIT":
+                assert r.is_outcome is True
+
+    def test_big_win_is_outcome(self):
+        pos = make_pos(pnl_pct=0.25, holding_days=10)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "BIG_WIN":
+                assert r.is_outcome is True
+
+    def test_behavior_tags_not_outcome(self):
+        """SCALP, SWING, POSITION, PYRAMID, AVERAGE_DOWN, TURN are behavior tags (not outcome)."""
+        pos = make_pos(pnl_pct=0.05, holding_days=8)
+        results = PatternEngine.tag_position(pos, [pos])
+        behavior_tags = {"SCALP", "SWING", "POSITION", "PYRAMID", "AVERAGE_DOWN", "TURN"}
+        for r in results:
+            if r.pattern_name in behavior_tags:
+                assert r.is_outcome is False, f"{r.pattern_name} should not be outcome"
+
+    def test_close_patterns_have_is_outcome(self):
+        """The 4 close/outcome tags should all have is_outcome=True."""
+        pos = make_pos(pnl_pct=-0.05, holding_days=5)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name in ("SMALL_LOSS_EXIT", "QUICK_PROFIT", "NORMAL_PROFIT", "BIG_WIN"):
+                assert r.is_outcome is True
+
+
+# ============================================================================
+# Fix 5: resolve_hierarchy actually removes CHASE when BREAKOUT is present
+# ============================================================================
+
+
+class TestResolveHierarchyDedup:
+    """Fix 5: resolve_hierarchy must REMOVE CHASE when BREAKOUT is also present."""
+
+    def test_chase_removed_when_breakout_present(self):
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("BREAKOUT", 0.7, {}),
+            PatternResult("CHASE", 0.5, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        names = {t.pattern_name for t in result}
+        assert "BREAKOUT" in names
+        assert "CHASE" not in names
+
+    def test_chase_kept_when_breakout_absent(self):
+        """CHASE should remain if no BREAKOUT is present."""
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("CHASE", 0.5, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        names = {t.pattern_name for t in result}
+        assert "CHASE" in names
+
+    def test_trend_breakout_preferred_over_chase_removes_chase(self):
+        """BREAKOUT removes CHASE; TREND gets sub_pattern=BREAKOUT."""
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("BREAKOUT", 0.7, {}),
+            PatternResult("CHASE", 0.5, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        names = {t.pattern_name for t in result}
+        assert "CHASE" not in names
+        assert "BREAKOUT" in names
+        trend = next(t for t in result if t.pattern_name == "TREND")
+        assert trend.context.get("sub_pattern") == "BREAKOUT"
+
+    def test_chase_removed_but_other_tags_kept(self):
+        tags = [
+            PatternResult("TREND", 0.7, {}),
+            PatternResult("BREAKOUT", 0.7, {}),
+            PatternResult("CHASE", 0.5, {}),
+            PatternResult("SWING", 1.0, {}),
+        ]
+        result = PatternEngine.resolve_hierarchy(tags)
+        names = {t.pattern_name for t in result}
+        assert "BREAKOUT" in names
+        assert "CHASE" not in names
+        assert "TREND" in names
+        assert "SWING" in names
+
+
+# ============================================================================
+# Fix 6: Exit pattern dimension -- new exit tags in tag_position()
+# ============================================================================
+
+
+class TestTightStopTag:
+    """TIGHT_STOP: loss -2% to -5% within 3 days."""
+
+    def test_qualifying_loss_gets_tight_stop(self):
+        pos = make_pos(pnl_pct=-0.03, holding_days=2)
+        assert "TIGHT_STOP" in tag_names(pos)
+
+    def test_at_boundary_minus_five(self):
+        pos = make_pos(pnl_pct=-0.05, holding_days=1)
+        assert "TIGHT_STOP" in tag_names(pos)
+
+    def test_at_boundary_minus_two(self):
+        pos = make_pos(pnl_pct=-0.02, holding_days=3)
+        assert "TIGHT_STOP" in tag_names(pos)
+
+    def test_not_when_held_too_long(self):
+        """Loss within -2% to -5% but held > 3 days should NOT get TIGHT_STOP."""
+        pos = make_pos(pnl_pct=-0.03, holding_days=4)
+        assert "TIGHT_STOP" not in tag_names(pos)
+
+    def test_not_when_loss_too_large(self):
+        pos = make_pos(pnl_pct=-0.06, holding_days=2)
+        assert "TIGHT_STOP" not in tag_names(pos)
+
+    def test_not_when_profitable(self):
+        pos = make_pos(pnl_pct=0.02, holding_days=2)
+        assert "TIGHT_STOP" not in tag_names(pos)
+
+    def test_confidence(self):
+        pos = make_pos(pnl_pct=-0.03, holding_days=2)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "TIGHT_STOP":
+                assert r.confidence == 0.8
+
+
+class TestTrailingStopTag:
+    """TRAILING_STOP: held > 10 days, exited with profit 0-10%."""
+
+    def test_qualifying_profit_gets_trailing_stop(self):
+        pos = make_pos(pnl_pct=0.05, holding_days=15)
+        assert "TRAILING_STOP" in tag_names(pos)
+
+    def test_at_upper_boundary(self):
+        pos = make_pos(pnl_pct=0.10, holding_days=11)
+        assert "TRAILING_STOP" in tag_names(pos)
+
+    def test_not_when_held_short(self):
+        pos = make_pos(pnl_pct=0.05, holding_days=10)
+        assert "TRAILING_STOP" not in tag_names(pos)
+
+    def test_not_when_profit_too_large(self):
+        pos = make_pos(pnl_pct=0.12, holding_days=15)
+        assert "TRAILING_STOP" not in tag_names(pos)
+
+    def test_not_when_losing(self):
+        pos = make_pos(pnl_pct=-0.05, holding_days=15)
+        assert "TRAILING_STOP" not in tag_names(pos)
+
+    def test_confidence(self):
+        pos = make_pos(pnl_pct=0.05, holding_days=15)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "TRAILING_STOP":
+                assert r.confidence == 0.6
+
+
+class TestTimeExitTag:
+    """TIME_EXIT: held > 30 days, absolute PnL < 5%."""
+
+    def test_qualifying_gets_time_exit(self):
+        pos = make_pos(pnl_pct=-0.03, holding_days=35)
+        assert "TIME_EXIT" in tag_names(pos)
+
+    def test_with_small_profit(self):
+        pos = make_pos(pnl_pct=0.04, holding_days=40)
+        assert "TIME_EXIT" in tag_names(pos)
+
+    def test_at_boundary(self):
+        pos = make_pos(pnl_pct=0.049, holding_days=31)
+        assert "TIME_EXIT" in tag_names(pos)
+
+    def test_not_when_pnl_too_large(self):
+        pos = make_pos(pnl_pct=0.06, holding_days=35)
+        assert "TIME_EXIT" not in tag_names(pos)
+
+    def test_not_when_held_short(self):
+        pos = make_pos(pnl_pct=0.03, holding_days=30)
+        assert "TIME_EXIT" not in tag_names(pos)
+
+    def test_confidence(self):
+        pos = make_pos(pnl_pct=-0.03, holding_days=35)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "TIME_EXIT":
+                assert r.confidence == 0.6
+
+
+class TestPanicExitTag:
+    """PANIC_EXIT: loss > 20%."""
+
+    def test_qualifying_loss_gets_panic_exit(self):
+        pos = make_pos(pnl_pct=-0.25, holding_days=5)
+        assert "PANIC_EXIT" in tag_names(pos)
+
+    def test_at_boundary(self):
+        pos = make_pos(pnl_pct=-0.21, holding_days=3)
+        assert "PANIC_EXIT" in tag_names(pos)
+
+    def test_not_when_loss_small(self):
+        pos = make_pos(pnl_pct=-0.19, holding_days=5)
+        assert "PANIC_EXIT" not in tag_names(pos)
+
+    def test_not_when_profitable(self):
+        pos = make_pos(pnl_pct=0.05, holding_days=5)
+        assert "PANIC_EXIT" not in tag_names(pos)
+
+    def test_confidence(self):
+        pos = make_pos(pnl_pct=-0.30, holding_days=5)
+        results = PatternEngine.tag_position(pos, [pos])
+        for r in results:
+            if r.pattern_name == "PANIC_EXIT":
+                assert r.confidence == 0.9

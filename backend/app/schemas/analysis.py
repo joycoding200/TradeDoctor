@@ -58,6 +58,7 @@ class InsightResponse(BaseModel):
     entry_patterns: list[InsightPatternItem] = []
     holding_patterns: list[InsightPatternItem] = []
     risk_patterns: list[InsightPatternItem] = []
+    exit_patterns: list[InsightPatternItem] = []
     best_pattern: Optional[InsightPatternItem] = None
     worst_pattern: Optional[InsightPatternItem] = None
 

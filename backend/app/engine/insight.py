@@ -32,6 +32,39 @@ class InsightEngine:
     """Group positions by pattern and compute performance metrics per pattern."""
 
     @staticmethod
+    def _resolve_primary(patterns_map: dict[int, list[tuple[str, float]]]) -> dict[int, str]:
+        """Each position gets ONE primary pattern for PnL attribution.
+
+        Picks the pattern with highest confidence. Ties broken by:
+        Exit > Entry > Risk > Holding priority.
+
+        Args:
+            patterns_map: {position_index: [(pattern_name, confidence), ...]}.
+
+        Returns:
+            {position_index: primary_pattern_name}.
+        """
+        PRIORITY = {"exit": 0, "entry": 1, "risk": 2, "holding": 3}
+        primary = {}
+        for i, pats in patterns_map.items():
+            if not pats:
+                continue
+            # Sort by confidence desc, then module priority asc
+            pats_sorted = sorted(
+                pats,
+                key=lambda p: (-p[1], PRIORITY.get(
+                    # Derive module from common naming patterns
+                    "exit" if p[0] in ("TIGHT_STOP", "TRAILING_STOP", "TIME_EXIT", "PANIC_EXIT")
+                    else "entry" if p[0] in ("CHASE", "BOTTOM", "BREAKOUT", "TREND", "COUNTER_TREND", "BREAKDOWN", "FOMO")
+                    else "holding" if p[0] in ("SCALP", "SWING", "POSITION")
+                    else "risk",
+                    PRIORITY.get("risk", 2),
+                )),
+            )
+            primary[i] = pats_sorted[0][0]
+        return primary
+
+    @staticmethod
     def analyze(positions, patterns_map: dict[int, list[str]]) -> list[InsightItem]:
         """Analyze positions grouped by behavioral pattern.
 
