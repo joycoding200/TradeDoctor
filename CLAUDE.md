@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-TradingJournalAnalyzer（交易日志分析器）— 上传交易记录，AI 分析亏损原因并生成改善建议。目标用户为 A 股散户。
+TradingJournalAnalyzer（交易日志分析器）— 上传交易记录，AI 分析亏损原因并生成改善建议。目标用户为 A 股散户及期货散户。
 
 ## 技术栈
 

@@ -39,12 +39,20 @@ class StatsResponse(BaseModel):
     total_positions: int
     unknown_cost_count: int = 0
     win_count: int
+    loss_count: int = 0
     win_rate: float
     total_pnl: float
     avg_holding_days: float
+    avg_win_holding_days: float = 0.0
+    avg_loss_holding_days: float = 0.0
     max_win: float
     max_loss: float
     consecutive_losses: int
+    profit_factor: float = 0.0
+    avg_win_amount: float = 0.0
+    avg_loss_amount: float = 0.0
+    win_loss_ratio: float = 0.0
+    max_drawdown: float = 0.0
     outcome_distribution: list[OutcomeItem] = []
     positions: list[PositionItem]
 
@@ -76,7 +84,17 @@ class AttributionItem(BaseModel):
     what_if_return: float
     delta: float
     contribution_pct: float
+    absolute_impact: float = 0.0
+
+
+class RuleSimulationItem(BaseModel):
+    rule: str
+    original_return: float
+    what_if_return: float
+    delta: float
+    affected_positions: int
 
 
 class WhatIfResponse(BaseModel):
-    items: list[AttributionItem]
+    items: list[AttributionItem]  # factor contribution (original)
+    stop_loss: Optional[RuleSimulationItem] = None

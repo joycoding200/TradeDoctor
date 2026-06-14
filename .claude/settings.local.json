@@ -121,7 +121,18 @@
       "Bash(.venv/Scripts/python -m pytest tests/test_engine/ --tb=short)",
       "Bash(.venv/Scripts/python -m pytest tests/test_engine/ -q)",
       "Bash(.venv/Scripts/python -m pytest tests/test_api/test_analysis.py::TestAnalysisInsight::test_insight_best_and_worst_pattern tests/test_api/test_analysis.py::TestAnalysisWhatIf::test_whatif_returns_items -v --tb=short)",
-      "Bash(.venv/Scripts/python -m pytest tests/test_api/test_analysis.py::TestAnalysisInsight::test_insight_returns_patterns -v --tb=short)"
+      "Bash(.venv/Scripts/python -m pytest tests/test_api/test_analysis.py::TestAnalysisInsight::test_insight_returns_patterns -v --tb=short)",
+      "Bash(psql *)",
+      "Bash(C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe *)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(nohup npx vite --host)",
+      "Bash(pkill -f \"uvicorn app.main:app\")",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $5}')",
+      "mcp__plugin_playwright_playwright__browser_network_requests",
+      "mcp__plugin_playwright_playwright__browser_network_request",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "Bash(echo \"---EXIT:$?\")"
     ]
   },
   "enableAllProjectMcpServers": true,

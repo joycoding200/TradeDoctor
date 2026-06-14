@@ -3,12 +3,20 @@ interface StatsData {
   total_positions?: number;
   unknown_cost_count?: number;
   win_count?: number;
+  loss_count?: number;
   win_rate?: number;
   total_pnl?: number;
   avg_holding_days?: number;
+  avg_win_holding_days?: number;
+  avg_loss_holding_days?: number;
   max_win?: number;
   max_loss?: number;
   consecutive_losses?: number;
+  avg_win_amount?: number;
+  avg_loss_amount?: number;
+  win_loss_ratio?: number;
+  profit_factor?: number;
+  max_drawdown?: number;
 }
 
 interface StatsCardsProps {
@@ -24,16 +32,30 @@ function formatMoney(value: number): string {
   return `${sign}${value.toFixed(2)}`;
 }
 
+function formatRatio(value: number): string {
+  return value.toFixed(2);
+}
+
 export default function StatsCards({ stats }: StatsCardsProps) {
   const unknown = stats.unknown_cost_count ?? 0;
   const cards = [
-    { label: "完整交易", value: stats.total_positions ?? 0, format: "int" },
-    { label: "成交记录", value: stats.total_trades ?? 0, format: "int" },
-    { label: "交易胜率", value: stats.win_rate ?? 0, format: "pct" },
-    { label: "总盈亏", value: stats.total_pnl ?? 0, format: "money" },
-    { label: "单笔最大盈利", value: stats.max_win ?? 0, format: "money" },
-    { label: "单笔最大亏损", value: stats.max_loss ?? 0, format: "money" },
-    { label: "平均持仓天数", value: stats.avg_holding_days ?? 0, format: "days" },
+    { label: "完整交易", value: stats.total_positions ?? 0, format: "int" as const },
+    { label: "成交记录", value: stats.total_trades ?? 0, format: "int" as const },
+    { label: "交易胜率", value: stats.win_rate ?? 0, format: "pct" as const },
+    { label: "总盈亏", value: stats.total_pnl ?? 0, format: "money" as const },
+    { label: "单笔最大盈利", value: stats.max_win ?? 0, format: "money" as const },
+    { label: "单笔最大亏损", value: stats.max_loss ?? 0, format: "money" as const },
+    { label: "平均持仓天数", value: stats.avg_holding_days ?? 0, format: "days" as const },
+  ];
+
+  const secondaryCards = [
+    { label: "盈亏比", value: stats.win_loss_ratio ?? 0, format: "ratio" as const, hint: "平均盈利/平均亏损" },
+    { label: "Profit Factor", value: stats.profit_factor ?? 0, format: "ratio" as const, hint: "总盈利/总亏损，>1.5合格" },
+    { label: "最大回撤", value: stats.max_drawdown ?? 0, format: "money" as const },
+    { label: "平均盈利", value: stats.avg_win_amount ?? 0, format: "money" as const },
+    { label: "平均亏损", value: stats.avg_loss_amount ?? 0, format: "money" as const },
+    { label: "盈利单持仓", value: stats.avg_win_holding_days ?? 0, format: "days" as const },
+    { label: "亏损单持仓", value: stats.avg_loss_holding_days ?? 0, format: "days" as const },
   ];
 
   return (
@@ -43,7 +65,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
           ⚠ 检测到 {unknown} 笔卖出对应的买入发生在交割单起始日期之前，持仓成本未知，已标记为 PnL=0。建议导入更早期的交割单以获得完整分析。
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
         {cards.map((card) => (
           <div
             key={card.label}
@@ -78,6 +100,57 @@ export default function StatsCards({ stats }: StatsCardsProps) {
                 ? `${card.value.toFixed(1)}天`
                 : String(card.value)}
             </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Secondary metrics row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {secondaryCards.map((card) => (
+          <div
+            key={card.label}
+            style={{
+              backgroundColor: "var(--bg-secondary)",
+              borderRadius: "10px",
+              border: "1px solid var(--border)",
+            }}
+            className="p-3"
+          >
+            <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>
+              {card.label}
+            </div>
+            <div
+              className="text-base font-semibold"
+              style={{
+                color:
+                  card.label === "平均亏损" || (card.label === "最大回撤" && card.value > 1000)
+                    ? "var(--danger)"
+                    : card.label === "平均盈利"
+                    ? "var(--success)"
+                    : card.label === "Profit Factor"
+                    ? (card.value >= 2 ? "var(--success)" : card.value >= 1.5 ? "var(--accent)" : "var(--danger)")
+                    : card.label === "盈利单持仓" && card.value > 0 && (stats.avg_loss_holding_days ?? 0) > 0 && card.value < (stats.avg_loss_holding_days ?? 0)
+                    ? "var(--danger)"
+                    : card.label === "亏损单持仓" && card.value > 0 && (stats.avg_win_holding_days ?? 0) > 0 && card.value > (stats.avg_win_holding_days ?? 0)
+                    ? "var(--danger)"
+                    : "var(--text-primary)",
+              }}
+            >
+              {card.format === "pct"
+                ? formatPercent(card.value)
+                : card.format === "money"
+                ? formatMoney(card.value)
+                : card.format === "ratio"
+                ? formatRatio(card.value)
+                : card.format === "days"
+                ? `${card.value.toFixed(1)}天`
+                : String(card.value)}
+            </div>
+            {card.hint && (
+              <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                {card.hint}
+              </div>
+            )}
           </div>
         ))}
       </div>

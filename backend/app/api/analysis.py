@@ -22,6 +22,7 @@ from app.schemas.analysis import (
     InsightResponse,
     OutcomeItem,
     PositionItem,
+    RuleSimulationItem,
     StatsResponse,
     WhatIfResponse,
 )
@@ -175,17 +176,59 @@ def get_stats(
         for p in positions
     ]
 
+    # New financial metrics
+    win_positions = [p for p in valid_positions if p.pnl > 0]
+    loss_positions = [p for p in valid_positions if p.pnl <= 0]
+    loss_count = len(loss_positions)
+
+    avg_win_amount = sum(p.pnl for p in win_positions) / len(win_positions) if win_positions else 0.0
+    avg_loss_amount = sum(p.pnl for p in loss_positions) / len(loss_positions) if loss_positions else 0.0
+    win_loss_ratio = avg_win_amount / abs(avg_loss_amount) if avg_loss_amount != 0 else 0.0
+
+    total_gross_profit = sum(p.pnl for p in win_positions)
+    total_gross_loss = abs(sum(p.pnl for p in loss_positions))
+    profit_factor = total_gross_profit / total_gross_loss if total_gross_loss > 0 else 0.0
+
+    avg_win_holding = sum(p.holding_days for p in win_positions) / len(win_positions) if win_positions else 0.0
+    avg_loss_holding = sum(p.holding_days for p in loss_positions) / len(loss_positions) if loss_positions else 0.0
+
+    # Max drawdown: cumulative PnL peak-to-trough
+    sorted_positions = sorted(valid_positions, key=lambda p: p.exit_date)
+    cum_pnl = 0.0
+    peak = 0.0
+    max_dd = 0.0
+    for p in sorted_positions:
+        cum_pnl += p.pnl
+        if cum_pnl > peak:
+            peak = cum_pnl
+        dd = peak - cum_pnl
+        if dd > max_dd:
+            max_dd = dd
+
+    # --- Outcome distribution ---
+
+    # --- Position items ---
+
+    # --- Return ---
     return StatsResponse(
         total_trades=total_trades,
         total_positions=total_positions,
         unknown_cost_count=unknown_cost_count,
         win_count=win_count,
+        loss_count=loss_count,
         win_rate=round(win_rate, 2),
         total_pnl=round(total_pnl, 2),
         avg_holding_days=round(avg_holding_days, 1),
+        avg_win_holding_days=round(avg_win_holding, 1),
+        avg_loss_holding_days=round(avg_loss_holding, 1),
         max_win=round(max_win, 2),
         max_loss=round(max_loss, 2),
         consecutive_losses=consecutive_losses,
+        profit_factor=round(profit_factor, 2),
+        avg_win_amount=round(avg_win_amount, 2),
+        avg_loss_amount=round(avg_loss_amount, 2),
+        win_loss_ratio=round(win_loss_ratio, 2),
+        max_drawdown=round(max_dd, 2),
         outcome_distribution=outcome_distribution,
         positions=position_items,
     )
@@ -263,13 +306,16 @@ def get_insight(
 @router.get("/{analysis_id}/whatif", response_model=WhatIfResponse)
 def get_whatif(
     analysis_id: str,
+    rule_type: str = "stop_loss",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Run the full pipeline and return what-if results."""
+    """Run what-if analysis: factor contribution + stop-loss rule simulation."""
     analysis = _load_analysis(analysis_id, current_user.id, db)
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
+    valid_positions = [p for p in positions if getattr(p, "cost_known", True)]
+
     category_map = _build_category_map(positions)
     # Use all available category patterns per position for behavioral what-if
     patterns_map_names: dict[int, list[str]] = {}
@@ -286,8 +332,26 @@ def get_whatif(
             what_if_return=i.what_if_return,
             delta=i.delta,
             contribution_pct=i.contribution_pct,
+            absolute_impact=i.absolute_impact,
         )
         for i in items
     ]
 
-    return WhatIfResponse(items=whatif_items)
+    # Stop-loss rule simulation (correct denominator-invariant method)
+    stop_loss_sim = None
+    if rule_type == "stop_loss":
+        result = ProfitAttribution.analyze_rule(
+            valid_positions,
+            rule_type="stop_loss",
+            params={"loss_pct": 0.05},
+        )
+        if result:
+            stop_loss_sim = RuleSimulationItem(
+                rule=result["rule"],
+                original_return=result["original_return"],
+                what_if_return=result["what_if_return"],
+                delta=result["delta"],
+                affected_positions=result["affected_positions"],
+            )
+
+    return WhatIfResponse(items=whatif_items, stop_loss=stop_loss_sim)

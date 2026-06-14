@@ -137,45 +137,61 @@ export default function Analysis() {
           {whatIf.isLoading && <div className="text-center py-8" style={{ color: "var(--text-secondary)" }}>加载中...</div>}
           {whatIf.error && <div className="text-center py-8" style={{ color: "var(--danger)" }}>请先导入交易数据</div>}
           {whatIf.data?.items && whatIf.data.items.length > 0 ? (
-            <div className="space-y-4">
-              <h2 className="text-sm font-medium">删除特定行为后的收益变化</h2>
-              {whatIf.data.items.map((item: any) => (
-                <div
-                  key={item.removed_pattern}
-                  style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}
-                  className="p-4"
-                >
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">{patternLabel(item.removed_pattern)}</span>
-                    <span className="text-sm" style={{ color: item.delta > 0.01 ? "var(--success)" : "var(--text-secondary)" }}>
-                      影响指数: {(item.contribution_pct * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-6 bg-muted rounded relative overflow-hidden" style={{ backgroundColor: "var(--bg-tertiary)" }}>
-                    <div
-                      className="absolute left-0 top-0 h-full rounded"
-                      style={{
-                        width: `${Math.min(Math.abs(item.original_return) * 200, 95)}%`,
-                        backgroundColor: "var(--accent)",
-                        opacity: 0.5,
-                      }}
-                    />
-                    <div
-                      className="absolute left-0 top-0 h-full rounded"
-                      style={{
-                        width: `${Math.min(Math.abs(item.what_if_return) * 200, 95)}%`,
-                        backgroundColor: item.delta > 0.01 ? "var(--success)" : "var(--accent)",
-                        opacity: 0.8,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                    <span>原始: {(item.original_return * 100).toFixed(1)}%</span>
-                    <span>删除后: {(item.what_if_return * 100).toFixed(1)}%</span>
-                    <span style={{ color: "var(--success)" }}>Δ {(item.delta * 100).toFixed(1)}%</span>
+            <div className="space-y-6">
+              {/* Stop Loss Rule Simulation (correct counterfactual) */}
+              {whatIf.data.stop_loss && (
+                <div>
+                  <h2 className="text-sm font-medium mb-3">止损规则反事实模拟</h2>
+                  <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+                    模拟修正行为（设置止损）后的收益，而非删除交易。分母不变，仅修改持仓盈亏。
+                  </p>
+                  <div
+                    style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}
+                    className="p-4"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium">设置 5% 止损</span>
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                        影响 {whatIf.data.stop_loss.affected_positions} 笔持仓
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span style={{ color: "var(--text-secondary)" }}>原始总收益: {(whatIf.data.stop_loss.original_return * 100).toFixed(1)}%</span>
+                      <span style={{ color: "var(--text-secondary)" }}>修正后: {(whatIf.data.stop_loss.what_if_return * 100).toFixed(1)}%</span>
+                      <span style={{ color: whatIf.data.stop_loss.delta >= 0 ? "var(--success)" : "var(--danger)" }}>
+                        Δ {whatIf.data.stop_loss.delta >= 0 ? "+" : ""}{(whatIf.data.stop_loss.delta * 100).toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Factor Contribution Analysis */}
+              <div>
+                <h2 className="text-sm font-medium mb-3">因子贡献分析</h2>
+                <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+                  展示每种行为模式对总盈亏的金额贡献。此分析反映持仓组合的盈亏构成，并非反事实回测。
+                </p>
+                {whatIf.data.items.map((item: any) => (
+                  <div
+                    key={item.removed_pattern}
+                    style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}
+                    className="p-4 mb-3"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium">{patternLabel(item.removed_pattern)}</span>
+                      <span className="text-sm" style={{ color: item.absolute_impact >= 0 ? "var(--success)" : "var(--danger)" }}>
+                        金额贡献: {item.absolute_impact >= 0 ? "+" : ""}{item.absolute_impact.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+                      <span>占比: {(item.contribution_pct * 100).toFixed(0)}%</span>
+                      <span>原始收益: {(item.original_return * 100).toFixed(1)}%</span>
+                      <span>剔除后: {(item.what_if_return * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             !whatIf.isLoading && !whatIf.error && (
