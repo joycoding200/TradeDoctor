@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, String
+from sqlalchemy import Column, Date, DateTime, ForeignKey, String, JSON
 
 from app.database import Base
 
@@ -19,6 +19,7 @@ class Analysis(Base):
     )
     date_start = Column(Date, nullable=False)
     date_end = Column(Date, nullable=False)
+    stats_snapshot = Column(JSON, nullable=True)
     created_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

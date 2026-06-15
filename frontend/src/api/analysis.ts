@@ -15,3 +15,7 @@ export async function getInsight(id: string): Promise<any> {
 export async function getWhatIf(id: string): Promise<any> {
   return apiGet(`/api/analysis/${id}/whatif`);
 }
+
+export async function listAnalyses(): Promise<any> {
+  return apiGet("/api/analysis");
+}

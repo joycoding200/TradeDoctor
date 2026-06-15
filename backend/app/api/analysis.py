@@ -18,6 +18,8 @@ from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
 from app.engine.whatif import ProfitAttribution
 from app.schemas.analysis import (
+    AnalysisListItem,
+    AnalysisListResponse,
     AnalysisRunRequest,
     AnalysisRunResponse,
     AttributionItem,
@@ -257,7 +259,21 @@ def get_stats(
 
     # --- Outcome distribution ---
 
-    # --- Position items ---
+    # Auto-save snapshot on first view (V3.0)
+    if not analysis.stats_snapshot:
+        analysis.stats_snapshot = {
+            "total_trades": total_trades,
+            "total_positions": total_positions,
+            "win_count": win_count,
+            "loss_count": loss_count,
+            "win_rate": round(win_rate, 2),
+            "total_pnl": round(total_pnl, 2),
+            "total_return_pct": round(total_return_pct, 4),
+            "profit_factor": round(profit_factor, 2),
+            "max_drawdown_pct": round(max_drawdown_pct, 4),
+            "avg_holding_days": round(avg_holding_days, 1),
+        }
+        db.commit()
 
     # --- Return ---
     return StatsResponse(
@@ -494,3 +510,52 @@ def get_whatif(
     ]
 
     return WhatIfResponse(items=whatif_items, stop_loss=stop_loss_sim, shapley=shapley_items)
+
+
+@router.get("", response_model=AnalysisListResponse)
+def list_analyses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all analyses for current user with filename and snapshots."""
+    from app.models.raw_file import RawFile
+    from app.models.report import Report
+
+    analyses = (
+        db.query(Analysis)
+        .filter(Analysis.user_id == current_user.id)
+        .order_by(Analysis.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    # Get filenames from linked raw files
+    raw_ids = [a.raw_file_id for a in analyses if a.raw_file_id]
+    filename_map: dict[str, str] = {}
+    if raw_ids:
+        rfs = db.query(RawFile).filter(RawFile.id.in_(raw_ids)).all()
+        filename_map = {rf.id: rf.filename for rf in rfs}
+
+    # Get reports linked to these analyses
+    aids = [a.id for a in analyses]
+    report_map: dict[str, str] = {}
+    if aids:
+        reports = db.query(Report).filter(Report.analysis_id.in_(aids)).all()
+        report_map = {r.analysis_id: r.id for r in reports}
+
+    return AnalysisListResponse(
+        analyses=[
+            AnalysisListItem(
+                id=a.id,
+                filename=filename_map.get(a.raw_file_id, ""),
+                date_start=a.date_start,
+                date_end=a.date_end,
+                created_at=a.created_at,
+                has_snapshot=a.stats_snapshot is not None,
+                has_report=a.id in report_map,
+                report_id=report_map.get(a.id, ""),
+            )
+            for a in analyses
+        ],
+        total=len(analyses),
+    )

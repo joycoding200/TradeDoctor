@@ -1,6 +1,6 @@
 """Pydantic schemas for analysis endpoints."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -135,3 +135,19 @@ class WhatIfResponse(BaseModel):
     items: list[AttributionItem]  # factor contribution (original)
     stop_loss: Optional[RuleSimulationItem] = None
     shapley: list[ShapleyItem] = []  # V2.0 Shapley attribution
+
+
+class AnalysisListItem(BaseModel):
+    id: str
+    filename: str = ""
+    date_start: date | None = None
+    date_end: date | None = None
+    created_at: datetime | None = None
+    has_snapshot: bool = False
+    has_report: bool = False
+    report_id: str = ""
+
+
+class AnalysisListResponse(BaseModel):
+    analyses: list[AnalysisListItem]
+    total: int
