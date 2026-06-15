@@ -48,6 +48,18 @@ export async function apiUpload(path: string, formData: FormData): Promise<any> 
   return resp.json();
 }
 
+export async function apiPut(path: string, body?: unknown): Promise<any> {
+  const resp = await apiFetch(path, {
+    method: "PUT",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(err.detail || "Request failed");
+  }
+  return resp.json();
+}
+
 export async function apiDelete(path: string): Promise<any> {
   const resp = await apiFetch(path, { method: "DELETE" });
   if (!resp.ok) {

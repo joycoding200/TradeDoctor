@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { login as loginApi } from "../api/auth";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const token = await loginApi(email, password);
+      const token = await loginApi(account, password);
       login(token);
       navigate("/upload");
     } catch (err) {
@@ -48,9 +48,9 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
             type="email"
-            placeholder="邮箱"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            placeholder="邮箱或手机号"
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
             required
             style={{
               backgroundColor: "var(--bg-tertiary)",
