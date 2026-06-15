@@ -100,10 +100,14 @@ def compute_mae_mfe_stats(positions: list, market_data: dict) -> dict:
     mfe_winners = sum(r["mfe_pct"] for r in winners) / len(winners) if winners else 0.0
     mfe_losers = sum(r["mfe_pct"] for r in losers) / len(losers) if losers else 0.0
 
-    # Profit capture: how much of MFE was converted to final PnL
-    total_mfe = sum(r["mfe_pct"] for r in winners)
-    total_pnl = sum(r["pnl_pct"] for r in winners)
-    profit_capture = total_pnl / total_mfe if total_mfe > 0 else 0.0
+    # Profit capture: per-position mean of capture ratios
+    # Using mean(capture_i) instead of sum(pnl)/sum(mfe) avoids
+    # bias where one trade with huge MFE dominates the aggregate.
+    captures = [
+        r["pnl_pct"] / r["mfe_pct"]
+        for r in winners if r["mfe_pct"] > 0
+    ]
+    profit_capture = sum(captures) / len(captures) if captures else 0.0
 
     return {
         "avg_mae": round(avg_mae, 4),

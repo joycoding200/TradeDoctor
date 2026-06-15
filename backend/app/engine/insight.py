@@ -16,53 +16,75 @@ class InsightItem:
 
     @staticmethod
     def compute(positions, pattern_name):
-        """Compute expectancy for a set of positions."""
+        """Compute expectancy as R-multiple (based on pnl_pct, not absolute PnL).
+
+        Uses percentage returns to avoid position-size bias.
+        """
         wins = [p for p in positions if p.pnl > 0]
         losses = [p for p in positions if p.pnl <= 0]
-        avg_win = sum(p.pnl for p in wins) / len(wins) if wins else 0.0
-        avg_loss = (
-            abs(sum(p.pnl for p in losses) / len(losses)) if losses else 0.0
+        avg_win_pct = sum(p.pnl_pct for p in wins) / len(wins) if wins else 0.0
+        avg_loss_pct = (
+            abs(sum(p.pnl_pct for p in losses) / len(losses)) if losses else 0.0
         )
         win_rate = len(wins) / len(positions) if positions else 0.0
-        expectancy = win_rate * avg_win - (1 - win_rate) * avg_loss
+        expectancy = win_rate * avg_win_pct - (1 - win_rate) * avg_loss_pct
         return expectancy
 
 
 class InsightEngine:
     """Group positions by pattern and compute performance metrics per pattern."""
 
+    # Priority for primary pattern selection (lower = higher priority)
+    # outcome > behavior > market_env > psychology
+    _DIM_PRIORITY: dict[str, int] = {
+        "outcome": 0, "behavior": 1, "market_env": 2, "psychology": 3,
+    }
+
     @staticmethod
-    def _resolve_primary(patterns_map: dict[int, list[tuple[str, float]]]) -> dict[int, str]:
+    def _resolve_primary(
+        patterns_map: dict[int, list[str | tuple[str, float]]],
+    ) -> dict[int, str]:
         """Each position gets ONE primary pattern for PnL attribution.
 
-        Picks the pattern with highest confidence. Ties broken by:
-        Exit > Entry > Risk > Holding priority.
+        Picks the pattern with highest confidence. Ties broken by dimension priority:
+        outcome > behavior > market_env > psychology.
 
-        Args:
-            patterns_map: {position_index: [(pattern_name, confidence), ...]}.
-
-        Returns:
-            {position_index: primary_pattern_name}.
+        Accepts both flat name lists and (name, confidence) tuples.
         """
-        PRIORITY = {"exit": 0, "entry": 1, "risk": 2, "holding": 3}
         primary = {}
         for i, pats in patterns_map.items():
             if not pats:
                 continue
-            # Sort by confidence desc, then module priority asc
+            # Normalize to (name, confidence, dimension)
+            normalized = []
+            for p in pats:
+                if isinstance(p, str):
+                    name = p
+                    conf = 0.5
+                else:
+                    name, conf = p[0], p[1]
+                dim = InsightEngine._dim_for_pattern(name)
+                normalized.append((name, conf, dim))
             pats_sorted = sorted(
-                pats,
-                key=lambda p: (-p[1], PRIORITY.get(
-                    "outcome" if p[0] in ("TIGHT_STOP", "TRAILING_STOP", "TIME_EXIT", "LARGE_LOSS_EXIT")
-                    else "market_env" if p[0] in ("BULL_TREND", "BEAR_TREND", "BREAKDOWN")
-                    else "behavior" if p[0] in ("CHASE", "BOTTOM", "BREAKOUT", "PYRAMID", "AVERAGE_DOWN", "TURN", "SCALP", "SWING", "POSITION", "FOMO")
-                    else "psychology" if p[0] in ("POSSIBLE_REVENGE", "OVERTRADING", "HOLD_LOSER", "CUT_WINNER", "PSY_FOMO")
-                    else "behavior",
-                    PRIORITY.get("behavior", 2),
-                )),
+                normalized,
+                key=lambda p: (-p[1], InsightEngine._DIM_PRIORITY.get(p[2], 99)),
             )
             primary[i] = pats_sorted[0][0]
         return primary
+
+    @staticmethod
+    def _dim_for_pattern(name: str) -> str:
+        """Map pattern name to its dimension for priority resolution."""
+        if name in ("TIGHT_STOP", "TRAILING_STOP", "TIME_EXIT", "LARGE_LOSS_EXIT"):
+            return "outcome"
+        if name in ("CHASE", "BOTTOM", "BREAKOUT", "PYRAMID", "AVERAGE_DOWN",
+                    "TURN", "SCALP", "SWING", "POSITION", "FOMO"):
+            return "behavior"
+        if name in ("BULL_TREND", "BEAR_TREND", "BREAKDOWN"):
+            return "market_env"
+        if name in ("POSSIBLE_REVENGE", "OVERTRADING", "HOLD_LOSER", "CUT_WINNER", "PSY_FOMO"):
+            return "psychology"
+        return "behavior"
 
     @staticmethod
     def analyze(positions, patterns_map: dict[int, list[str]]) -> list[InsightItem]:
@@ -84,20 +106,25 @@ class InsightEngine:
             if getattr(p, "cost_known", True)
         ]
 
+        # V2.2: use primary pattern — one position → one pattern bucket
+        primary_map = InsightEngine._resolve_primary(patterns_map)
+
         by_pattern: dict[str, dict] = {}
         for i in valid_indices:
+            primary = primary_map.get(i)
+            if not primary:
+                continue
             pos = positions[i]
-            for pat_name in patterns_map.get(i, []):
-                if pat_name not in by_pattern:
-                    by_pattern[pat_name] = {
-                        "positions": [],
-                        "wins": 0,
-                        "total_pnl": 0.0,
-                    }
-                by_pattern[pat_name]["positions"].append(pos)
-                by_pattern[pat_name]["total_pnl"] += pos.pnl
-                if pos.pnl > 0:
-                    by_pattern[pat_name]["wins"] += 1
+            if primary not in by_pattern:
+                by_pattern[primary] = {
+                    "positions": [],
+                    "wins": 0,
+                    "total_pnl": 0.0,
+                }
+            by_pattern[primary]["positions"].append(pos)
+            by_pattern[primary]["total_pnl"] += pos.pnl
+            if pos.pnl > 0:
+                by_pattern[primary]["wins"] += 1
 
         results: list[InsightItem] = []
         for pat_name, data in by_pattern.items():

@@ -59,7 +59,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   const secondaryCards = [
     { label: "盈亏比", value: stats.win_loss_ratio ?? 0, format: "ratio" as const, hint: "平均盈利/平均亏损" },
     { label: "Profit Factor", value: stats.profit_factor ?? 0, format: "ratio" as const, hint: "总盈利/总亏损，>1.5合格" },
-    { label: "Expectancy", value: stats.expectancy ?? 0, format: "money" as const, hint: "每笔交易预期收益" },
+    { label: "Expectancy(R)", value: stats.expectancy ?? 0, format: "pct" as const, hint: "每笔预期收益率" },
     { label: "最大回撤", value: stats.max_drawdown ?? 0, format: "money" as const },
     { label: "平均盈利", value: stats.avg_win_amount ?? 0, format: "money" as const },
     { label: "平均亏损", value: stats.avg_loss_amount ?? 0, format: "money" as const },

@@ -156,9 +156,12 @@ class ProfitAttribution:
                             bar = symbol_data[date_str]
                             bar_low = bar.get("low", entry_price)
                             if bar_low <= stop_price:
-                                # Stop triggered intraday — exit at stop price
+                                # Stop triggered intraday.
+                                # If opened below stop (gap-down), fill at open.
+                                bar_open = bar.get("open", stop_price)
+                                fill_price = min(bar_open, stop_price)
                                 exit_qty = p.total_quantity
-                                exit_cost = stop_price * exit_qty
+                                exit_cost = fill_price * exit_qty
                                 entry_cost = entry_price * exit_qty
                                 simulated_pnl += exit_cost - entry_cost
                                 affected += 1
