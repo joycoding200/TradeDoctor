@@ -152,9 +152,10 @@ def clear_trades(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete all trades and analyses for the current user."""
+    """Soft-delete all trades for the current user. Raw files, analyses, and reports are preserved for admin retrieval."""
     user_id = current_user.id
-    db.query(Analysis).filter(Analysis.user_id == user_id).delete()
-    db.query(Trade).filter(Trade.user_id == user_id).delete()
+    db.query(Trade).filter(
+        Trade.user_id == user_id, Trade.is_deleted == False
+    ).update({"is_deleted": True}, synchronize_session=False)
     db.commit()
     return {"detail": "ok"}

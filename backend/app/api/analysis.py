@@ -111,6 +111,7 @@ def _load_trades(
         db.query(Trade)
         .filter(
             Trade.user_id == user_id,
+            Trade.is_deleted == False,
             Trade.datetime >= start_dt,
             Trade.datetime <= end_dt,
         )

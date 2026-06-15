@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String
 
 from app.database import Base
 
@@ -27,6 +27,7 @@ class Trade(Base):
     commission = Column(Float, default=0.0)
     margin = Column(Float, nullable=True)
     multiplier = Column(Integer, nullable=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
     __table_args__ = (
         Index("ix_trades_user_datetime", "user_id", "datetime"),
