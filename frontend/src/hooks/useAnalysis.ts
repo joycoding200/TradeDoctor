@@ -10,19 +10,19 @@ export function useStats(id: string | undefined) {
   });
 }
 
-export function useInsight(id: string | undefined) {
+export function useInsight(id: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ["insight", id],
     queryFn: () => getInsight(id!),
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
 }
 
-export function useWhatIf(id: string | undefined) {
+export function useWhatIf(id: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ["whatif", id],
     queryFn: () => getWhatIf(id!),
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
 }
 

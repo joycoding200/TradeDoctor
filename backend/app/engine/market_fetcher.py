@@ -9,6 +9,7 @@ Usage:
     data = ensure_market_data(db, ["600036", "000858"], start, end)
 """
 
+import threading
 from datetime import date, datetime, timedelta
 
 import pandas as pd
@@ -19,6 +20,10 @@ from app.engine.market_data import MarketDataCache
 # Module-level client — TCP connection reused across symbols
 _CLIENT = None
 _PAGE_SIZE = 800
+
+# Concurrency guard: prevent parallel mootdx fetches for the same symbol
+_fetch_lock = threading.Lock()
+_fetching: set[str] = set()
 
 
 def _get_client():
@@ -43,7 +48,25 @@ def _compute_moving_averages(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _fetch_single_symbol(db: Session, symbol: str) -> int:
-    """Fetch all history for one symbol via mootdx. Returns count of new bars stored."""
+    """Fetch all history for one symbol via mootdx. Returns count of new bars stored.
+
+    Uses a module-level lock to prevent parallel fetches for the same symbol.
+    """
+    # Skip if another request is already fetching this symbol
+    with _fetch_lock:
+        if symbol in _fetching:
+            return 0  # another thread is fetching; our caller will use cached data
+        _fetching.add(symbol)
+
+    try:
+        return _fetch_single_symbol_inner(db, symbol)
+    finally:
+        with _fetch_lock:
+            _fetching.discard(symbol)
+
+
+def _fetch_single_symbol_inner(db: Session, symbol: str) -> int:
+    """Core fetch logic, called under concurrency guard."""
     from mootdx.consts import KLINE_DAILY
 
     client = _get_client()
@@ -152,11 +175,20 @@ def ensure_market_data(
     if not symbols:
         return {}
 
+    unique_symbols = list(set(symbols))
     lookback_start = start - timedelta(days=120)
 
-    for sym in set(symbols):
-        _fetch_single_symbol(db, sym)
+    # Check DB cache first — only fetch symbols without cached data
+    missing = []
+    for sym in unique_symbols:
+        cached = MarketDataCache.get_bars(db, sym, lookback_start, end)
+        if not cached or len(cached) < 10:  # insufficient data
+            missing.append(sym)
+
+    if missing:
+        for sym in missing:
+            _fetch_single_symbol(db, sym)
 
     return MarketDataCache.get_market_data(
-        db, list(set(symbols)), lookback_start, end
+        db, unique_symbols, lookback_start, end
     )

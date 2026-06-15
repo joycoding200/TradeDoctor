@@ -36,8 +36,9 @@ export default function Analysis() {
 
   const runAnalysis = useRunAnalysis();
   const stats = useStats(id);
-  const insight = useInsight(id);
-  const whatIf = useWhatIf(id);
+  const statsReady = !stats.isLoading && !!stats.data;
+  const insight = useInsight(id, statsReady);
+  const whatIf = useWhatIf(id, statsReady);
   const genReport = useGenerateReport();
 
   const handleGenerateReport = () => {
@@ -49,10 +50,10 @@ export default function Analysis() {
     });
   };
 
-  const tabs: { key: Tab; label: string }[] = [
+  const tabs: { key: Tab; label: string; loading?: boolean }[] = [
     { key: "stats", label: "统计概览" },
-    { key: "insight", label: "归因分析" },
-    { key: "whatif", label: "情景回测（What If）" },
+    { key: "insight", label: "归因分析", loading: statsReady && insight.isLoading },
+    { key: "whatif", label: "情景回测（What If）", loading: statsReady && whatIf.isLoading },
   ];
 
   return (
@@ -93,7 +94,7 @@ export default function Analysis() {
             }}
             className="text-sm font-medium"
           >
-            {tab.label}
+            {tab.label}{tab.loading ? " …" : ""}
           </button>
         ))}
       </div>
@@ -108,8 +109,8 @@ export default function Analysis() {
 
       {activeTab === "insight" && (
         <div className="space-y-6">
-          {insight.isLoading && <div className="text-center py-8" style={{ color: "var(--text-secondary)" }}>加载中...</div>}
-          {insight.error && <div className="text-center py-8" style={{ color: "var(--danger)" }}>请先导入交易数据</div>}
+          {insight.isLoading && <div className="text-center py-8" style={{ color: "var(--text-secondary)" }}>正在加载行情数据并分析交易行为，预计 10-20 秒...</div>}
+          {insight.error && <div className="text-center py-8" style={{ color: "var(--danger)" }}>分析失败，请刷新重试</div>}
           {insight.data && (
             <>
               {/* Dimension sub-tabs */}
