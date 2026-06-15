@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.user import User, generate_nickname
 from app.schemas.auth import (
     LoginRequest,
+    PasswordCheckRequest,
     RegisterRequest,
     TokenResponse,
     UpdateProfileRequest,
@@ -114,11 +115,11 @@ def update_profile(
     )
 
 
-@router.get("/password-strength")
-def check_strength(password: str):
-    """Return password strength score (0-4)."""
-    err = _check_password_strength(password)
-    score = _password_strength_score(password)
+@router.post("/password-strength")
+def check_strength(body: "PasswordCheckRequest"):
+    """Return password strength score (0-4). POST to keep password out of URL logs."""
+    err = _check_password_strength(body.password)
+    score = _password_strength_score(body.password)
     labels = {0: "弱", 1: "一般", 2: "中等", 3: "强", 4: "很强"}
     return {
         "score": score if not err else 0,

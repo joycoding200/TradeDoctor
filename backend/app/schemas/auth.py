@@ -33,6 +33,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class PasswordCheckRequest(BaseModel):
+    password: str
+
+
 class UpdateProfileRequest(BaseModel):
     nickname: str = ""
 
