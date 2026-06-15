@@ -137,7 +137,8 @@
       "Bash(gh api *)",
       "mcp__plugin_ecc_context7__resolve-library-id",
       "mcp__plugin_ecc_context7__query-docs",
-      "mcp__plugin_playwright_playwright__browser_take_screenshot"
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_tabs"
     ]
   },
   "enableAllProjectMcpServers": true,

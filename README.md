@@ -1,8 +1,8 @@
 # TradingJournalAnalyzer — 交易日志分析器
 
-上传交割单，AI 分析亏损原因并生成改善建议。A 股散户 + 期货散户的交易行为诊断工具。
+上传交割单，系统自动重建持仓、识别交易行为、分析盈亏来源。面向 A 股散户的交易行为诊断工具。
 
-**核心卖点：Profit Attribution 利润归因** — 按行为类别归因盈亏，量化每种行为对账户的贡献。
+**核心能力**：FIFO 持仓重建 + 4 维行为标签 + MAE/MFE 风险分析 + Shapley 归因 + What-If 止损回测 + AI 诊断报告。
 
 ## 技术栈
 
@@ -12,7 +12,7 @@
 | 后端 | FastAPI + SQLAlchemy + Pandas |
 | AI | OpenAI / Claude / DeepSeek（环境变量切换） |
 | 数据库 | PostgreSQL 17 |
-| 行情数据 | [a-stock-data](https://github.com/simonlin1212/a-stock-data)（mootdx + 腾讯优先，不封 IP） |
+| 行情数据 | mootdx（通达信 TCP 7709，不封 IP） |
 
 ## 快速开始
 
@@ -37,6 +37,9 @@ psql -U postgres -c "CREATE DATABASE tradelens;"
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/tradelens
 SECRET_KEY=change-me
 
+# 初始化行情数据服务器
+python -m mootdx bestip
+
 # 启动
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -54,35 +57,45 @@ npm run dev
 ### 运行测试
 
 ```bash
-cd backend && pytest tests/ -q    # 343 tests
-python e2e/api_contract_tests.py  # 56 contract checks
-python e2e/user_flow_e2e.py       # 19 user flow checks
+cd backend && pytest tests/ -q
 ```
 
 ## 核心架构：6 层数据管道
 
 ```
-原始交割单 → Trade → Position → Pattern → Insight → ProfitAttribution → AI 解释器 → 诊断报告
+原始交割单 → Trade → Position → Pattern → Insight → What-If → AI 诊断报告
 ```
 
-1. **Trade** — SmartParser 值分类器，任何券商格式自动识别（不看列名，看数据值）
-2. **Position** — FIFO 持仓重建 + 前序持仓标记（`cost_known`）
-3. **Pattern** — 按 category 分类标签：entry / market / holding / risk，每 category 一个标签
-4. **Insight Engine** — 按 category 分别归因，样本量加权排序，无重复归因
-5. **ProfitAttribution** — 按主 Pattern 归因利润变化
-6. **AI 解释器 + 验证层** — 自然语言报告 + 数字校验
+1. **Trade** — SmartParser 自动识别券商格式（不看列名，看数据值）
+2. **Position** — FIFO 持仓重建，前序持仓标记（`cost_known`）
+3. **Pattern** — 4 维行为标签（市场环境 / 交易行为 / 交易结果 / 心理推测）
+4. **Insight Engine** — 按维度分别统计：胜率、PF、Expectancy、Shapley 归因
+5. **What-If Engine** — 止损规则回测（持仓期间日线 low 判断触发）+ 因子贡献分析
+6. **AI 解释器** — 自然语言诊断报告
 
-## 行为标签体系（`pattern_definition.yaml`）
+## 分析指标（对照 TradesViz / Edgewonk / Tradervue）
 
-| Category | 标签 | 说明 |
-|----------|------|------|
-| **entry** | CHASE, BOTTOM, BREAKOUT, FOMO | 入场方式 |
-| **market** | TREND, COUNTER_TREND, BREAKDOWN | 市场环境 |
-| **holding** | SCALP, SWING, POSITION | 持仓周期 |
-| **risk** | PYRAMID, AVERAGE_DOWN, TURN | 仓位管理 |
-| **exit** | TIGHT_STOP, TRAILING_STOP, TIME_EXIT, LARGE_LOSS_EXIT | 离场行为 |
+| 指标 | 说明 |
+|------|------|
+| 总盈亏 + 收益率 | 绝对金额 + 总收益率% |
+| 胜率 | 盈利笔数 ÷ 总笔数 |
+| 最大回撤 | 百分比（行业标准），含绝对金额参考 |
+| 盈亏比（Profit Factor） | 总盈利 ÷ 总亏损，>1.5 合格 |
+| 预期收益（Expectancy） | R-multiple，每笔交易预期收益率 |
+| 损益比（Payoff Ratio） | 平均盈利 ÷ 平均亏损 |
+| 最大回撤容忍度（MAE） | 持仓期间平均最大浮亏% |
+| 最大浮盈（MFE） | 持仓期间平均最高盈利% |
+| 止盈效率（Profit Capture） | 浮盈兑现率 |
+| Shapley 归因 | 公平归因各标签对总盈亏的贡献 |
 
-Outcome（结果分类）独立于行为标签，不参与归因统计。
+## 4 维行为标签体系
+
+| 维度 | 标签 | 说明 |
+|------|------|------|
+| **市场环境** | BULL_TREND, BEAR_TREND, BREAKDOWN | 入场所处技术环境（客观） |
+| **交易行为** | CHASE, BOTTOM, BREAKOUT, PYRAMID, AVERAGE_DOWN, TURN, SCALP, SWING, POSITION, FOMO | 交易者主动采取的动作 |
+| **交易结果** | TIGHT_STOP, TRAILING_STOP, TIME_EXIT, LARGE_LOSS_EXIT | 事后结果分类 |
+| **心理推测** | POSSIBLE_REVENGE, OVERTRADING, HOLD_LOSER, CUT_WINNER, PSY_FOMO | AI 推测（低置信度） |
 
 ## 支持的券商/终端
 
@@ -100,28 +113,30 @@ TradingJournalAnalyzer/
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # REST 端点 (auth, upload, analysis, report)
-│   │   ├── engine/        # 计算引擎 (position, pattern, insight, whatif)
-│   │   ├── parsers/       # 解析器 (smart.py + 10 券商插件)
-│   │   ├── ai/            # AI 层 (provider, prompt, validator)
-│   │   ├── models/        # SQLAlchemy 模型 (8 张表)
+│   │   ├── engine/        # 计算引擎 (position, pattern, insight, whatif, mae, attribution)
+│   │   ├── parsers/       # 解析器 (smart.py + 券商插件)
+│   │   ├── ai/            # AI 层 (provider, prompt)
+│   │   ├── models/        # SQLAlchemy 模型
 │   │   └── auth/          # JWT 认证
-│   └── tests/             # 343 tests
+│   └── tests/             # 单元测试 + 引擎测试
 ├── frontend/
 │   └── src/
-│       ├── pages/         # 7 页面 (upload, analysis, report, history)
+│       ├── pages/         # upload, analysis, report
 │       ├── components/    # StatsCards, PatternChart, WhatIfChart
-│       └── constants/     # patterns.ts (同步 pattern_definition.yaml)
-├── e2e/                   # API 契约 + E2E 测试
-├── pattern_definition.yaml # 标签定义（单一真相源）
-└── docs/                  # 设计文档
+│       └── constants/     # patterns.ts（标签中英文映射）
+├── docs/
+│   └── superpowers/       # 金融领域知识 + 验证清单
+└── testfiles/             # 测试用交割单（6 种交易风格）
 ```
 
 ## 设计原则
 
-**AI 负责解释，程序负责计算。** 所有数字由 Python 计算，AI 只做自然语言文本生成。报告中的每个数字都经过验证层比对。
-
-**行为 ≠ 结果。** Pattern 只描述交易行为（入场/持仓/风控），不描述结果（盈亏分类）。结果独立为 Outcome，不参与行为归因。
+- **AI 负责解释，程序负责计算** — 所有数字由 Python 计算，AI 仅生成自然语言报告
+- **中文优先** — 所有指标显示中文术语，英文缩写加括号解释
+- **散户可理解** — 每个指标附评级（优秀/良好/一般/较差）和一行解释
+- **信息分层** — 核心结果 → 进阶分析 → 高级分析（折叠）
+- **领域知识驱动** — 开发前参考 `docs/superpowers/FINANCE_DOMAIN.md`，完成后按 `docs/superpowers/VERIFICATION_CHECKLIST.md` 自检
 
 ## License
 
-MIT + Commons Clause — 非商业用途开源
+MIT
