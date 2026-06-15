@@ -84,14 +84,16 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       `最大回撤金额 ${formatMoney(stats.max_drawdown ?? 0)}`),
     card("var(--success)", "单笔最大盈利", formatMoney(stats.max_win ?? 0),
       stats.max_win_symbol ? `${stats.max_win_symbol} ${stats.max_win_date}` : undefined),
-    card("var(--danger)", "单笔最大亏损", formatMoney(stats.max_loss ?? 0),
-      stats.max_loss_symbol ? `${stats.max_loss_symbol} ${stats.max_loss_date}` : undefined),
+    card("var(--danger)", "单笔最大亏损", (stats.loss_count ?? 1) === 0 ? "--" : formatMoney(stats.max_loss ?? 0),
+      (stats.loss_count ?? 1) === 0 ? "无亏损记录" : (stats.max_loss_symbol ? `${stats.max_loss_symbol} ${stats.max_loss_date}` : undefined)),
     card("var(--text-primary)", "完整交易", `${stats.total_positions ?? 0}`,
       `${stats.win_count ?? 0}盈 / ${stats.loss_count ?? 0}亏`),
   ];
 
   // ---- Tier 2: 进阶分析 ---------------------------------
-  const pfRating = pf >= 3 ? { text: "优秀（>3.0）", color: "var(--success)" }
+  const noLoss = (stats.loss_count ?? 0) === 0 && (stats.win_count ?? 0) > 0;
+  const pfRating = noLoss ? { text: "无亏损", color: "var(--success)" }
+    : pf >= 3 ? { text: "优秀（>3.0）", color: "var(--success)" }
     : pf >= 1.5 ? { text: "良好（>1.5）", color: "var(--success)" }
     : pf >= 1 ? { text: "合格（>1.0）", color: "var(--accent)" }
     : { text: "不合格（<1.0）", color: "var(--danger)" };
@@ -101,20 +103,20 @@ export default function StatsCards({ stats }: StatsCardsProps) {
     : { text: "负期望", color: "var(--danger)" };
 
   const tier2 = [
-    card(pf >= 1.5 ? "var(--success)" : pf >= 1 ? "var(--accent)" : "var(--danger)",
-      "盈亏比（Profit Factor）", pf.toFixed(2),
+    card(noLoss ? "var(--success)" : (pf >= 1.5 ? "var(--success)" : pf >= 1 ? "var(--accent)" : "var(--danger)"),
+      "盈亏比（Profit Factor）", noLoss ? "∞" : pf.toFixed(2),
       "总盈利 ÷ 总亏损，>1.5为合格", pfRating),
     card(expectancy >= 0 ? "var(--success)" : "var(--danger)",
       "预期收益（Expectancy）", formatPct(expectancy),
       "每笔交易预期赚多少", exRating),
-    card("var(--text-primary)", "损益比（Payoff Ratio）", wlr.toFixed(2),
+    card("var(--text-primary)", "损益比（Payoff Ratio）", noLoss ? "∞" : wlr.toFixed(2),
       "平均盈利 ÷ 平均亏损"),
     card("var(--text-primary)", "平均持仓", `${(stats.avg_holding_days ?? 0).toFixed(1)}天`,
       `盈利${(stats.avg_win_holding_days ?? 0).toFixed(0)}天 / 亏损${(stats.avg_loss_holding_days ?? 0).toFixed(0)}天`),
     card("var(--success)", "平均盈利", formatMoney(stats.avg_win_amount ?? 0),
       `平均 ${formatPct(stats.avg_win_pct ?? 0)} / 笔`),
-    card("var(--danger)", "平均亏损", formatMoney(stats.avg_loss_amount ?? 0),
-      `平均 ${formatPct(stats.avg_loss_pct ?? 0)} / 笔`),
+    card("var(--danger)", "平均亏损", noLoss ? "无亏损记录" : formatMoney(stats.avg_loss_amount ?? 0),
+      noLoss ? undefined : `平均 ${formatPct(stats.avg_loss_pct ?? 0)} / 笔`),
   ];
 
   // ---- Tier 3: 专业指标 ---------------------------------
