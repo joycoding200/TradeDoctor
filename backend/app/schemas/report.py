@@ -28,6 +28,7 @@ class ReportListItem(BaseModel):
     id: str
     analysis_id: str = ""
     filename: str = ""
+    username: str = ""
     created_at: datetime
 
 

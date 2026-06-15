@@ -223,6 +223,7 @@ def list_reports(
                 id=r.id,
                 analysis_id=r.analysis_id or "",
                 filename=filename_map.get(r.analysis_id, ""),
+                username=current_user.email.split("@")[0],
                 created_at=r.created_at,
             )
             for r in reports

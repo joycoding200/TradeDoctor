@@ -6,6 +6,7 @@ interface ReportItem {
   id: string;
   analysis_id?: string;
   filename?: string;
+  username?: string;
   created_at?: string;
   title?: string;
 }
@@ -81,12 +82,15 @@ export default function History() {
               <div className="flex justify-between items-center">
                 <div>
                   <div className="font-medium">
-                    {report.filename
-                      ? `📄 ${report.filename} 分析报告`
-                      : report.created_at
-                      ? `${new Date(report.created_at).toLocaleDateString("zh-CN")} 分析报告`
+                    {report.username && report.created_at
+                      ? `${report.username} ${new Date(report.created_at).toLocaleDateString("zh-CN")} 分析报告`
                       : `报告 ${report.id.slice(0, 8)}`}
                   </div>
+                  {report.filename && (
+                    <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                      📄 {report.filename}
+                    </div>
+                  )}
                   {report.created_at && (
                     <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
                       {new Date(report.created_at).toLocaleString("zh-CN")}
