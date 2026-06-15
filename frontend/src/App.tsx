@@ -9,6 +9,7 @@ import Register from "./pages/Register";
 import Upload from "./pages/Upload";
 import Analysis from "./pages/Analysis";
 import Report from "./pages/Report";
+import Admin from "./pages/Admin";
 import History from "./pages/History";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
+              <Route path="/admin" element={<Admin />} />
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />

@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Boolean, Column, DateTime, String
 
 from app.database import Base
 
@@ -26,6 +26,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=True, index=True)
     phone = Column(String(20), unique=True, nullable=True, index=True)
     nickname = Column(String(50), nullable=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
     password_hash = Column(String(255), nullable=False)
     created_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc)
