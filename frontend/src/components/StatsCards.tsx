@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 interface StatsData {
   total_trades?: number;
   total_positions?: number;
@@ -17,13 +19,11 @@ interface StatsData {
   win_loss_ratio?: number;
   profit_factor?: number;
   max_drawdown?: number;
-  // V1.2 MAE/MFE
   avg_mae?: number;
   avg_mfe?: number;
   mae_winners?: number;
   mae_losers?: number;
   profit_capture_ratio?: number;
-  // V1.3 Expectancy
   expectancy?: number;
 }
 
@@ -31,43 +31,106 @@ interface StatsCardsProps {
   stats: StatsData;
 }
 
-function formatPercent(value: number): string {
+function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
 function formatMoney(value: number): string {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}`;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
-function formatRatio(value: number): string {
-  return value.toFixed(2);
+function ratingLabel(value: number, thresholds: [number, string, string][], fallback: string): string {
+  for (const [t, label] of thresholds) {
+    if (value >= t) return label;
+  }
+  return fallback;
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const unknown = stats.unknown_cost_count ?? 0;
-  const cards = [
-    { label: "完整交易", value: stats.total_positions ?? 0, format: "int" as const },
-    { label: "成交记录", value: stats.total_trades ?? 0, format: "int" as const },
-    { label: "交易胜率", value: stats.win_rate ?? 0, format: "pct" as const },
-    { label: "总盈亏", value: stats.total_pnl ?? 0, format: "money" as const },
-    { label: "单笔最大盈利", value: stats.max_win ?? 0, format: "money" as const },
-    { label: "单笔最大亏损", value: stats.max_loss ?? 0, format: "money" as const },
-    { label: "平均持仓天数", value: stats.avg_holding_days ?? 0, format: "days" as const },
+
+  function card(cls: string, label: string, value: string, hint?: string, rating?: { text: string; color: string }) {
+    return (
+      <div key={label} style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }} className="p-4">
+        <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</div>
+        <div className="text-xl font-semibold" style={{ color: cls }}>{value}</div>
+        {rating && <div className="text-xs mt-1 font-medium" style={{ color: rating.color }}>{rating.text}</div>}
+        {hint && <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{hint}</div>}
+      </div>
+    );
+  }
+
+  const wlr = stats.win_loss_ratio ?? 0;
+  const pf = stats.profit_factor ?? 0;
+  const expectancy = stats.expectancy ?? 0;
+  const mae = stats.avg_mae ?? 0;
+  const mfe = stats.avg_mfe ?? 0;
+  const capture = stats.profit_capture_ratio ?? 0;
+
+  // ---- Tier 1: 核心结果 ---------------------------------
+  const tier1 = [
+    card("var(--text-primary)", "总盈亏", formatMoney(stats.total_pnl ?? 0),
+      undefined,
+      { text: (stats.total_pnl ?? 0) >= 0 ? "✓ 整体盈利" : "✗ 整体亏损", color: (stats.total_pnl ?? 0) >= 0 ? "var(--success)" : "var(--danger)" }),
+    card((stats.win_rate ?? 0) >= 0.5 ? "var(--success)" : "var(--danger)", "胜率", formatPct(stats.win_rate ?? 0),
+      "盈利笔数 ÷ 总笔数"),
+    card("var(--text-primary)", "最大回撤", formatMoney(stats.max_drawdown ?? 0),
+      "累计收益从最高点的最大回落"),
+    card((stats.max_win ?? 0) > 0 ? "var(--success)" : "var(--text-primary)", "单笔最大盈利", formatMoney(stats.max_win ?? 0)),
+    card((stats.max_loss ?? 0) < 0 ? "var(--danger)" : "var(--text-primary)", "单笔最大亏损", formatMoney(stats.max_loss ?? 0)),
+    card("var(--text-primary)", "完整交易", `${stats.total_positions ?? 0}`,
+      `${stats.win_count ?? 0}盈 / ${stats.loss_count ?? 0}亏`),
   ];
 
-  const secondaryCards = [
-    { label: "盈亏比", value: stats.win_loss_ratio ?? 0, format: "ratio" as const, hint: "平均盈利/平均亏损" },
-    { label: "Profit Factor", value: stats.profit_factor ?? 0, format: "ratio" as const, hint: "总盈利/总亏损，>1.5合格" },
-    { label: "Expectancy(R)", value: stats.expectancy ?? 0, format: "pct" as const, hint: "每笔预期收益率" },
-    { label: "最大回撤", value: stats.max_drawdown ?? 0, format: "money" as const },
-    { label: "平均盈利", value: stats.avg_win_amount ?? 0, format: "money" as const },
-    { label: "平均亏损", value: stats.avg_loss_amount ?? 0, format: "money" as const },
-    { label: "盈利单持仓", value: stats.avg_win_holding_days ?? 0, format: "days" as const },
-    { label: "亏损单持仓", value: stats.avg_loss_holding_days ?? 0, format: "days" as const },
-    { label: "平均最大浮亏", value: stats.avg_mae ?? 0, format: "pct" as const, hint: "持仓期间最大浮亏(MAE)均值" },
-    { label: "平均最大浮盈", value: stats.avg_mfe ?? 0, format: "pct" as const, hint: "持仓期间最大浮盈(MFE)均值" },
-    { label: "止盈效率", value: stats.profit_capture_ratio ?? 0, format: "ratio" as const, hint: "浮盈兑现率 = 终盈/MFE" },
+  // ---- Tier 2: 进阶分析 ---------------------------------
+  const pfRating = pf >= 3 ? { text: "优秀（>3.0）", color: "var(--success)" }
+    : pf >= 1.5 ? { text: "良好（>1.5）", color: "var(--success)" }
+    : pf >= 1 ? { text: "合格（>1.0）", color: "var(--accent)" }
+    : { text: "不合格（<1.0）", color: "var(--danger)" };
+
+  const exRating = expectancy > 0.02 ? { text: "优秀", color: "var(--success)" }
+    : expectancy > 0 ? { text: "正期望", color: "var(--success)" }
+    : { text: "负期望", color: "var(--danger)" };
+
+  const tier2 = [
+    card(pf >= 1.5 ? "var(--success)" : pf >= 1 ? "var(--accent)" : "var(--danger)",
+      "盈亏比（Profit Factor）", pf.toFixed(2),
+      "总盈利 ÷ 总亏损，>1.5为合格", pfRating),
+    card(expectancy >= 0 ? "var(--success)" : "var(--danger)",
+      "预期收益（Expectancy）", formatPct(expectancy),
+      "每笔交易预期赚多少", exRating),
+    card("var(--text-primary)", "盈亏金额比", wlr.toFixed(2),
+      "平均盈利 ÷ 平均亏损"),
+    card("var(--text-primary)", "平均持仓", `${(stats.avg_holding_days ?? 0).toFixed(1)}天`,
+      `盈利${(stats.avg_win_holding_days ?? 0).toFixed(0)}天 / 亏损${(stats.avg_loss_holding_days ?? 0).toFixed(0)}天`),
+    card((stats.avg_win_amount ?? 0) >= 0 ? "var(--success)" : "var(--text-primary)", "平均盈利", formatMoney(stats.avg_win_amount ?? 0)),
+    card((stats.avg_loss_amount ?? 0) <= 0 ? "var(--danger)" : "var(--text-primary)", "平均亏损", formatMoney(stats.avg_loss_amount ?? 0)),
+  ];
+
+  // ---- Tier 3: 专业指标 ---------------------------------
+  const maeRating = mae < -0.1 ? { text: "风险较高", color: "var(--danger)" }
+    : mae < -0.05 ? { text: "风险可控", color: "var(--accent)" }
+    : { text: "回撤较小", color: "var(--success)" };
+
+  const captureRating = capture >= 0.5 ? { text: "优秀", color: "var(--success)" }
+    : capture >= 0.3 ? { text: "良好", color: "var(--success)" }
+    : capture >= 0.15 ? { text: "一般", color: "var(--accent)" }
+    : { text: "较差：存在过早卖出", color: "var(--danger)" };
+
+  const tier3 = [
+    card(mae < -0.08 ? "var(--danger)" : "var(--text-primary)",
+      "最大回撤容忍度（MAE）", formatPct(mae),
+      "持仓期间平均最大浮亏", maeRating),
+    card("var(--text-primary)",
+      "最大浮盈（MFE）", formatPct(mfe),
+      "持仓期间平均最高盈利"),
+    card(capture >= 0.3 ? "var(--success)" : capture >= 0.15 ? "var(--accent)" : "var(--danger)",
+      "止盈效率（Profit Capture）", formatPct(capture),
+      "最终盈利 ÷ 最大浮盈，衡量兑现能力", captureRating),
+    card((stats.consecutive_losses ?? 0) > 3 ? "var(--danger)" : "var(--text-primary)",
+      "连续亏损", `${stats.consecutive_losses ?? 0}次`,
+      "最长连续亏损次数"),
   ];
 
   return (
@@ -77,95 +140,29 @@ export default function StatsCards({ stats }: StatsCardsProps) {
           ⚠ 检测到 {unknown} 笔卖出对应的买入发生在交割单起始日期之前，持仓成本未知，已标记为 PnL=0。建议导入更早期的交割单以获得完整分析。
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderRadius: "12px",
-              border: "1px solid var(--border)",
-            }}
-            className="p-4"
-          >
-            <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>
-              {card.label}
-            </div>
-            <div
-              className="text-xl font-semibold"
-              style={{
-                color:
-                  card.label === "单笔最大亏损" || (card.label === "总盈亏" && card.value < 0)
-                    ? "var(--danger)"
-                    : card.label === "单笔最大盈利" || (card.label === "总盈亏" && card.value > 0)
-                    ? "var(--success)"
-                    : card.label === "交易胜率" && card.value < 0.5
-                    ? "var(--danger)"
-                    : "var(--text-primary)",
-              }}
-            >
-              {card.format === "pct"
-                ? formatPercent(card.value)
-                : card.format === "money"
-                ? formatMoney(card.value)
-                : card.format === "days"
-                ? `${card.value.toFixed(1)}天`
-                : String(card.value)}
-            </div>
-          </div>
-        ))}
-      </div>
 
-      {/* Secondary metrics row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {secondaryCards.map((card) => (
-          <div
-            key={card.label}
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderRadius: "10px",
-              border: "1px solid var(--border)",
-            }}
-            className="p-3"
-          >
-            <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>
-              {card.label}
-            </div>
-            <div
-              className="text-base font-semibold"
-              style={{
-                color:
-                  card.label === "平均亏损" || (card.label === "最大回撤" && card.value > 1000)
-                    ? "var(--danger)"
-                    : card.label === "平均盈利"
-                    ? "var(--success)"
-                    : card.label === "Profit Factor"
-                    ? (card.value >= 2 ? "var(--success)" : card.value >= 1.5 ? "var(--accent)" : "var(--danger)")
-                    : card.label === "盈利单持仓" && card.value > 0 && (stats.avg_loss_holding_days ?? 0) > 0 && card.value < (stats.avg_loss_holding_days ?? 0)
-                    ? "var(--danger)"
-                    : card.label === "亏损单持仓" && card.value > 0 && (stats.avg_win_holding_days ?? 0) > 0 && card.value > (stats.avg_win_holding_days ?? 0)
-                    ? "var(--danger)"
-                    : "var(--text-primary)",
-              }}
-            >
-              {card.format === "pct"
-                ? formatPercent(card.value)
-                : card.format === "money"
-                ? formatMoney(card.value)
-                : card.format === "ratio"
-                ? formatRatio(card.value)
-                : card.format === "days"
-                ? `${card.value.toFixed(1)}天`
-                : String(card.value)}
-            </div>
-            {card.hint && (
-              <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
-                {card.hint}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Tier 1: 核心结果 */}
+      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>核心结果</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">{tier1}</div>
+
+      {/* Tier 2: 进阶分析 */}
+      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>进阶分析</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">{tier2}</div>
+
+      {/* Tier 3: 专业指标 — collapsible */}
+      <button
+        onClick={() => setShowAdvanced(!showAdvanced)}
+        style={{
+          backgroundColor: "transparent", border: "none", cursor: "pointer",
+          color: "var(--text-secondary)", fontSize: "12px", fontWeight: 500,
+          padding: 0, marginBottom: showAdvanced ? 8 : 0,
+        }}
+      >
+        {showAdvanced ? "▾ 收起高级分析" : "▸ 展开高级分析（MAE/MFE/止盈效率）"}
+      </button>
+      {showAdvanced && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">{tier3}</div>
+      )}
     </div>
   );
 }

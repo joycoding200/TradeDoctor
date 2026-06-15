@@ -6,6 +6,25 @@ import PatternChart from "../components/PatternChart";
 import WhatIfChart from "../components/WhatIfChart";
 import { patternLabel, dimensionLabel, DIMENSION_ORDER } from "../constants/patterns";
 
+function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          backgroundColor: "transparent", border: "none", cursor: "pointer",
+          color: "var(--text-secondary)", fontSize: "13px", fontWeight: 500,
+          padding: 0, marginBottom: open ? 12 : 0,
+        }}
+      >
+        {open ? "▾ " : "▸ "}{title}
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
 type Tab = "stats" | "insight" | "whatif";
 type InsightDim = "market_env" | "behavior" | "outcome" | "psychology";
 
@@ -130,28 +149,41 @@ export default function Analysis() {
                     </thead>
                     <tbody>
                       {(insight.data as any)[insightDim]?.map((p: any) => {
-                        const isPos = p.expectancy >= 0;
+                        const isPos = p.expectancy > 0;
                         const baseline = (insight.data as any).baseline_expectancy || 0;
-                        const vsBaseline = p.expectancy - baseline;
-                        const pf = p.win_rate > 0 && p.win_rate < 1
-                          ? (p.win_rate / (1 - p.win_rate))
-                          : p.win_rate >= 1 ? 999 : 0;
-                        const evalText = vsBaseline > 0.005 ? "优于均值，建议保持"
-                          : vsBaseline < -0.005 ? "拖累收益，建议减少"
-                          : "接近均值";
-                        const evalColor = vsBaseline > 0.005 ? "var(--success)"
-                          : vsBaseline < -0.005 ? "var(--danger)"
-                          : "var(--text-secondary)";
+                        const pf = p.win_rate > 0 && p.win_rate < 1 ? (p.win_rate / (1 - p.win_rate)) : p.win_rate >= 1 ? 999 : 0;
+                        const isSmallSample = p.count < 5;
+
+                        // Multi-dimension evaluation (V2.4)
+                        let evalText: string, evalColor: string;
+                        if (isSmallSample) {
+                          evalText = `样本不足（${p.count}笔），暂不评价`;
+                          evalColor = "var(--text-secondary)";
+                        } else if (isPos && pf > 2) {
+                          evalText = "优秀：正期望且显著优于均值，核心盈利模式";
+                          evalColor = "var(--success)";
+                        } else if (isPos && p.expectancy > baseline) {
+                          evalText = "良好：优于均值，建议保持";
+                          evalColor = "var(--success)";
+                        } else if (isPos && p.expectancy <= baseline) {
+                          evalText = "正收益但低于最佳模式，可优化";
+                          evalColor = "var(--accent)";
+                        } else {
+                          evalText = "负期望：持续亏损，建议减少或改进";
+                          evalColor = "var(--danger)";
+                        }
+
                         return (
                           <tr
                             key={p.pattern_name}
                             style={{
                               borderBottom: "1px solid var(--border)",
                               backgroundColor: isPos ? "rgba(34,197,94,0.04)" : "rgba(239,68,68,0.04)",
+                              opacity: isSmallSample ? 0.6 : 1,
                             }}
                           >
-                            <td className="p-3 font-medium" style={{ color: isPos ? "var(--success)" : "var(--danger)" }}>
-                              {isPos ? "✓ " : "✗ "}{patternLabel(p.pattern_name)}
+                            <td className="p-3 font-medium" style={{ color: isPos ? "var(--success)" : p.expectancy < 0 ? "var(--danger)" : "var(--text-primary)" }}>
+                              {isSmallSample ? "" : isPos ? "✓ " : "✗ "}{patternLabel(p.pattern_name)}
                             </td>
                             <td className="p-3 text-right">{p.count}</td>
                             <td className="p-3 text-right" style={{ color: p.win_rate >= 0.5 ? "var(--success)" : "var(--danger)" }}>
@@ -163,8 +195,8 @@ export default function Analysis() {
                             <td className="p-3 text-right" style={{ color: pf >= 1.5 ? "var(--success)" : pf >= 1 ? "var(--accent)" : "var(--danger)" }}>
                               {p.win_rate >= 1 ? "∞" : pf.toFixed(2)}
                             </td>
-                            <td className="p-3 text-xs" style={{ color: evalColor, maxWidth: 140 }}>
-                              <span style={{ fontWeight: 600 }}>{vsBaseline > 0 ? "↑" : vsBaseline < 0 ? "↓" : "→"}</span> {evalText}
+                            <td className="p-3 text-xs" style={{ color: evalColor, maxWidth: 160 }}>
+                              {p.expectancy > baseline && !isSmallSample ? "↑ " : p.expectancy < baseline && !isSmallSample ? "↓ " : ""}{evalText}
                             </td>
                           </tr>
                         );
@@ -190,56 +222,42 @@ export default function Analysis() {
           {whatIf.error && <div className="text-center py-8" style={{ color: "var(--danger)" }}>请先导入交易数据</div>}
           {whatIf.data?.items && whatIf.data.items.length > 0 ? (
             <div className="space-y-6">
-              {/* V2.0 Shapley Value Attribution */}
+              {/* V2.4 Shapley: collapsible "赚钱来源分析" */}
               {whatIf.data.shapley && whatIf.data.shapley.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-medium mb-3">Shapley 归因（公平贡献）</h2>
+                <Collapsible title="赚钱来源分析（公平归因，点击展开）">
                   <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
-                    Shapley 值保证各标签贡献之和 = 总 PnL，消除重叠归因。右侧为旧版删除法对比。
+                    各标签对总收益的贡献占比，总和=100%，消除重复计算。
                   </p>
-                  <div style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }} className="overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                          <th className="p-3 text-left">标签</th>
-                          <th className="p-3 text-right">Shapley 贡献</th>
-                          <th className="p-3 text-right">占比</th>
-                          <th className="p-3 text-right" style={{ color: "var(--text-secondary)" }}>旧版贡献</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {whatIf.data.shapley.map((s: any) => {
-                          const oldItem = whatIf.data.items.find((i: any) => i.removed_pattern === s.pattern_name);
-                          return (
-                            <tr key={s.pattern_name} style={{ borderBottom: "1px solid var(--border)" }}>
-                              <td className="p-3 font-medium">{patternLabel(s.pattern_name)}</td>
-                              <td className="p-3 text-right" style={{ color: s.shapley_value >= 0 ? "var(--success)" : "var(--danger)" }}>
-                                {s.shapley_value >= 0 ? "+" : ""}{s.shapley_value.toFixed(2)}
-                              </td>
-                              <td className="p-3 text-right">{s.pct_of_total}%</td>
-                              <td className="p-3 text-right" style={{ color: "var(--text-secondary)" }}>
-                                {oldItem ? `${oldItem.absolute_impact >= 0 ? "+" : ""}${oldItem.absolute_impact.toFixed(2)}` : "—"}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                  {whatIf.data.shapley.map((s: any) => (
+                    <div key={s.pattern_name} className="mb-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>{patternLabel(s.pattern_name)}</span>
+                        <span style={{ color: s.shapley_value >= 0 ? "var(--success)" : "var(--danger)" }}>
+                          {s.shapley_value >= 0 ? "+" : ""}{s.shapley_value.toFixed(2)}（{s.pct_of_total}%）
+                        </span>
+                      </div>
+                      <div style={{ backgroundColor: "var(--border)", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                        <div style={{
+                          width: `${Math.abs(s.pct_of_total)}%`,
+                          height: "100%",
+                          backgroundColor: s.shapley_value >= 0 ? "var(--success)" : "var(--danger)",
+                          borderRadius: 4,
+                          transition: "width 0.3s",
+                        }} />
+                      </div>
+                    </div>
+                  ))}
+                </Collapsible>
               )}
 
-              {/* Stop Loss Rule Simulation (correct counterfactual) */}
+              {/* V2.4 Stop Loss with conclusion */}
               {whatIf.data.stop_loss && (
                 <div>
-                  <h2 className="text-sm font-medium mb-3">止损规则回测（V2.1 盘中触发）</h2>
+                  <h2 className="text-sm font-medium mb-3">止损规则回测</h2>
                   <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
-                    遍历持仓期间每日最低价，判断是否盘中触及止损线。若触及则假设在止损价离场。
+                    遍历持仓期间每日最低价，判断是否盘中触及止损线。
                   </p>
-                  <div
-                    style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}
-                    className="p-4"
-                  >
+                  <div style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }} className="p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">设置 5% 止损</span>
                       <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -247,11 +265,23 @@ export default function Analysis() {
                       </span>
                     </div>
                     <div className="flex justify-between text-sm mt-2">
-                      <span style={{ color: "var(--text-secondary)" }}>原始总收益: {(whatIf.data.stop_loss.original_return * 100).toFixed(1)}%</span>
+                      <span style={{ color: "var(--text-secondary)" }}>原始收益: {(whatIf.data.stop_loss.original_return * 100).toFixed(1)}%</span>
                       <span style={{ color: "var(--text-secondary)" }}>止损后: {(whatIf.data.stop_loss.what_if_return * 100).toFixed(1)}%</span>
                       <span style={{ color: whatIf.data.stop_loss.delta >= 0 ? "var(--success)" : "var(--danger)" }}>
                         Δ {whatIf.data.stop_loss.delta >= 0 ? "+" : ""}{(whatIf.data.stop_loss.delta * 100).toFixed(1)}%
                       </span>
+                    </div>
+                    <div className="mt-3 pt-3 text-xs font-medium" style={{
+                      borderTop: "1px solid var(--border)",
+                      color: whatIf.data.stop_loss.delta > 0 ? "var(--success)"
+                        : whatIf.data.stop_loss.delta < -0.03 ? "var(--danger)"
+                        : "var(--accent)",
+                    }}>
+                      {whatIf.data.stop_loss.delta > 0
+                        ? "✅ 结论：历史数据支持设置5%止损，可有效减少损失"
+                        : whatIf.data.stop_loss.delta < -0.03
+                        ? "⚠️ 结论：5%止损会严重损害收益（-2.3%），你的交易风格不适合机械止损，建议放宽至8-10%或采用移动止损"
+                        : `结论：5%止损对收益影响较小（${(whatIf.data.stop_loss.delta * 100).toFixed(1)}%），可作为辅助风控手段`}
                     </div>
                   </div>
                 </div>
