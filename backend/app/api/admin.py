@@ -1,6 +1,7 @@
 """Admin API: user search, data retrieval, file download."""
 import io
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -8,6 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import create_token, get_current_user, verify_password
+
+
+def _safe_filename(name: str) -> str:
+    """Strip CRLF and control characters to prevent header injection."""
+    return re.sub(r'[\r\n\x00]', '', name)
 from app.database import get_db
 from app.models.analysis import Analysis
 from app.models.raw_file import RawFile
@@ -168,7 +174,7 @@ def download_raw_file(
     return StreamingResponse(
         io.BytesIO(rf.raw_content),
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={rf.filename}"},
+        headers={"Content-Disposition": f"attachment; filename={_safe_filename(rf.filename)}"},
     )
 
 
@@ -193,7 +199,7 @@ def download_analysis_snapshot(
     return StreamingResponse(
         io.BytesIO(content.encode("utf-8")),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename=analysis_{analysis_id[:8]}.json"},
+        headers={"Content-Disposition": f"attachment; filename=analysis_{_safe_filename(analysis_id[:8])}.json"},
     )
 
 
@@ -209,5 +215,5 @@ def download_report(
     return StreamingResponse(
         io.BytesIO(r.report_content.encode("utf-8")),
         media_type="text/plain; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename=report_{report_id[:8]}.md"},
+        headers={"Content-Disposition": f"attachment; filename=report_{_safe_filename(report_id[:8])}.md"},
     )
