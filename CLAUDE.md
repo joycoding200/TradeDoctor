@@ -75,9 +75,6 @@ pytest tests/ -q
 cd frontend
 npm install
 npm run dev                  # http://localhost:5173
-
-# 管理员页面
-http://localhost:5173/admin  # admin@admin.com / admin2026#
 ```
 
 ## 项目结构
@@ -86,7 +83,7 @@ http://localhost:5173/admin  # admin@admin.com / admin2026#
 TradingJournalAnalyzer/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # admin, analysis, auth, report, upload
+│   │   ├── api/          # analysis, auth, report, upload
 │   │   ├── engine/        # attribution, insight, mae, market_data, market_fetcher, pattern, position, whatif
 │   │   ├── parsers/       # smart.py (SmartParser) + registry
 │   │   ├── ai/            # provider, prompt
@@ -95,7 +92,7 @@ TradingJournalAnalyzer/
 │   │   └── auth/          # JWT + password hashing
 │   └── tests/
 ├── frontend/src/
-│   ├── pages/             # Admin, Analysis, History, Landing, Login, Register, Report, Upload
+│   ├── pages/             # Analysis, History, Landing, Login, Register, Report, Upload
 │   ├── components/        # Layout, StatsCards, PatternChart, WhatIfChart, FileDropzone...
 │   ├── api/               # client, auth, analysis, report, upload
 │   ├── hooks/             # useAnalysis (React Query)
@@ -129,7 +126,7 @@ Analysis (分析记录, raw_file_id, stats_snapshot)
 Report (AI报告, report_content, analysis_input)
 ```
 
-管理员可通过 `RawFile → Trade → Analysis → Report` 完整链路检索用户数据。
+数据支持通过 `RawFile → Trade → Analysis → Report` 链路完整追溯。
 
 ## License
 
