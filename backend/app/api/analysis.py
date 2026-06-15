@@ -196,6 +196,8 @@ def get_stats(
 
     avg_win_amount = sum(p.pnl for p in win_positions) / len(win_positions) if win_positions else 0.0
     avg_loss_amount = sum(p.pnl for p in loss_positions) / len(loss_positions) if loss_positions else 0.0
+    avg_win_pct = sum(p.pnl_pct for p in win_positions) / len(win_positions) if win_positions else 0.0
+    avg_loss_pct = sum(p.pnl_pct for p in loss_positions) / len(loss_positions) if loss_positions else 0.0
     win_loss_ratio = avg_win_amount / abs(avg_loss_amount) if avg_loss_amount != 0 else 0.0
 
     total_gross_profit = sum(p.pnl for p in win_positions)
@@ -205,7 +207,7 @@ def get_stats(
     avg_win_holding = sum(p.holding_days for p in win_positions) / len(win_positions) if win_positions else 0.0
     avg_loss_holding = sum(p.holding_days for p in loss_positions) / len(loss_positions) if loss_positions else 0.0
 
-    # Max drawdown: cumulative PnL peak-to-trough
+    # Max drawdown: V2.5 → absolute + percentage (industry standard)
     sorted_positions = sorted(valid_positions, key=lambda p: p.exit_date)
     cum_pnl = 0.0
     peak = 0.0
@@ -217,6 +219,13 @@ def get_stats(
         dd = peak - cum_pnl
         if dd > max_dd:
             max_dd = dd
+    max_drawdown_pct = (max_dd / peak) if peak > 0 else 0.0
+
+    # Total invested and return %
+    total_invested = sum(
+        p.avg_entry_price * p.total_quantity for p in valid_positions
+    )
+    total_return_pct = total_pnl / total_invested if total_invested > 0 else 0.0
 
     # MAE/MFE computation (V1.2)
     mae_mfe_stats = {}
@@ -254,6 +263,10 @@ def get_stats(
         avg_loss_amount=round(avg_loss_amount, 2),
         win_loss_ratio=round(win_loss_ratio, 2),
         max_drawdown=round(max_dd, 2),
+        max_drawdown_pct=round(max_drawdown_pct, 4),
+        total_return_pct=round(total_return_pct, 4),
+        avg_win_pct=round(avg_win_pct, 4),
+        avg_loss_pct=round(avg_loss_pct, 4),
         outcome_distribution=outcome_distribution,
         positions=position_items,
         # V1.2 MAE/MFE

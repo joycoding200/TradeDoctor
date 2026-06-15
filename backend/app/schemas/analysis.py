@@ -53,6 +53,11 @@ class StatsResponse(BaseModel):
     avg_loss_amount: float = 0.0
     win_loss_ratio: float = 0.0
     max_drawdown: float = 0.0
+    # V2.5 percentage versions (industry standard)
+    max_drawdown_pct: float = 0.0
+    total_return_pct: float = 0.0
+    avg_win_pct: float = 0.0
+    avg_loss_pct: float = 0.0
     outcome_distribution: list[OutcomeItem] = []
     positions: list[PositionItem]
     # V1.2 MAE/MFE
