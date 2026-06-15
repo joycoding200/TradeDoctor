@@ -139,4 +139,4 @@ TradingJournalAnalyzer/
 
 ## License
 
-MIT
+MIT + Commons Clause — 非商业用途开源
