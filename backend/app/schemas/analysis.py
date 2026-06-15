@@ -55,6 +55,14 @@ class StatsResponse(BaseModel):
     max_drawdown: float = 0.0
     outcome_distribution: list[OutcomeItem] = []
     positions: list[PositionItem]
+    # V1.2 MAE/MFE
+    avg_mae: float = 0.0
+    avg_mfe: float = 0.0
+    mae_winners: float = 0.0
+    mae_losers: float = 0.0
+    profit_capture_ratio: float = 0.0
+    # V1.3 Expectancy
+    expectancy: float = 0.0
 
 
 class InsightPatternItem(BaseModel):
@@ -68,7 +76,13 @@ class InsightPatternItem(BaseModel):
 
 
 class InsightResponse(BaseModel):
-    patterns: list[InsightPatternItem]  # all patterns (backward compat)
+    patterns: list[InsightPatternItem]  # flat list (backward compat)
+    # V1.1: 4-dimension system
+    market_env: list[InsightPatternItem] = []
+    behavior: list[InsightPatternItem] = []
+    outcome: list[InsightPatternItem] = []
+    psychology: list[InsightPatternItem] = []
+    # Legacy fields maintained for backward compat
     entry_patterns: list[InsightPatternItem] = []
     holding_patterns: list[InsightPatternItem] = []
     risk_patterns: list[InsightPatternItem] = []
@@ -95,6 +109,13 @@ class RuleSimulationItem(BaseModel):
     affected_positions: int
 
 
+class ShapleyItem(BaseModel):
+    pattern_name: str
+    shapley_value: float
+    pct_of_total: float = 0.0
+
+
 class WhatIfResponse(BaseModel):
     items: list[AttributionItem]  # factor contribution (original)
     stop_loss: Optional[RuleSimulationItem] = None
+    shapley: list[ShapleyItem] = []  # V2.0 Shapley attribution

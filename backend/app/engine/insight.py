@@ -53,12 +53,12 @@ class InsightEngine:
             pats_sorted = sorted(
                 pats,
                 key=lambda p: (-p[1], PRIORITY.get(
-                    # Derive module from common naming patterns
-                    "exit" if p[0] in ("TIGHT_STOP", "TRAILING_STOP", "TIME_EXIT", "LARGE_LOSS_EXIT")
-                    else "entry" if p[0] in ("CHASE", "BOTTOM", "BREAKOUT", "TREND", "COUNTER_TREND", "BREAKDOWN", "FOMO")
-                    else "holding" if p[0] in ("SCALP", "SWING", "POSITION")
-                    else "risk",
-                    PRIORITY.get("risk", 2),
+                    "outcome" if p[0] in ("TIGHT_STOP", "TRAILING_STOP", "TIME_EXIT", "LARGE_LOSS_EXIT")
+                    else "market_env" if p[0] in ("BULL_TREND", "BEAR_TREND", "BREAKDOWN")
+                    else "behavior" if p[0] in ("CHASE", "BOTTOM", "BREAKOUT", "PYRAMID", "AVERAGE_DOWN", "TURN", "SCALP", "SWING", "POSITION", "FOMO")
+                    else "psychology" if p[0] in ("POSSIBLE_REVENGE", "OVERTRADING", "HOLD_LOSER", "CUT_WINNER", "PSY_FOMO")
+                    else "behavior",
+                    PRIORITY.get("behavior", 2),
                 )),
             )
             primary[i] = pats_sorted[0][0]

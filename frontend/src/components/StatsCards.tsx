@@ -17,6 +17,14 @@ interface StatsData {
   win_loss_ratio?: number;
   profit_factor?: number;
   max_drawdown?: number;
+  // V1.2 MAE/MFE
+  avg_mae?: number;
+  avg_mfe?: number;
+  mae_winners?: number;
+  mae_losers?: number;
+  profit_capture_ratio?: number;
+  // V1.3 Expectancy
+  expectancy?: number;
 }
 
 interface StatsCardsProps {
@@ -51,11 +59,15 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   const secondaryCards = [
     { label: "盈亏比", value: stats.win_loss_ratio ?? 0, format: "ratio" as const, hint: "平均盈利/平均亏损" },
     { label: "Profit Factor", value: stats.profit_factor ?? 0, format: "ratio" as const, hint: "总盈利/总亏损，>1.5合格" },
+    { label: "Expectancy", value: stats.expectancy ?? 0, format: "money" as const, hint: "每笔交易预期收益" },
     { label: "最大回撤", value: stats.max_drawdown ?? 0, format: "money" as const },
     { label: "平均盈利", value: stats.avg_win_amount ?? 0, format: "money" as const },
     { label: "平均亏损", value: stats.avg_loss_amount ?? 0, format: "money" as const },
     { label: "盈利单持仓", value: stats.avg_win_holding_days ?? 0, format: "days" as const },
     { label: "亏损单持仓", value: stats.avg_loss_holding_days ?? 0, format: "days" as const },
+    { label: "平均最大浮亏", value: stats.avg_mae ?? 0, format: "pct" as const, hint: "持仓期间最大浮亏(MAE)均值" },
+    { label: "平均最大浮盈", value: stats.avg_mfe ?? 0, format: "pct" as const, hint: "持仓期间最大浮盈(MFE)均值" },
+    { label: "止盈效率", value: stats.profit_capture_ratio ?? 0, format: "ratio" as const, hint: "浮盈兑现率 = 终盈/MFE" },
   ];
 
   return (

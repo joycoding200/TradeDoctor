@@ -1,9 +1,20 @@
 """Pattern engine for tagging positions with behavioral labels.
 
-Produces 20 behavior tags across three modules:
-  Module 1 - Entry behavior (market-data dependent)
-  Module 2 - Holding period
-  Module 3 - Risk & position management (incl. Phase 3 psychological tags)
+Produces behavior tags across four dimensions:
+  Dimension 1 - market_env:  market state at entry (BULL_TREND, BEAR_TREND, BREAKDOWN)
+  Dimension 2 - behavior:    what the trader did (CHASE, BOTTOM, BREAKOUT, PYRAMID,
+                             AVERAGE_DOWN, TURN, SCALP, SWING, POSITION, FOMO)
+  Dimension 3 - outcome:     how the trade ended (TIGHT_STOP, LARGE_LOSS_EXIT,
+                             TIME_EXIT, TRAILING_STOP)
+  Dimension 4 - psychology:  AI-inferred patterns (POSSIBLE_REVENGE, OVERTRADING,
+                             HOLD_LOSER, CUT_WINNER, PSY_FOMO) — low confidence
+
+Key financial fixes from code audit:
+  - TREND/COUNTER_TREND were "market state" mislabeled as "trading behavior"
+    → renamed to BULL_TREND/BEAR_TREND and placed in market_env dimension
+  - PYRAMID now checks open-position state, not final PnL
+  - AVERAGE_DOWN now requires the position to be in a loss state
+  - TIGHT_STOP/TRAILING_STOP/TIME_EXIT/LARGE_LOSS_EXIT are outcomes, not behaviors
 """
 from collections import Counter
 from dataclasses import dataclass, field
@@ -25,14 +36,38 @@ class PatternResult:
 class PatternEngine:
     """Assign behavioral pattern tags to positions."""
 
+    # 4 dimensions: market_env, behavior, outcome, psychology
+    # Each tag lives in exactly one dimension.
     CATEGORY_MAP = {
-        "CHASE": "entry", "BOTTOM": "entry", "BREAKOUT": "entry",
-        "TREND": "market", "COUNTER_TREND": "market", "BREAKDOWN": "market",
-        "SCALP": "holding", "SWING": "holding", "POSITION": "holding",
-        "PYRAMID": "risk", "AVERAGE_DOWN": "risk", "TURN": "risk",
-        "TIGHT_STOP": "exit", "TRAILING_STOP": "exit",
-        "TIME_EXIT": "exit", "LARGE_LOSS_EXIT": "exit",
-        "FOMO": "entry",
+        # --- market_env: 市场环境 (入场所处的技术环境) ---
+        "BULL_TREND": "market_env",
+        "BEAR_TREND": "market_env",
+        "BREAKDOWN": "market_env",
+
+        # --- behavior: 交易行为 (交易者主动采取的动作) ---
+        "CHASE": "behavior",
+        "BOTTOM": "behavior",
+        "BREAKOUT": "behavior",
+        "PYRAMID": "behavior",
+        "AVERAGE_DOWN": "behavior",
+        "TURN": "behavior",
+        "SCALP": "behavior",
+        "SWING": "behavior",
+        "POSITION": "behavior",
+        "FOMO": "behavior",
+
+        # --- outcome: 交易结果 (事后统计分类，非行为) ---
+        "TIGHT_STOP": "outcome",
+        "TRAILING_STOP": "outcome",
+        "TIME_EXIT": "outcome",
+        "LARGE_LOSS_EXIT": "outcome",
+
+        # --- psychology: 心理推测 (AI 推测，低置信度) ---
+        "POSSIBLE_REVENGE": "psychology",
+        "OVERTRADING": "psychology",
+        "HOLD_LOSER": "psychology",
+        "CUT_WINNER": "psychology",
+        "PSY_FOMO": "psychology",
     }
 
     @staticmethod
@@ -142,12 +177,12 @@ class PatternEngine:
                     last_buy_price = same_symbol_trades[-1].price
                     last_buy_date = same_symbol_trades[-1].datetime.date()
 
-                    # PYRAMID: higher price while still holding AND position profitable
-                    if last_buy_price > first_buy_price * 1.02 and pos.pnl > 0:
-                        # Check if there was an open position when this buy happened
+                    # PYRAMID: buying at a higher price while already holding
+                    if last_buy_price > first_buy_price * 1.02:
                         for prev_pos in all_positions:
                             if (prev_pos.symbol == pos.symbol
                                     and prev_pos.entry_date <= last_buy_date <= prev_pos.exit_date):
+                                # Previous position was still open → pyramiding
                                 tags.append(
                                     PatternResult(
                                         "PYRAMID",
@@ -161,18 +196,27 @@ class PatternEngine:
                                 )
                                 break
 
-                    # AVERAGE_DOWN: second buy at significantly lower price
+                    # AVERAGE_DOWN: buying at lower price WHILE in a loss position
                     if last_buy_price < first_buy_price * 0.95:
-                        tags.append(
-                            PatternResult(
-                                "AVERAGE_DOWN",
-                                0.8,
-                                {
-                                    "last_buy_price": last_buy_price,
-                                    "first_buy_price": first_buy_price,
-                                },
+                        # Verify the prior position was in a loss state at time of add
+                        is_loss_add = False
+                        for prev_pos in all_positions:
+                            if (prev_pos.symbol == pos.symbol
+                                    and prev_pos.entry_date <= last_buy_date <= prev_pos.exit_date
+                                    and prev_pos.pnl < 0):
+                                is_loss_add = True
+                                break
+                        if is_loss_add:
+                            tags.append(
+                                PatternResult(
+                                    "AVERAGE_DOWN",
+                                    0.8,
+                                    {
+                                        "last_buy_price": last_buy_price,
+                                        "first_buy_price": first_buy_price,
+                                    },
+                                )
                             )
-                        )
             else:
                 # Fallback: Position-level comparison (backward compatible)
                 # PYRAMID: adding at a HIGHER price with time separation >= 1 day
@@ -478,17 +522,19 @@ class PatternEngine:
                         )
                     )
 
-        # -- TREND / COUNTER_TREND: MA relationship + price confirmation -
+        # -- BULL_TREND / BEAR_TREND: MA relationship + price confirmation --
+        # BULL_TREND: ma20 > ma60 (bullish alignment) AND entry price > ma20
         _maybe_ma_tag(
             tags,
             entry_data,
-            "TREND",
+            "BULL_TREND",
             lambda ma20, ma60: ma20 > ma60 and entry_close > ma20,
         )
+        # BEAR_TREND: ma20 < ma60 (bearish alignment) AND entry price < ma20
         _maybe_ma_tag(
             tags,
             entry_data,
-            "COUNTER_TREND",
+            "BEAR_TREND",
             lambda ma20, ma60: ma20 < ma60 and entry_close < ma20,
         )
 
@@ -526,11 +572,11 @@ class PatternEngine:
         Overlaps resolved:
           BREAKOUT + CHASE -> keep BREAKOUT (more specific), REMOVE CHASE
 
-        L1 trend/counter-trend tags get a sub_pattern:
-          TREND + BREAKOUT -> TREND.sub_pattern = BREAKOUT
-          TREND + CHASE    -> TREND.sub_pattern = CHASE
-          COUNTER_TREND + BOTTOM -> COUNTER_TREND.sub_pattern = BOTTOM
-          COUNTER_TREND + BREAKDOWN -> COUNTER_TREND.sub_pattern = BREAKDOWN
+        Market-env tags get a sub_pattern from overlapping behavior tags:
+          BULL_TREND + BREAKOUT -> BULL_TREND.sub_pattern = BREAKOUT
+          BULL_TREND + CHASE    -> BULL_TREND.sub_pattern = CHASE
+          BEAR_TREND + BOTTOM   -> BEAR_TREND.sub_pattern = BOTTOM
+          BEAR_TREND + BREAKDOWN -> BEAR_TREND.sub_pattern = BREAKDOWN
         """
         tag_names = {t.pattern_name for t in tags}
 
@@ -539,21 +585,21 @@ class PatternEngine:
             tags = [t for t in tags if t.pattern_name != "CHASE"]
             tag_names.discard("CHASE")
 
-        if "TREND" in tag_names and "BREAKOUT" in tag_names:
+        if "BULL_TREND" in tag_names and "BREAKOUT" in tag_names:
             for t in tags:
-                if t.pattern_name == "TREND":
+                if t.pattern_name == "BULL_TREND":
                     t.context["sub_pattern"] = "BREAKOUT"
-        elif "TREND" in tag_names and "CHASE" in tag_names:
+        elif "BULL_TREND" in tag_names and "CHASE" in tag_names:
             for t in tags:
-                if t.pattern_name == "TREND":
+                if t.pattern_name == "BULL_TREND":
                     t.context["sub_pattern"] = "CHASE"
-        if "COUNTER_TREND" in tag_names and "BOTTOM" in tag_names:
+        if "BEAR_TREND" in tag_names and "BOTTOM" in tag_names:
             for t in tags:
-                if t.pattern_name == "COUNTER_TREND":
+                if t.pattern_name == "BEAR_TREND":
                     t.context["sub_pattern"] = "BOTTOM"
-        elif "COUNTER_TREND" in tag_names and "BREAKDOWN" in tag_names:
+        elif "BEAR_TREND" in tag_names and "BREAKDOWN" in tag_names:
             for t in tags:
-                if t.pattern_name == "COUNTER_TREND":
+                if t.pattern_name == "BEAR_TREND":
                     t.context["sub_pattern"] = "BREAKDOWN"
 
         return tags
@@ -568,7 +614,7 @@ class PatternEngine:
     def detect_psychological_patterns(
         positions: list,
         all_trades: list | None = None,
-    ) -> list[PatternResult]:
+    ) -> list[tuple[int, "PatternResult"]]:
         """Detect potential psychological patterns as AI推测 suggestions.
 
         Unlike tag_position() which produces observable behavior tags,
@@ -580,15 +626,15 @@ class PatternEngine:
             all_trades: Raw trade records (optional, enhances detection).
 
         Returns:
-            List of PatternResult instances for psychological patterns.
+            List of (position_index, PatternResult) tuples.
         """
-        results: list[PatternResult] = []
+        results: list[tuple[int, PatternResult]] = []
 
         if not positions:
             return results
 
         # --- POSSIBLE_REVENGE: new trade within 24h of significant loss ---
-        for pos in positions:
+        for i, pos in enumerate(positions):
             prior_positions = sorted(
                 [p for p in positions if p.exit_date < pos.entry_date],
                 key=lambda p: p.exit_date,
@@ -600,7 +646,8 @@ class PatternEngine:
                     if losing_positions:
                         avg_loss = sum(abs(p.pnl) for p in losing_positions) / len(losing_positions)
                         if abs(last_prior.pnl) > avg_loss * 1.5 and pos.total_quantity > last_prior.total_quantity:
-                            results.append(
+                            results.append((
+                                i,
                                 PatternResult(
                                     "POSSIBLE_REVENGE",
                                     0.3,  # low confidence for AI suggestion
@@ -610,7 +657,7 @@ class PatternEngine:
                                         "gap_days": (pos.entry_date - last_prior.exit_date).days,
                                     },
                                 )
-                            )
+                            ))
 
         # --- OVERTRADING: daily frequency > user's avg + 2*std (90-day baseline) ---
         if len(positions) >= 20:
@@ -620,9 +667,10 @@ class PatternEngine:
                 avg = sum(daily_counts) / len(daily_counts)
                 std = (sum((d - avg) ** 2 for d in daily_counts) / len(daily_counts)) ** 0.5
                 threshold = max(avg + 2 * std, 5)  # at least 5
-                for pos in positions:
+                for i, pos in enumerate(positions):
                     if date_counts[pos.entry_date] > threshold:
-                        results.append(
+                        results.append((
+                            i,
                             PatternResult(
                                 "OVERTRADING",
                                 0.5,
@@ -635,7 +683,7 @@ class PatternEngine:
                                     "daily_std": round(std, 2),
                                 },
                             )
-                        )
+                        ))
 
         # --- HOLD_LOSER / CUT_WINNER: median holding duration comparison ---
         winners = [p for p in positions if p.pnl > 0]
@@ -644,9 +692,10 @@ class PatternEngine:
             median_hold_winners = median(p.holding_days for p in winners)
             median_hold_losers = median(p.holding_days for p in losers)
 
-            for pos in positions:
+            for i, pos in enumerate(positions):
                 if median_hold_losers > median_hold_winners * 1.5 and pos.pnl < 0 and pos.holding_days > median_hold_losers:
-                    results.append(
+                    results.append((
+                        i,
                         PatternResult(
                             "HOLD_LOSER",
                             0.5,
@@ -656,10 +705,11 @@ class PatternEngine:
                                 "median_holding_losers": median_hold_losers,
                             },
                         )
-                    )
+                    ))
 
                 if median_hold_winners < median_hold_losers * 0.5 and pos.pnl > 0 and pos.holding_days < median_hold_winners:
-                    results.append(
+                    results.append((
+                        i,
                         PatternResult(
                             "CUT_WINNER",
                             0.5,
@@ -669,11 +719,11 @@ class PatternEngine:
                                 "median_holding_losers": median_hold_losers,
                             },
                         )
-                    )
+                    ))
 
         # --- PSY_FOMO (simplified, trade-based only) ---
         if all_trades is not None and len(all_trades) >= 10:
-            for pos in positions:
+            for i, pos in enumerate(positions):
                 symbol_trades = sorted(
                     [t for t in all_trades if t.symbol == pos.symbol],
                     key=lambda t: t.datetime,
@@ -683,7 +733,8 @@ class PatternEngine:
                     if len(entry_trades) >= 3:
                         prices = [t.price for t in entry_trades[-3:]]
                         if all(prices[i] < prices[i + 1] for i in range(len(prices) - 1)):
-                            results.append(
+                            results.append((
+                                i,
                                 PatternResult(
                                     "PSY_FOMO",
                                     0.3,
@@ -692,7 +743,7 @@ class PatternEngine:
                                         "recent_prices": prices,
                                     },
                                 )
-                            )
+                            ))
 
         return results
 

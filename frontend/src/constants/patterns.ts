@@ -1,48 +1,65 @@
 /**
- * Pattern label mappings — source of truth: /pattern_definition.yaml
- * Update the YAML file first, then sync this file.
- * Generated from: pattern_definition.yaml (28 patterns, 4 modules)
+ * Pattern label mappings and dimension system.
+ * V1.1: 4-dimension system (market_env / behavior / outcome / psychology).
  */
+
+// V1.1 — 4 dimensions
+export const DIMENSION_LABELS: Record<string, string> = {
+  market_env: "市场环境",
+  behavior: "交易行为",
+  outcome: "交易结果",
+  psychology: "心理推测",
+};
+
+export const DIMENSION_ORDER = ["market_env", "behavior", "outcome", "psychology"];
+
 export const PATTERN_LABELS: Record<string, string> = {
-  // 模块一：入场行为（行情依赖）
+  // 市场环境
+  BULL_TREND: "牛市环境",
+  BEAR_TREND: "熊市环境",
+  BREAKDOWN: "破位",
+  // 交易行为
   CHASE: "追涨",
   BOTTOM: "抄底",
   BREAKOUT: "突破",
-  TREND: "趋势",
-  COUNTER_TREND: "逆势",
-  BREAKDOWN: "破位",
-  // 模块二：持仓周期
-  SCALP: "短线",
-  SWING: "波段",
-  POSITION: "长持",
-  // 模块三：仓位与风控
   PYRAMID: "加仓",
   AVERAGE_DOWN: "补仓",
   TURN: "做T",
-  // 模块四：离场行为
-  TIGHT_STOP: "止损",
-  TRAILING_STOP: "移动止损",
-  TIME_EXIT: "时间止损",
-  LARGE_LOSS_EXIT: "恐慌离场",
-  // 入场行为（行情依赖）
+  SCALP: "短线",
+  SWING: "波段",
+  POSITION: "长持",
   FOMO: "害怕错过",
-  // 心理行为标签（AI推测层）
-  PSY_FOMO: "害怕错过（心理）",
-  POSSIBLE_REVENGE: "可能报复交易",
+  // 交易结果
+  TIGHT_STOP: "小亏离场",
+  TRAILING_STOP: "小赚离场",
+  TIME_EXIT: "时间离场",
+  LARGE_LOSS_EXIT: "大亏离场",
+  // 心理推测 (AI推测)
+  POSSIBLE_REVENGE: "可能报复",
   OVERTRADING: "过度交易",
   HOLD_LOSER: "死扛亏损",
   CUT_WINNER: "过早止盈",
+  PSY_FOMO: "害怕错过(心理)",
 };
 
 export const PATTERN_MODULES: Record<string, string> = {
-  CHASE: "entry", BOTTOM: "entry", BREAKOUT: "entry",
-  TREND: "entry", COUNTER_TREND: "entry", BREAKDOWN: "entry",
-  SCALP: "holding", SWING: "holding", POSITION: "holding",
-  PYRAMID: "risk", AVERAGE_DOWN: "risk", TURN: "risk",
-  TIGHT_STOP: "exit", TRAILING_STOP: "exit", TIME_EXIT: "exit", LARGE_LOSS_EXIT: "exit",
-  FOMO: "entry",
+  // market_env
+  BULL_TREND: "market_env", BEAR_TREND: "market_env", BREAKDOWN: "market_env",
+  // behavior
+  CHASE: "behavior", BOTTOM: "behavior", BREAKOUT: "behavior",
+  PYRAMID: "behavior", AVERAGE_DOWN: "behavior", TURN: "behavior",
+  SCALP: "behavior", SWING: "behavior", POSITION: "behavior", FOMO: "behavior",
+  // outcome
+  TIGHT_STOP: "outcome", TRAILING_STOP: "outcome", TIME_EXIT: "outcome", LARGE_LOSS_EXIT: "outcome",
+  // psychology
+  POSSIBLE_REVENGE: "psychology", OVERTRADING: "psychology",
+  HOLD_LOSER: "psychology", CUT_WINNER: "psychology", PSY_FOMO: "psychology",
 };
 
 export function patternLabel(name: string): string {
   return PATTERN_LABELS[name] || name;
+}
+
+export function dimensionLabel(dim: string): string {
+  return DIMENSION_LABELS[dim] || dim;
 }

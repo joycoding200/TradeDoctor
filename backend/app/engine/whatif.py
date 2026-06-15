@@ -108,19 +108,27 @@ class ProfitAttribution:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def analyze_rule(positions, rule_type: str, params: dict):
-        """Level 3: Rule simulation. Simulate what if a trading rule was enforced.
+    def analyze_rule(positions, rule_type: str, params: dict, market_data: dict = None):
+        """Level 3: Rule simulation with intraday data (V2.1).
+
+        V2.1: stop_loss now checks daily bar LOW prices during the holding
+        period to determine if the stop would have been triggered intraday.
+        This is true backtesting, not PnL truncation.
 
         Args:
             positions: List of position-like objects with .pnl, .pnl_pct,
-                       .avg_entry_price, .total_quantity.
+                       .avg_entry_price, .total_quantity, .symbol,
+                       .entry_date, .exit_date.
             rule_type: Type of rule to simulate (e.g. "stop_loss").
             params: Rule-specific parameters.
+            market_data: {symbol: {date_str: {low}}} for intraday checks.
 
         Returns:
             Dict with original_return, what_if_return, delta, affected_positions,
             or None if rule_type is unknown.
         """
+        from datetime import date
+
         total_invested = sum(
             p.avg_entry_price * p.total_quantity for p in positions
         )
@@ -133,13 +141,45 @@ class ProfitAttribution:
             loss_cap = params.get("loss_pct", 0.05)
             simulated_pnl = 0.0
             affected = 0
+
             for p in positions:
-                if p.pnl_pct < -loss_cap:
-                    capped_pnl = -loss_cap * p.avg_entry_price * p.total_quantity
-                    simulated_pnl += capped_pnl
-                    affected += 1
-                else:
-                    simulated_pnl += p.pnl
+                did_trigger = False
+
+                if market_data:
+                    symbol_data = market_data.get(p.symbol, {})
+                    entry_price = p.avg_entry_price
+                    stop_price = entry_price * (1 - loss_cap)
+
+                    for date_str in sorted(symbol_data):
+                        bar_date = date.fromisoformat(date_str)
+                        if p.entry_date <= bar_date <= p.exit_date:
+                            bar = symbol_data[date_str]
+                            bar_low = bar.get("low", entry_price)
+                            if bar_low <= stop_price:
+                                # Stop triggered intraday — exit at stop price
+                                exit_qty = p.total_quantity
+                                exit_cost = stop_price * exit_qty
+                                entry_cost = entry_price * exit_qty
+                                simulated_pnl += exit_cost - entry_cost
+                                affected += 1
+                                did_trigger = True
+                                break
+
+                # Fallback: if no market_data or didn't trigger via intraday,
+                # still check final PnL for positions without intraday data
+                if not did_trigger:
+                    if market_data:
+                        # Had market_data but didn't trigger → keep original PnL
+                        simulated_pnl += p.pnl
+                    else:
+                        # No market_data at all → old PnL truncation fallback
+                        if p.pnl_pct < -loss_cap:
+                            capped_pnl = -loss_cap * p.avg_entry_price * p.total_quantity
+                            simulated_pnl += capped_pnl
+                            affected += 1
+                        else:
+                            simulated_pnl += p.pnl
+
             what_if_return = (
                 simulated_pnl / total_invested if total_invested > 0 else 0.0
             )

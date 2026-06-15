@@ -10,7 +10,9 @@ from app.database import get_db
 from app.models.analysis import Analysis
 from app.models.trade import Trade
 from app.models.user import User
-from app.engine.insight import InsightEngine
+from app.engine.attribution import shapley_attribution
+from app.engine.insight import InsightEngine, InsightItem
+from app.engine.mae import compute_mae_mfe_stats
 from app.engine.market_fetcher import ensure_market_data
 from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
@@ -24,31 +26,41 @@ from app.schemas.analysis import (
     OutcomeItem,
     PositionItem,
     RuleSimulationItem,
+    ShapleyItem,
     StatsResponse,
     WhatIfResponse,
 )
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
-# Pattern module mapping (synchronized with pattern_definition.yaml)
+# Pattern dimension mapping (synchronized with pattern.py CATEGORY_MAP)
 PATTERN_MODULES: dict[str, str] = {
-    "CHASE": "entry",
-    "BOTTOM": "entry",
-    "BREAKOUT": "entry",
-    "TREND": "entry",
-    "COUNTER_TREND": "entry",
-    "BREAKDOWN": "entry",
-    "SCALP": "holding",
-    "SWING": "holding",
-    "POSITION": "holding",
-    "PYRAMID": "risk",
-    "AVERAGE_DOWN": "risk",
-    "TURN": "risk",
-    "TIGHT_STOP": "exit",
-    "TRAILING_STOP": "exit",
-    "TIME_EXIT": "exit",
-    "LARGE_LOSS_EXIT": "exit",
-    "FOMO": "entry",
+    # market_env — 市场环境
+    "BULL_TREND": "market_env",
+    "BEAR_TREND": "market_env",
+    "BREAKDOWN": "market_env",
+    # behavior — 交易行为
+    "CHASE": "behavior",
+    "BOTTOM": "behavior",
+    "BREAKOUT": "behavior",
+    "PYRAMID": "behavior",
+    "AVERAGE_DOWN": "behavior",
+    "TURN": "behavior",
+    "SCALP": "behavior",
+    "SWING": "behavior",
+    "POSITION": "behavior",
+    "FOMO": "behavior",
+    # outcome — 交易结果
+    "TIGHT_STOP": "outcome",
+    "TRAILING_STOP": "outcome",
+    "TIME_EXIT": "outcome",
+    "LARGE_LOSS_EXIT": "outcome",
+    # psychology — 心理推测
+    "POSSIBLE_REVENGE": "psychology",
+    "OVERTRADING": "psychology",
+    "HOLD_LOSER": "psychology",
+    "CUT_WINNER": "psychology",
+    "PSY_FOMO": "psychology",
 }
 
 
@@ -206,6 +218,18 @@ def get_stats(
         if dd > max_dd:
             max_dd = dd
 
+    # MAE/MFE computation (V1.2)
+    mae_mfe_stats = {}
+    symbols = list({p.symbol for p in valid_positions})
+    if symbols:
+        market_data = ensure_market_data(db, symbols, analysis.date_start, analysis.date_end)
+        mae_mfe_stats = compute_mae_mfe_stats(valid_positions, market_data)
+
+    # Expectancy (V1.3)
+    total_expectancy = 0.0
+    if valid_count > 0:
+        total_expectancy = InsightItem.compute(valid_positions, "overall")
+
     # --- Outcome distribution ---
 
     # --- Position items ---
@@ -232,6 +256,14 @@ def get_stats(
         max_drawdown=round(max_dd, 2),
         outcome_distribution=outcome_distribution,
         positions=position_items,
+        # V1.2 MAE/MFE
+        avg_mae=round(mae_mfe_stats.get("avg_mae", 0.0), 4),
+        avg_mfe=round(mae_mfe_stats.get("avg_mfe", 0.0), 4),
+        mae_winners=round(mae_mfe_stats.get("mae_winners", 0.0), 4),
+        mae_losers=round(mae_mfe_stats.get("mae_losers", 0.0), 4),
+        profit_capture_ratio=round(mae_mfe_stats.get("profit_capture_ratio", 0.0), 4),
+        # V1.3 Expectancy
+        expectancy=round(total_expectancy, 2),
     )
 
 
@@ -248,6 +280,15 @@ def _build_category_map(
         tag_kwargs["trades"] = trades
         tag_kwargs["all_trades"] = trades
 
+    # Psychology patterns: computed once for all positions
+    psychology_results = PatternEngine.detect_psychological_patterns(
+        positions, all_trades=trades or None
+    )
+    # Build {position_index: [PatternResult]} map for quick lookup
+    psyche_by_pos: dict[int, list] = {}
+    for idx, psy_result in psychology_results:
+        psyche_by_pos.setdefault(idx, []).append(psy_result)
+
     category_map: dict[int, dict[str, str]] = {}
     for i, pos in enumerate(positions):
         results = PatternEngine.tag_position(pos, positions, **tag_kwargs)
@@ -256,14 +297,19 @@ def _build_category_map(
                 PatternEngine.tag_market_patterns(pos, market_data)
             )
             results = PatternEngine.resolve_hierarchy(results)
+
+        # Attach psychology patterns that belong to this position
+        if i in psyche_by_pos:
+            results.extend(psyche_by_pos[i])
+
         resolved = PatternEngine.resolve_per_category(results)
         category_map[i] = {r.category: r.pattern_name for r in resolved if r.category}
     return category_map
 
 
 def _module_for_pattern(pattern_name: str) -> str:
-    """Return the module name for a pattern (entry/holding/risk)."""
-    return PATTERN_MODULES.get(pattern_name, "risk")
+    """Return the dimension name for a pattern (market_env/behavior/outcome/psychology)."""
+    return PATTERN_MODULES.get(pattern_name, "behavior")
 
 
 @router.get("/{analysis_id}/insight", response_model=InsightResponse)
@@ -307,11 +353,11 @@ def get_insight(
         cat_items[cat] = converted
         all_items.extend(converted)
 
-    # Group by module for backward compat
-    entry_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "entry"]
-    holding_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "holding"]
-    risk_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "risk"]
-    exit_patterns = [p for p in all_items if _module_for_pattern(p.pattern_name) == "exit"]
+    # Group by dimension (V1.1)
+    market_env_items = [p for p in all_items if _module_for_pattern(p.pattern_name) == "market_env"]
+    behavior_items = [p for p in all_items if _module_for_pattern(p.pattern_name) == "behavior"]
+    outcome_items = [p for p in all_items if _module_for_pattern(p.pattern_name) == "outcome"]
+    psychology_items = [p for p in all_items if _module_for_pattern(p.pattern_name) == "psychology"]
 
     significant = [p for p in all_items if p.count >= 5]
     best = significant[0] if significant else None
@@ -319,10 +365,15 @@ def get_insight(
 
     return InsightResponse(
         patterns=all_items,
-        entry_patterns=entry_patterns,
-        holding_patterns=holding_patterns,
-        risk_patterns=risk_patterns,
-        exit_patterns=exit_patterns,
+        market_env=market_env_items,
+        behavior=behavior_items,
+        outcome=outcome_items,
+        psychology=psychology_items,
+        # Legacy backward compat
+        entry_patterns=market_env_items,
+        holding_patterns=behavior_items,
+        risk_patterns=outcome_items,
+        exit_patterns=psychology_items,
         categories=cat_items,
         best_pattern=best,
         worst_pattern=worst,
@@ -371,13 +422,14 @@ def get_whatif(
         for i in items
     ]
 
-    # Stop-loss rule simulation (correct denominator-invariant method)
+    # Stop-loss rule simulation (V2.1: intraday-based backtest)
     stop_loss_sim = None
     if rule_type == "stop_loss":
         result = ProfitAttribution.analyze_rule(
             valid_positions,
             rule_type="stop_loss",
             params={"loss_pct": 0.05},
+            market_data=market_data,
         )
         if result:
             stop_loss_sim = RuleSimulationItem(
@@ -388,4 +440,16 @@ def get_whatif(
                 affected_positions=result["affected_positions"],
             )
 
-    return WhatIfResponse(items=whatif_items, stop_loss=stop_loss_sim)
+    # V2.0 Shapley attribution
+    shapley_values = shapley_attribution(positions, patterns_map_names)
+    total_pnl = sum(p.pnl for p in valid_positions)
+    shapley_items = [
+        ShapleyItem(
+            pattern_name=pat,
+            shapley_value=val,
+            pct_of_total=round(val / total_pnl * 100, 1) if total_pnl != 0 else 0.0,
+        )
+        for pat, val in sorted(shapley_values.items(), key=lambda x: -x[1])
+    ]
+
+    return WhatIfResponse(items=whatif_items, stop_loss=stop_loss_sim, shapley=shapley_items)
