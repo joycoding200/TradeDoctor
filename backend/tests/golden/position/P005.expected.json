@@ -1,0 +1,41 @@
+{
+  "positions": [
+    {
+      "symbol": "600000",
+      "asset_type": "stock",
+      "entry_date": "2025-01-01",
+      "exit_date": "2025-01-10",
+      "holding_days": 9,
+      "total_quantity": 50.0,
+      "avg_entry_price": 10.0,
+      "avg_exit_price": 12.0,
+      "pnl": 100.0,
+      "pnl_pct": 0.2,
+      "cost_known": true
+    },
+    {
+      "symbol": "600000",
+      "asset_type": "stock",
+      "entry_date": "2025-01-01",
+      "exit_date": "2025-01-20",
+      "holding_days": 19,
+      "total_quantity": 50.0,
+      "avg_entry_price": 10.0,
+      "avg_exit_price": 14.0,
+      "pnl": 200.0,
+      "pnl_pct": 0.4,
+      "cost_known": true
+    }
+  ],
+  "stats": {
+    "position_count": 2,
+    "win_rate": 1.0,
+    "total_pnl": 300.0,
+    "profit_factor": null,
+    "expectancy": 0.3,
+    "total_return_pct": 0.3,
+    "max_drawdown_pct": 0.0,
+    "avg_holding_days": 14.0,
+    "max_consecutive_losses": 0
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "position_count": 2,
+
+  "positions": [
+    {
+      "symbol": "600000",
+      "total_quantity": 50,
+      "avg_entry_price": 10.0,
+      "avg_exit_price": 12.0,
+      "pnl": 100.0
+    },
+    {
+      "symbol": "600000",
+      "total_quantity": 50,
+      "avg_entry_price": 10.0,
+      "avg_exit_price": 14.0,
+      "pnl": 200.0
+    }
+  ],
+
+  "stats": {
+    "total_trades": 2,
+    "win_rate": 1.0
+  }
+}

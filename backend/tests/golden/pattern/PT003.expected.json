@@ -1,0 +1,10 @@
+{
+  "patterns": {
+    "0": ["SWING"],
+    "1": ["PYRAMID", "SWING"]
+  },
+  "primary_patterns": {
+    "0": {"behavior": "SWING"},
+    "1": {"behavior": "SWING"}
+  }
+}

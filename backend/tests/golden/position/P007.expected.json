@@ -1,0 +1,26 @@
+{
+  "positions": [
+    {
+      "symbol": "600000",
+      "asset_type": "stock",
+      "entry_date": "2025-01-05",
+      "exit_date": "2025-01-05",
+      "holding_days": 1,
+      "total_quantity": 50.0,
+      "avg_entry_price": 15.0,
+      "avg_exit_price": 15.0,
+      "pnl": 0.0,
+      "pnl_pct": 0.0,
+      "cost_known": false
+    }
+  ],
+  "stats": {
+    "position_count": 1,
+    "win_rate": 0.0,
+    "total_pnl": 0.0,
+    "expectancy": 0.0,
+    "total_return_pct": 0.0,
+    "max_drawdown_pct": 0.0,
+    "avg_holding_days": 1.0
+  }
+}
