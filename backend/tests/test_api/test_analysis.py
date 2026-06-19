@@ -24,7 +24,7 @@ def get_auth_header(client, email=TEST_EMAIL):
 
 
 def import_trades(client, headers):
-    """Helper: upload, confirm, and import QMT trades."""
+    """Helper: upload, confirm, and import QMT trades. Returns raw_file_id."""
     r = client.post(
         "/api/upload",
         headers=headers,
@@ -34,21 +34,36 @@ def import_trades(client, headers):
     client.post(
         "/api/upload/confirm",
         headers=headers,
-        json={"raw_file_id": raw_file_id, "source_type": "qmt"},
+        json={"raw_file_id": raw_file_id, "source_type": "smart"},
     )
     client.post(
         "/api/upload/import",
         headers=headers,
         json={"raw_file_id": raw_file_id},
     )
+    return raw_file_id
 
 
-def run_analysis(client, headers, date_start="2024-01-01", date_end="2024-12-31"):
-    """Helper: create an analysis and return its id."""
+def run_analysis(
+    client,
+    headers,
+    date_start="2024-01-01",
+    date_end="2024-12-31",
+    raw_file_id="",
+):
+    """Helper: create an analysis bound to a raw file and return its id.
+
+    An analysis is always tied to one uploaded file in the real Upload flow;
+    passing raw_file_id keeps the test honest about that boundary.
+    """
     resp = client.post(
         "/api/analysis/run",
         headers=headers,
-        json={"date_start": date_start, "date_end": date_end},
+        json={
+            "date_start": date_start,
+            "date_end": date_end,
+            "raw_file_id": raw_file_id,
+        },
     )
     assert resp.status_code == 201
     return resp.json()["analysis_id"]
@@ -76,8 +91,10 @@ class _BaseAnalysisTest:
     @pytest.fixture(autouse=True)
     def setup(self, client):
         self.headers = get_auth_header(client)
-        import_trades(client, self.headers)
-        self.analysis_id = run_analysis(client, self.headers)
+        self.raw_file_id = import_trades(client, self.headers)
+        self.analysis_id = run_analysis(
+            client, self.headers, raw_file_id=self.raw_file_id
+        )
 
 
 class TestAnalysisStats(_BaseAnalysisTest):
@@ -94,10 +111,15 @@ class TestAnalysisStats(_BaseAnalysisTest):
         assert data["total_positions"] == 2
         assert data["win_count"] == 1
         assert data["win_rate"] == 0.5
-        assert data["total_pnl"] == -200.0  # 500 - 700
+        # Gross PnL = 500 - 700 = -200; net of commissions (5+5+3+3 = 16) = -216.
+        # PnL deducts both-side fees per project convention (see PROJECT_EXPERIENCE.md).
+        assert data["total_pnl"] == -216.0
         assert data["avg_holding_days"] == 3.5
-        assert data["max_win"] == 500.0
-        assert data["max_loss"] == -700.0
+        # Per-position PnL is also net of both-side commissions:
+        #   平安银行 gross +500, fees 5+5=10 → 490
+        #   包钢股份 gross -700, fees 3+3=6  → -706
+        assert data["max_win"] == 490.0
+        assert data["max_loss"] == -706.0
         assert data["consecutive_losses"] == 1
         assert len(data["positions"]) == 2
 

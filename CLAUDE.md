@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **领域知识必读**: 所有涉及分析计算、指标定义、行为标签的开发，必须先参考 `docs/superpowers/FINANCE_DOMAIN.md`。开发完成后按 `docs/superpowers/VERIFICATION_CHECKLIST.md` 逐项自检。
 
+**项目经验必读**: 所有涉及交割单解析（SmartParser）、PnL/费用计算、文件上传识别的开发，必须先参考 `PROJECT_EXPERIENCE.md`（记录真实券商导出踩坑：GBK 编码、伪 `.xls` 文本、`="..."` 外壳、费用列误判、模拟数据与真实数据脱节等），避免重复踩坑。
+
 ## 项目概述
 
 TradingJournalAnalyzer（交易日志分析器）— A 股散户上传交割单，系统重建持仓、识别行为、归因盈亏、回测策略、生成 AI 诊断报告。已进入"值得长期使用的交易复盘工具"阶段。

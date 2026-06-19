@@ -282,13 +282,21 @@ class SmartParser(BaseParser):
         is_future = future_score > stock_score and future_score > 0.3
 
         # Find ALL commission/fee columns (佣金, 印花税, 过户费, 其他杂费 etc.)
-        # Exclude: price columns (PRICE > COMMISSION) and serial/ID columns (high QUANTITY)
+        # Exclude: price columns (PRICE > COMMISSION) and serial/ID columns (high QUANTITY).
+        # The QUANTITY guard's job is to drop serial/ID columns; a column whose NAME
+        # carries a fee keyword (费/佣/税) is a genuine fee column even when its values
+        # are small integers (e.g. 手续费 = 5.00 looks quantity-like), so skip the guard
+        # for those — otherwise broker commission is silently dropped from PnL.
+        _id_keywords = ["序号", "编号", "成交编号", "委托编号", "合同编号", "股东代码"]
         comm_cols = [
             col for col, scores in column_scores.items()
             if scores.get("COMMISSION", 0) > 0.3
             and scores.get("PRICE", 0) < scores.get("COMMISSION", 0)
-            and scores.get("QUANTITY", 0) < 0.45  # exclude serial numbers / IDs
-            and not any(kw in str(col).lower() for kw in ["序号", "编号", "成交编号", "委托编号", "合同编号", "股东代码"])
+            and not any(kw in str(col).lower() for kw in _id_keywords)
+            and (
+                scores.get("QUANTITY", 0) < 0.45
+                or any(kw in str(col).lower() for kw in _COMMISSION_KEYWORDS)
+            )
         ]
         margin_col = best_col("MARGIN") if is_future else None
 

@@ -1,7 +1,5 @@
 """Analysis API routes: run analysis, fetch stats / insight / what-if."""
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -104,16 +102,24 @@ def _load_analysis(analysis_id: str, user_id: str, db: Session) -> Analysis:
 def _load_trades(
     analysis: Analysis, user_id: str, db: Session
 ) -> list[Trade]:
-    """Load trades within the analysis date range."""
-    start_dt = datetime.combine(analysis.date_start, datetime.min.time())
-    end_dt = datetime.combine(analysis.date_end, datetime.max.time())
+    """Load the trades that belong to THIS analysis.
+
+    An analysis is bound to exactly one uploaded raw file (Upload flow always
+    passes raw_file_id). Loading by user_id + date range instead is wrong: if a
+    user re-uploads an already-imported statement (or uploads several whose
+    dates overlap), the overlapping trades get double-counted and silently
+    corrupt PnL/win-rate. So the analysis's data boundary is its raw_file_id,
+    not the user's entire history within a date window.
+    """
+    if not analysis.raw_file_id:
+        # Defensive: an analysis without a raw file has no trades to analyze.
+        return []
     return (
         db.query(Trade)
         .filter(
+            Trade.raw_file_id == analysis.raw_file_id,
             Trade.user_id == user_id,
             Trade.is_deleted == False,
-            Trade.datetime >= start_dt,
-            Trade.datetime <= end_dt,
         )
         .order_by(Trade.datetime)
         .all()
