@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
@@ -7,7 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/tradelens"
     secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 30  # 30 minutes (was 7 days)
+    jwt_expire_minutes: int = 480  # 8 hours — avoids silent expiration during use
     ai_provider: str = "openai"  # openai | claude | deepseek | openrouter
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
@@ -18,9 +19,10 @@ class Settings(BaseSettings):
     ai_base_url: str = Field(default="", alias="BASE_URL")
     ai_model: str = Field(default="", alias="MODEL")
 
-    class Config:
-        env_file = ".env"
-        populate_by_name = True
+    model_config = {
+        "env_file": str(Path(__file__).resolve().parent.parent / ".env"),
+        "populate_by_name": True,
+    }
 
     @field_validator("secret_key")
     @classmethod
