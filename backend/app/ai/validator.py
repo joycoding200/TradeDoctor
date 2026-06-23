@@ -75,6 +75,32 @@ class ReportValidator:
                     f"{name} 总盈亏不匹配: 报告≈{found_pnl:.2f}, 数据={expected_pnl:.2f}"
                 )
 
+        # V4.0: validate risk metrics (soft check — only flag if mentioned but wrong)
+        pf = input_data.get("profit_factor")
+        if pf is not None:
+            found = ReportValidator._extract_float(report, r"盈亏比[（(]?PF[）)]?[：:\s]*(\d+\.?\d*)")
+            if found is not None and abs(found - pf) > max(0.01, abs(pf) * 0.01):
+                errors.append(f"盈亏比(PF)不匹配: 报告≈{found:.2f}, 数据={pf:.2f}")
+
+        ddpct = input_data.get("max_drawdown_pct")
+        if ddpct is not None:
+            # Look for percentage like "最大回撤: 15.3%"
+            found = ReportValidator._extract_percentage(report, r"最大回撤[：:\s]*\d+\.?\d*[（(]?\d*\.?\d*%?[）)]?\s*.*?(\d+\.?\d*)%")
+            if found is not None:
+                expected_pct = ddpct * 100
+                if abs(found - expected_pct) > max(1.0, abs(expected_pct) * 0.01):
+                    errors.append(
+                        f"最大回撤百分比不匹配: 报告≈{found:.1f}%, 数据={expected_pct:.1f}%"
+                    )
+
+        cl = input_data.get("consecutive_losses")
+        if cl is not None:
+            found = ReportValidator._extract_number(report, r"连续亏损[：:\s]*(\d+)\s*次")
+            if found is not None and found != cl:
+                errors.append(
+                    f"连续亏损次数不匹配: 报告={found}, 数据={cl}"
+                )
+
         return ValidationResult(is_valid=len(errors) == 0, errors=errors)
 
     # ------------------------------------------------------------------
@@ -86,6 +112,12 @@ class ReportValidator:
         """Return the first integer match, or None."""
         m = re.search(pattern, text)
         return int(m.group(1)) if m else None
+
+    @staticmethod
+    def _extract_float(text: str, pattern: str) -> float | None:
+        """Return the first float match, or None."""
+        m = re.search(pattern, text)
+        return float(m.group(1)) if m else None
 
     @staticmethod
     def _extract_percentage(text: str, pattern: str) -> float | None:

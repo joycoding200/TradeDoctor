@@ -90,6 +90,66 @@ class TestReportValidator:
         result = ReportValidator.validate(report, data)
         assert result.is_valid  # pattern PnL not found -> skip
 
+    # ---- V4.0: new risk metric validations ----
+
+    def test_validate_profit_factor(self):
+        """Profit factor should match within tolerance."""
+        report = "盈亏比(PF): 1.52"
+        data = {"profit_factor": 1.52}
+        result = ReportValidator.validate(report, data)
+        assert result.is_valid
+
+    def test_validate_profit_factor_mismatch(self):
+        """Profit factor mismatch should be flagged."""
+        report = "盈亏比(PF): 2.50"
+        data = {"profit_factor": 1.52}
+        result = ReportValidator.validate(report, data)
+        assert not result.is_valid
+        assert any("盈亏比" in err for err in result.errors)
+
+    def test_validate_max_drawdown_pct(self):
+        """Max drawdown percentage should match within tolerance."""
+        report = "最大回撤: 5000.00 (15.0%)"
+        data = {"max_drawdown_pct": 0.15}
+        result = ReportValidator.validate(report, data)
+        assert result.is_valid
+
+    def test_validate_max_drawdown_pct_mismatch(self):
+        """Max drawdown percentage mismatch should be flagged."""
+        report = "最大回撤: 5000.00 (30.0%)"
+        data = {"max_drawdown_pct": 0.15}
+        result = ReportValidator.validate(report, data)
+        assert not result.is_valid
+        assert any("最大回撤" in err for err in result.errors)
+
+    def test_validate_consecutive_losses(self):
+        """Consecutive losses should match exactly."""
+        report = "连续亏损: 5次"
+        data = {"consecutive_losses": 5}
+        result = ReportValidator.validate(report, data)
+        assert result.is_valid
+
+    def test_validate_consecutive_losses_mismatch(self):
+        """Consecutive losses mismatch should be flagged."""
+        report = "连续亏损: 3次"
+        data = {"consecutive_losses": 5}
+        result = ReportValidator.validate(report, data)
+        assert not result.is_valid
+        assert any("连续亏损" in err for err in result.errors)
+
+    def test_validate_missing_risk_metrics_skips(self):
+        """If risk metrics are not mentioned in report, checks are skipped."""
+        report = "总交易次数10次，胜率50%"
+        data = {
+            "total_trades": 10,
+            "win_rate": 50.0,
+            "profit_factor": 1.5,
+            "max_drawdown_pct": 0.15,
+            "consecutive_losses": 5,
+        }
+        result = ReportValidator.validate(report, data)
+        assert result.is_valid  # risk metrics not found -> soft check, skip
+
 
 @pytest.mark.asyncio
 class TestGenerateWithRetry:

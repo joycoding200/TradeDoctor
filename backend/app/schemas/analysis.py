@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field, field_validator
 class AnalysisRunRequest(BaseModel):
     date_start: date
     date_end: date
-    raw_file_id: str = ""
+    raw_file_id: str = ""  # legacy, kept for backward compat
+    raw_file_ids: list[str] = []  # multi-file support
     filename: str = Field(default="", max_length=255)
 
     @field_validator("date_end")
@@ -19,6 +20,10 @@ class AnalysisRunRequest(BaseModel):
         if ds is not None and v < ds:
             raise ValueError("date_end must be >= date_start")
         return v
+
+
+class LinkFilesRequest(BaseModel):
+    raw_file_ids: list[str]
 
 
 class AnalysisRunResponse(BaseModel):
@@ -43,6 +48,23 @@ class PositionItem(BaseModel):
 class OutcomeItem(BaseModel):
     label: str
     count: int
+
+
+class EquityPoint(BaseModel):
+    date: str
+    cum_pnl: float
+    cum_pnl_pct: float
+
+
+class SymbolSummaryItem(BaseModel):
+    symbol: str
+    trade_count: int
+    win_count: int
+    win_rate: float
+    total_pnl: float
+    avg_holding_days: float
+    first_trade_date: str
+    last_trade_date: str
 
 
 class StatsResponse(BaseModel):
@@ -75,6 +97,8 @@ class StatsResponse(BaseModel):
     avg_win_pct: float = 0.0
     avg_loss_pct: float = 0.0
     filename: str = ""
+    filenames: list[str] = []  # multi-file: all linked filenames
+    raw_file_ids: list[str] = []  # multi-file: all linked raw_file IDs
     outcome_distribution: list[OutcomeItem] = []
     positions: list[PositionItem]
     # V1.2 MAE/MFE
@@ -87,6 +111,9 @@ class StatsResponse(BaseModel):
     expectancy: float = 0.0
     # V3.1 Small sample indicator
     is_small_sample: bool = False
+    # V4.0 Equity curve + symbol summary
+    equity_curve: list[EquityPoint] = []
+    symbol_summary: list[SymbolSummaryItem] = []
 
 
 class InsightPatternItem(BaseModel):
@@ -151,6 +178,8 @@ class WhatIfResponse(BaseModel):
 class AnalysisListItem(BaseModel):
     id: str
     filename: str = ""
+    filenames: list[str] = []  # multi-file: all linked filenames
+    raw_file_ids: list[str] = []  # multi-file: all linked raw_file IDs
     date_start: date | None = None
     date_end: date | None = None
     created_at: datetime | None = None

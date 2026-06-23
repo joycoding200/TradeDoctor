@@ -1,4 +1,6 @@
 import { Card, Collapsible } from "./ui";
+import EquityCurve from "./EquityCurve";
+import SymbolSummaryTable from "./SymbolSummaryTable";
 
 interface StatsData {
   total_trades?: number;
@@ -31,6 +33,8 @@ interface StatsData {
   total_return_pct?: number;
   avg_win_pct?: number;
   avg_loss_pct?: number;
+  equity_curve?: Array<{ date: string; cum_pnl: number; cum_pnl_pct: number }>;
+  symbol_summary?: Array<{ symbol: string; trade_count: number; win_count: number; win_rate: number; total_pnl: number; avg_holding_days: number; first_trade_date: string; last_trade_date: string }>;
 }
 
 interface StatsCardsProps {
@@ -145,9 +149,18 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         </div>
       )}
 
+      {/* V4.0: 净值曲线图 */}
+      <EquityCurve data={stats.equity_curve || []} />
+
       {/* Tier 1: 核心结果 */}
       <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>核心结果</div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">{tier1}</div>
+
+      {/* V4.0: 股票维度盈亏 */}
+      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>股票维度盈亏</div>
+      <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: "var(--card-bg, rgba(255,255,255,0.03))", border: "1px solid var(--border)" }}>
+        <SymbolSummaryTable data={stats.symbol_summary || []} />
+      </div>
 
       {/* Tier 2: 进阶分析 */}
       <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>进阶分析</div>

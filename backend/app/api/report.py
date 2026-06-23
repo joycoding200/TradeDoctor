@@ -1,6 +1,9 @@
 """Report API routes: generate AI report, fetch report(s)."""
 
+import io
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.ai.prompt import SYSTEM_PROMPT, build_user_prompt
@@ -21,6 +24,7 @@ from app.engine.whatif import ProfitAttribution
 from app.engine.market_fetcher import ensure_market_data
 from app.ratelimit import limiter
 from app.schemas.report import (
+    ReportCheckResponse,
     ReportGenerateRequest,
     ReportGenerateResponse,
     ReportListItem,
@@ -31,8 +35,12 @@ from app.schemas.report import (
 router = APIRouter(prefix="/api", tags=["report"])
 
 
-def _build_analysis_data(trades, positions, insight_items, whatif_items) -> dict:
-    """Build the analysis_data dict expected by build_user_prompt."""
+def _build_analysis_data(trades, positions, insight_items, whatif_items, stats_data: dict = None) -> dict:
+    """Build the analysis_data dict expected by build_user_prompt.
+
+    When stats_data is provided (V4.0), risk metrics and positions summary
+    are included for richer AI diagnosis.
+    """
     total_trades = len(trades)
     total_positions = len(positions)
     win_count = sum(1 for p in positions if p.pnl > 0)
@@ -44,7 +52,7 @@ def _build_analysis_data(trades, positions, insight_items, whatif_items) -> dict
         else 0.0
     )
 
-    return {
+    result = {
         "total_trades": total_trades,
         "win_rate": round(win_rate, 2),
         "total_pnl": round(total_pnl, 2),
@@ -67,6 +75,51 @@ def _build_analysis_data(trades, positions, insight_items, whatif_items) -> dict
             for i in whatif_items
         ],
     }
+
+    # V4.0: enrich with stats-level risk metrics
+    if stats_data:
+        result["profit_factor"] = stats_data.get("profit_factor")
+        result["expectancy"] = stats_data.get("expectancy")
+        result["max_drawdown"] = stats_data.get("max_drawdown")
+        result["max_drawdown_pct"] = stats_data.get("max_drawdown_pct")
+        result["consecutive_losses"] = stats_data.get("consecutive_losses")
+        result["avg_mae"] = stats_data.get("avg_mae")
+        result["avg_mfe"] = stats_data.get("avg_mfe")
+        result["profit_capture_ratio"] = stats_data.get("profit_capture_ratio")
+        result["win_loss_ratio"] = stats_data.get("win_loss_ratio")
+        result["total_return_pct"] = stats_data.get("total_return_pct")
+        result["outcome_distribution"] = stats_data.get("outcome_distribution", [])
+
+        # V4.0: top 3 winners + bottom 3 losers
+        sorted_by_pnl = sorted(positions, key=lambda p: p.pnl, reverse=True)
+        top3 = sorted_by_pnl[:3]
+        bottom3 = sorted_by_pnl[-3:]
+        result["positions_summary"] = {
+            "top_winners": [
+                {
+                    "symbol": p.symbol,
+                    "pnl": round(p.pnl, 2),
+                    "pnl_pct": round(p.pnl_pct, 4),
+                    "holding_days": p.holding_days,
+                    "entry_date": str(p.entry_date),
+                    "exit_date": str(p.exit_date),
+                }
+                for p in top3
+            ],
+            "top_losers": [
+                {
+                    "symbol": p.symbol,
+                    "pnl": round(p.pnl, 2),
+                    "pnl_pct": round(p.pnl_pct, 4),
+                    "holding_days": p.holding_days,
+                    "entry_date": str(p.entry_date),
+                    "exit_date": str(p.exit_date),
+                }
+                for p in reversed(bottom3)  # most negative first
+            ],
+        }
+
+    return result
 
 
 @router.post(
@@ -123,8 +176,80 @@ async def generate_report(
     }
     whatif_items = ProfitAttribution.attribution_analysis(positions, patterns_map_names)
 
+    # V4.0: compute stats-level metrics for richer AI prompt
+    valid_positions = [p for p in positions if getattr(p, "cost_known", True)]
+    valid_count = len(valid_positions)
+
+    win_positions = [p for p in valid_positions if p.pnl > 0]
+    loss_positions = [p for p in valid_positions if p.pnl <= 0]
+    total_gross_profit = sum(p.pnl for p in win_positions)
+    total_gross_loss = abs(sum(p.pnl for p in loss_positions))
+    profit_factor = total_gross_profit / total_gross_loss if total_gross_loss > 0 else None
+    total_pnl_val = sum(p.pnl for p in valid_positions)
+    total_invested = sum(p.avg_entry_price * p.total_quantity for p in valid_positions)
+    total_return_pct = total_pnl_val / total_invested if total_invested > 0 else 0.0
+    avg_win_amount = sum(p.pnl for p in win_positions) / len(win_positions) if win_positions else 0.0
+    avg_loss_amount = sum(p.pnl for p in loss_positions) / len(loss_positions) if loss_positions else 0.0
+    win_loss_ratio = avg_win_amount / abs(avg_loss_amount) if avg_loss_amount != 0 else None
+
+    # Consecutive losses
+    sorted_by_date = sorted(valid_positions, key=lambda p: p.exit_date)
+    streak, max_streak = 0, 0
+    for p in sorted_by_date:
+        if p.pnl <= 0:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 0
+
+    # Max drawdown
+    cum_pnl, peak, max_dd = 0.0, 0.0, 0.0
+    for p in sorted_by_date:
+        cum_pnl += p.pnl
+        if cum_pnl > peak:
+            peak = cum_pnl
+        dd = peak - cum_pnl
+        if dd > max_dd:
+            max_dd = dd
+    dd_denom = peak if peak > 0 else (total_invested if total_invested > 0 else 0.0)
+    max_drawdown_pct = (max_dd / dd_denom) if dd_denom > 0 else 0.0
+
+    # MAE/MFE
+    mae_mfe_stats = {}
+    symbols = list({p.symbol for p in valid_positions})
+    if symbols and market_data:
+        from app.engine.mae import compute_mae_mfe_stats as _compute_mae
+        mae_mfe_stats = _compute_mae(valid_positions, market_data)
+
+    # Expectancy
+    from app.engine.insight import InsightItem
+    expectancy_val = InsightItem.compute(valid_positions) if valid_positions else 0.0
+
+    # Outcome distribution
+    outcome_counts: dict[str, int] = {}
+    for p in valid_positions:
+        outcome = PatternEngine.compute_outcome(p)
+        label = outcome["label"]
+        if label:
+            outcome_counts[label] = outcome_counts.get(label, 0) + 1
+    outcome_dist = [{"label": l, "count": c} for l, c in sorted(outcome_counts.items())]
+
+    stats_data = {
+        "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
+        "expectancy": round(expectancy_val, 2),
+        "max_drawdown": round(max_dd, 2),
+        "max_drawdown_pct": round(max_drawdown_pct, 4),
+        "consecutive_losses": max_streak,
+        "avg_mae": round(mae_mfe_stats.get("avg_mae", 0.0), 4),
+        "avg_mfe": round(mae_mfe_stats.get("avg_mfe", 0.0), 4),
+        "profit_capture_ratio": round(mae_mfe_stats.get("profit_capture_ratio", 0.0), 4),
+        "win_loss_ratio": round(win_loss_ratio, 2) if win_loss_ratio is not None else None,
+        "total_return_pct": round(total_return_pct, 4),
+        "outcome_distribution": outcome_dist,
+    }
+
     # Build AI prompt
-    analysis_data = _build_analysis_data(trades, positions, insight_items, whatif_items)
+    analysis_data = _build_analysis_data(trades, positions, insight_items, whatif_items, stats_data)
     user_prompt = build_user_prompt(analysis_data)
 
     # Call LLM
@@ -150,6 +275,47 @@ async def generate_report(
     db.refresh(report)
 
     return ReportGenerateResponse(report_id=report.id, status="generated")
+
+
+@router.get("/report/by-analysis/{analysis_id}", response_model=ReportCheckResponse)
+def check_report_by_analysis(
+    analysis_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check if a report exists for the given analysis."""
+    report = (
+        db.query(Report)
+        .filter(Report.analysis_id == analysis_id, Report.user_id == current_user.id)
+        .first()
+    )
+    if report:
+        return ReportCheckResponse(exists=True, report_id=report.id)
+    return ReportCheckResponse(exists=False)
+
+
+@router.get("/report/{report_id}/download")
+def download_report(
+    report_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download report as .md file."""
+    report = (
+        db.query(Report)
+        .filter(Report.id == report_id, Report.user_id == current_user.id)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    content = report.report_content.encode("utf-8")
+    return Response(
+        content=content,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=report_{report_id[:8]}.md"
+        },
+    )
 
 
 @router.get("/report/{report_id}", response_model=ReportResponse)
@@ -184,8 +350,8 @@ def list_reports(
     db: Session = Depends(get_db),
 ):
     """List user's most recent reports (last 50), with source filenames."""
-    from app.models.analysis import Analysis
-    from app.models.raw_file import RawFile
+    from app.models.analysis import AnalysisFile
+    from app.api.common import get_raw_file_ids, get_raw_file_filenames
 
     reports = (
         db.query(Report)
@@ -196,25 +362,27 @@ def list_reports(
     )
 
     analysis_ids = [r.analysis_id for r in reports if r.analysis_id]
-    filename_map: dict[str, str] = {}
+    # Resolve filenames via association table for multi-file support
+    analysis_first_filename: dict[str, str] = {}
     if analysis_ids:
-        analyses = db.query(Analysis).filter(Analysis.id.in_(analysis_ids)).all()
-        raw_file_ids = [a.raw_file_id for a in analyses if a.raw_file_id]
-        filename_by_raw = {}
-        if raw_file_ids:
-            raw_files = db.query(RawFile).filter(RawFile.id.in_(raw_file_ids)).all()
-            filename_by_raw = {rf.id: rf.filename for rf in raw_files}
-        filename_map = {
-            a.id: filename_by_raw.get(a.raw_file_id, "")
-            for a in analyses if a.raw_file_id
-        }
+        all_raw_file_ids: set[str] = set()
+        for aid in analysis_ids:
+            file_ids = get_raw_file_ids(aid, db)
+            if file_ids:
+                analysis_first_filename[aid] = file_ids[0]  # temporary; replaced below
+                all_raw_file_ids.update(file_ids)
+        filename_by_raw = get_raw_file_filenames(list(all_raw_file_ids), db)
+        for aid in analysis_ids:
+            file_ids = get_raw_file_ids(aid, db)
+            first = file_ids[0] if file_ids else ""
+            analysis_first_filename[aid] = filename_by_raw.get(first, "")
 
     return ReportsListResponse(
         reports=[
             ReportListItem(
                 id=r.id,
                 analysis_id=r.analysis_id or "",
-                filename=filename_map.get(r.analysis_id, ""),
+                filename=analysis_first_filename.get(r.analysis_id, ""),
                 username=(current_user.email or "").split("@")[0],
                 created_at=r.created_at,
             )

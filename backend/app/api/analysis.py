@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import get_current_user
-from app.api.common import load_analysis, load_trades
+from app.api.common import load_analysis, load_trades, get_raw_file_ids, get_raw_file_filenames
 from app.database import get_db
-from app.models.analysis import Analysis
+from app.models.analysis import Analysis, AnalysisFile
 from app.models.trade import Trade
 from app.models.user import User
 from app.models.raw_file import RawFile
@@ -24,13 +24,16 @@ from app.schemas.analysis import (
     AnalysisRunRequest,
     AnalysisRunResponse,
     AttributionItem,
+    EquityPoint,
     InsightPatternItem,
     InsightResponse,
+    LinkFilesRequest,
     OutcomeItem,
     PositionItem,
     RuleSimulationItem,
     ShapleyItem,
     StatsResponse,
+    SymbolSummaryItem,
     WhatIfResponse,
 )
 
@@ -79,26 +82,93 @@ def run_analysis(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create an analysis record for the given date range + uploaded file."""
-    # Validate raw_file belongs to current user if provided
+    """Create an analysis record for the given date range + uploaded file(s).
+
+    Supports both legacy single-file (raw_file_id) and new multi-file
+    (raw_file_ids) modes. Files must belong to the current user.
+    """
+    # Collect all file IDs from both legacy and new fields
+    all_file_ids: list[str] = []
     if body.raw_file_id:
-        raw_file = db.query(RawFile).filter(
-            RawFile.id == body.raw_file_id,
-            RawFile.user_id == current_user.id
-        ).first()
-        if not raw_file:
-            raise HTTPException(status_code=404, detail="Raw file not found or not owned by user")
+        all_file_ids.append(body.raw_file_id)
+    all_file_ids.extend(body.raw_file_ids)
+    all_file_ids = list(dict.fromkeys(all_file_ids))  # deduplicate, preserve order
+
+    # Validate all raw_files belong to current user
+    if all_file_ids:
+        raw_files = (
+            db.query(RawFile)
+            .filter(RawFile.id.in_(all_file_ids), RawFile.user_id == current_user.id)
+            .all()
+        )
+        if len(raw_files) != len(all_file_ids):
+            raise HTTPException(
+                status_code=404, detail="One or more raw files not found or not owned by user"
+            )
 
     analysis = Analysis(
         user_id=current_user.id,
         date_start=body.date_start,
         date_end=body.date_end,
-        raw_file_id=body.raw_file_id or None,
+        raw_file_id=all_file_ids[0] if all_file_ids else None,  # first file in legacy column
     )
     db.add(analysis)
+    db.flush()  # get analysis.id before creating association rows
+
+    # Create association table entries for all files
+    for fid in all_file_ids:
+        db.add(AnalysisFile(analysis_id=analysis.id, raw_file_id=fid))
+
     db.commit()
     db.refresh(analysis)
     return AnalysisRunResponse(analysis_id=analysis.id, filename=body.filename or "")
+
+
+@router.post("/{analysis_id}/link-files", status_code=status.HTTP_200_OK)
+def link_files_to_analysis(
+    analysis_id: str,
+    body: LinkFilesRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Link existing (already-imported) raw files to an analysis.
+
+    Used to add more trading statements to an existing analysis.
+    Does NOT re-import trades — each file must already be confirmed and imported.
+    """
+    analysis = load_analysis(analysis_id, current_user.id, db)
+
+    # Validate raw_files exist and belong to user
+    raw_files = (
+        db.query(RawFile)
+        .filter(RawFile.id.in_(body.raw_file_ids), RawFile.user_id == current_user.id)
+        .all()
+    )
+    if len(raw_files) != len(body.raw_file_ids):
+        raise HTTPException(status_code=404, detail="One or more raw files not found")
+
+    # Check each raw_file has been imported (has source_type set)
+    for rf in raw_files:
+        if not rf.source_type:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件 '{rf.filename}' 尚未导入，请先确认格式并导入。",
+            )
+
+    # Add to association table (skip duplicates)
+    existing = get_raw_file_ids(analysis.id, db)
+    added = 0
+    for fid in body.raw_file_ids:
+        if fid not in existing:
+            db.add(AnalysisFile(analysis_id=analysis.id, raw_file_id=fid))
+            added += 1
+
+    # Invalidate snapshot since data has changed
+    if added > 0:
+        analysis.stats_snapshot = None
+
+    db.commit()
+    return {"detail": f"已添加 {added} 个文件到分析", "raw_file_ids": body.raw_file_ids}
 
 
 # Backward compatibility aliases
@@ -134,12 +204,11 @@ def get_stats(
     analysis = _load_analysis(analysis_id, current_user.id, db)
     trades = _load_trades(analysis, current_user.id, db)
 
-    # Look up filename from linked RawFile
-    analysis_filename = ""
-    if analysis.raw_file_id:
-        rf = db.query(RawFile).filter(RawFile.id == analysis.raw_file_id).first()
-        if rf:
-            analysis_filename = rf.filename
+    # Look up filenames from linked RawFiles (multi-file support)
+    file_ids = get_raw_file_ids(analysis.id, db)
+    filename_map = get_raw_file_filenames(file_ids, db)
+    filenames = [filename_map.get(fid, "") for fid in file_ids]
+    analysis_filename = filenames[0] if filenames else ""
 
     positions = PositionBuilder.build(trades)
 
@@ -183,6 +252,31 @@ def get_stats(
         OutcomeItem(label=label, count=count)
         for label, count in sorted(outcome_counts.items())
     ]
+
+    # V4.0: symbol summary — group valid positions by symbol
+    symbol_summary_data: list[dict] = []
+    symbol_groups: dict[str, list] = {}
+    for p in valid_positions:
+        symbol_groups.setdefault(p.symbol, []).append(p)
+    for symbol, group in symbol_groups.items():
+        win_pos = [p for p in group if p.pnl > 0]
+        trade_count = len(group)
+        win_count = len(win_pos)
+        total_pnl_sym = sum(p.pnl for p in group)
+        avg_hold = sum(p.holding_days for p in group) / trade_count if trade_count > 0 else 0.0
+        exit_dates = [p.exit_date for p in group]
+        symbol_summary_data.append({
+            "symbol": symbol,
+            "trade_count": trade_count,
+            "win_count": win_count,
+            "win_rate": round(win_count / trade_count, 4) if trade_count > 0 else 0.0,
+            "total_pnl": round(total_pnl_sym, 2),
+            "avg_holding_days": round(avg_hold, 1),
+            "first_trade_date": str(min(exit_dates)) if exit_dates else "",
+            "last_trade_date": str(max(exit_dates)) if exit_dates else "",
+        })
+    # Sort by total_pnl descending
+    symbol_summary_data.sort(key=lambda x: x["total_pnl"], reverse=True)
 
     position_items = [
         PositionItem(
@@ -242,6 +336,15 @@ def get_stats(
     cum_pnl = 0.0
     peak = 0.0
     max_dd = 0.0
+    # V4.0: collect equity curve data points
+    equity_curve_data: list[dict] = []
+    if sorted_positions:
+        # Starting point (pre-first-trade)
+        equity_curve_data.append({
+            "date": str(sorted_positions[0].exit_date),
+            "cum_pnl": 0.0,
+            "cum_pnl_pct": 0.0,
+        })
     for p in sorted_positions:
         cum_pnl += p.pnl
         if cum_pnl > peak:
@@ -249,6 +352,11 @@ def get_stats(
         dd = peak - cum_pnl
         if dd > max_dd:
             max_dd = dd
+        equity_curve_data.append({
+            "date": str(p.exit_date),
+            "cum_pnl": round(cum_pnl, 2),
+            "cum_pnl_pct": round(cum_pnl / total_invested, 4) if total_invested > 0 else 0.0,
+        })
     dd_denom = peak if peak > 0 else (total_invested if total_invested > 0 else 0.0)
     max_drawdown_pct = (max_dd / dd_denom) if dd_denom > 0 else 0.0
 
@@ -266,12 +374,15 @@ def get_stats(
 
     # --- Outcome distribution ---
 
-    # Auto-save snapshot on first view or when raw_file_id changes (V3.0 + V3.1 update)
+    # Auto-save snapshot on first view or when raw_file_ids change (multi-file aware)
     snapshot_needs_update = False
     if not analysis.stats_snapshot:
         snapshot_needs_update = True
-    elif analysis.stats_snapshot.get("snapshot_raw_file_id") != analysis.raw_file_id:
-        snapshot_needs_update = True
+    else:
+        cached_ids = sorted(analysis.stats_snapshot.get("snapshot_raw_file_ids", []) or [])
+        current_ids = sorted(file_ids)
+        if cached_ids != current_ids:
+            snapshot_needs_update = True
 
     if snapshot_needs_update:
         analysis.stats_snapshot = {
@@ -285,13 +396,16 @@ def get_stats(
             "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
             "max_drawdown_pct": round(max_drawdown_pct, 4),
             "avg_holding_days": round(avg_holding_days, 1),
-            "snapshot_raw_file_id": analysis.raw_file_id,
+            "snapshot_raw_file_id": analysis.raw_file_id,  # legacy compat
+            "snapshot_raw_file_ids": file_ids,  # multi-file
         }
         db.commit()
 
     # --- Return ---
     return StatsResponse(
         filename=analysis_filename,
+        filenames=filenames,
+        raw_file_ids=file_ids,
         total_trades=total_trades,
         total_positions=total_positions,
         unknown_cost_count=unknown_cost_count,
@@ -330,6 +444,9 @@ def get_stats(
         expectancy=round(total_expectancy, 2),
         # V3.1 Small sample indicator
         is_small_sample=is_small_sample,
+        # V4.0 Equity curve + symbol summary
+        equity_curve=[EquityPoint(**pt) for pt in equity_curve_data],
+        symbol_summary=[SymbolSummaryItem(**s) for s in symbol_summary_data],
     )
 
 
@@ -534,7 +651,6 @@ def list_analyses(
     db: Session = Depends(get_db),
 ):
     """List all analyses for current user with filename and snapshots."""
-    from app.models.raw_file import RawFile
     from app.models.report import Report
 
     analyses = (
@@ -545,15 +661,29 @@ def list_analyses(
         .all()
     )
 
-    # Get filenames from linked raw files
-    raw_ids = [a.raw_file_id for a in analyses if a.raw_file_id]
-    filename_map: dict[str, str] = {}
-    if raw_ids:
-        rfs = db.query(RawFile).filter(RawFile.id.in_(raw_ids)).all()
-        filename_map = {rf.id: rf.filename for rf in rfs}
+    # Bulk fetch analysis-to-raw_file mappings from association table
+    aids = [a.id for a in analyses]
+    analyses_raw_ids: dict[str, list[str]] = {}
+    all_raw_ids: set[str] = set()
+    if aids:
+        af_rows = (
+            db.query(AnalysisFile.analysis_id, AnalysisFile.raw_file_id)
+            .filter(AnalysisFile.analysis_id.in_(aids))
+            .all()
+        )
+        for aid, rid in af_rows:
+            analyses_raw_ids.setdefault(aid, []).append(rid)
+            all_raw_ids.add(rid)
+        # Fallback for legacy analyses not yet in association table
+        for a in analyses:
+            if a.id not in analyses_raw_ids and a.raw_file_id:
+                analyses_raw_ids[a.id] = [a.raw_file_id]
+                all_raw_ids.add(a.raw_file_id)
+
+    # Bulk fetch filenames
+    filename_map = get_raw_file_filenames(list(all_raw_ids), db)
 
     # Get reports linked to these analyses
-    aids = [a.id for a in analyses]
     report_map: dict[str, str] = {}
     if aids:
         reports = db.query(Report).filter(Report.analysis_id.in_(aids)).all()
@@ -563,7 +693,9 @@ def list_analyses(
         analyses=[
             AnalysisListItem(
                 id=a.id,
-                filename=filename_map.get(a.raw_file_id, ""),
+                filename=filename_map.get(analyses_raw_ids.get(a.id, [None])[0], ""),
+                filenames=[filename_map.get(fid, "") for fid in analyses_raw_ids.get(a.id, [])],
+                raw_file_ids=analyses_raw_ids.get(a.id, []),
                 date_start=a.date_start,
                 date_end=a.date_end,
                 created_at=a.created_at,
