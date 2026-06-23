@@ -1,42 +1,27 @@
 import { useParams, Link } from "react-router-dom";
 import { useReport } from "../hooks/useAnalysis";
 import ReactMarkdown from "react-markdown";
+import { Card, Button, LoadingSpinner, EmptyState } from "../components/ui";
 
 export default function Report() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, error } = useReport(id);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center" style={{ color: "var(--text-secondary)" }}>
-          加载中...
-        </div>
-      </div>
-    );
+    return <LoadingSpinner text="加载报告..." />;
   }
 
   if (error || !data) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-8 text-center">
-        <h1 className="text-xl font-semibold mb-4">报告未找到</h1>
-        <p className="mb-6" style={{ color: "var(--text-secondary)" }}>
-          该报告不存在或已被删除
-        </p>
-        <Link
-          to="/history"
-          style={{
-            backgroundColor: "var(--accent)",
-            color: "#fff",
-            borderRadius: "8px",
-            padding: "10px 24px",
-            textDecoration: "none",
-          }}
-          className="text-sm"
-        >
-          查看历史报告
-        </Link>
-      </div>
+      <EmptyState
+        icon="📄"
+        message="该报告不存在或已被删除"
+        action={
+          <Link to="/history">
+            <Button>查看历史报告</Button>
+          </Link>
+        }
+      />
     );
   }
 
@@ -44,11 +29,7 @@ export default function Report() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">交易行为诊断书</h1>
-        <Link
-          to={`/analysis/${data.analysis_id}`}
-          style={{ color: "var(--accent)" }}
-          className="text-sm no-underline"
-        >
+        <Link to={`/analysis/${data.analysis_id}`} style={{ color: "var(--accent)" }} className="text-sm no-underline">
           返回分析面板
         </Link>
       </div>
@@ -66,14 +47,7 @@ export default function Report() {
         </div>
       )}
 
-      <div
-        style={{
-          backgroundColor: "var(--bg-secondary)",
-          borderRadius: "12px",
-          border: "1px solid var(--border)",
-        }}
-        className="p-6 md:p-8"
-      >
+      <Card className="p-6 md:p-8">
         <div className="prose prose-invert max-w-none">
           <ReactMarkdown
             components={{
@@ -115,10 +89,7 @@ export default function Report() {
               code: ({ children, ...props }) => (
                 <code
                   className="text-xs px-1.5 py-0.5 rounded"
-                  style={{
-                    backgroundColor: "var(--bg-tertiary)",
-                    color: "var(--accent)",
-                  }}
+                  style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--accent)" }}
                   {...props}
                 >
                   {children}
@@ -129,7 +100,7 @@ export default function Report() {
             {data.report_content || ""}
           </ReactMarkdown>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

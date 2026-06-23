@@ -1,3 +1,5 @@
+import { Card, Button } from "./ui";
+
 interface FormatOption {
   source_type: string;
   asset_type: string;
@@ -28,7 +30,7 @@ export default function FormatSelector({ formats, onConfirm, loading }: FormatSe
 
   if (formats.length === 0) {
     return (
-      <div style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px" }} className="p-6 text-center">
+      <Card className="p-6 text-center">
         <div className="text-3xl mb-3">⚠️</div>
         <p className="font-medium mb-2">无法识别文件格式</p>
         <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
@@ -42,40 +44,28 @@ export default function FormatSelector({ formats, onConfirm, loading }: FormatSe
         <p className="text-xs mt-4" style={{ color: "var(--text-secondary)" }}>
           也可提供标准 CSV（列名：委托时间, 证券代码, 买卖方向, 成交价格, 成交数量）
         </p>
-      </div>
+      </Card>
     );
   }
 
   if (autoConfirm) {
     const label = SOURCE_LABELS[best.source_type] || best.source_type.toUpperCase();
     return (
-      <div className="text-center p-8" style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px" }}>
+      <Card className="text-center p-8">
         <div className="text-3xl mb-3">✅</div>
         <p className="font-medium mb-2">自动识别为：{label}</p>
         <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
           置信度：{(best.score * 100).toFixed(0)}%
         </p>
-        <button
-          onClick={() => onConfirm(best.source_type)}
-          disabled={loading}
-          style={{
-            backgroundColor: "var(--accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
-            padding: "10px 24px",
-            cursor: "pointer",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
+        <Button onClick={() => onConfirm(best.source_type)} disabled={loading}>
           {loading ? "确认中..." : "确认格式"}
-        </button>
-      </div>
+        </Button>
+      </Card>
     );
   }
 
   return (
-    <div style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px" }} className="p-6">
+    <Card className="p-6">
       <p className="font-medium mb-4">识别到多个可能的格式，请选择：</p>
       <div className="flex flex-col gap-3">
         {formats.map((f) => {
@@ -90,10 +80,11 @@ export default function FormatSelector({ formats, onConfirm, loading }: FormatSe
                 border: "1px solid var(--border)",
                 borderRadius: "8px",
                 padding: "12px 16px",
-                cursor: "pointer",
+                cursor: loading ? "not-allowed" : "pointer",
                 textAlign: "left",
                 color: "var(--text-primary)",
                 opacity: loading ? 0.6 : 1,
+                transition: "opacity 0.15s",
               }}
             >
               <div className="flex justify-between items-center">
@@ -106,6 +97,6 @@ export default function FormatSelector({ formats, onConfirm, loading }: FormatSe
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }

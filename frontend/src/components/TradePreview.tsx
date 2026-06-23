@@ -1,3 +1,5 @@
+import { Button } from "./ui";
+
 interface Trade {
   [key: string]: unknown;
 }
@@ -19,24 +21,12 @@ export default function TradePreview({ trades, onImport, loading }: TradePreview
         <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
           共解析 {trades.length} 条交易记录{trades.length > 100 ? "（仅显示前 100 条）" : ""}
         </span>
-        <button
-          onClick={onImport}
-          disabled={loading}
-          style={{
-            backgroundColor: "var(--accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
-            padding: "10px 24px",
-            cursor: "pointer",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
+        <Button onClick={onImport} disabled={loading}>
           {loading ? "导入中..." : "确认导入"}
-        </button>
+        </Button>
       </div>
       <div style={{ overflowX: "auto", borderRadius: "8px", border: "1px solid var(--border)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: 600 }}>
           <thead>
             <tr style={{ backgroundColor: "var(--bg-tertiary)" }}>
               {COLUMNS.map((col) => (

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { login as loginApi } from "../api/auth";
+import { Card, Input, Button } from "../components/ui";
 
 export default function Login() {
   const [account, setAccount] = useState("");
@@ -11,6 +13,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,9 +22,11 @@ export default function Login() {
     try {
       const token = await loginApi(account, password);
       login(token);
+      toast.addToast("success", "登录成功");
       navigate("/upload");
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
+      toast.addToast("error", err instanceof Error ? err.message : "登录失败");
     } finally {
       setLoading(false);
     }
@@ -29,14 +34,7 @@ export default function Login() {
 
   return (
     <div className="flex items-center justify-center min-h-[80vh] px-4">
-      <div
-        style={{
-          backgroundColor: "var(--bg-secondary)",
-          borderRadius: "12px",
-          border: "1px solid var(--border)",
-        }}
-        className="w-full max-w-sm p-8"
-      >
+      <Card className="w-full max-w-sm p-8">
         <h1 className="text-xl font-semibold mb-6 text-center">登录</h1>
         {error && (
           <div
@@ -47,51 +45,38 @@ export default function Login() {
           </div>
         )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input
+          <Input
             type="email"
             placeholder="邮箱或手机号"
             value={account}
             onChange={(e) => setAccount(e.target.value)}
             required
-            style={{
-              backgroundColor: "var(--bg-tertiary)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-              color: "var(--text-primary)",
-            }}
-            className="px-4 py-3 text-sm outline-none focus:border-[var(--accent)]"
           />
           <div style={{ position: "relative" }}>
-            <input
+            <Input
               type={showPw ? "text" : "password"}
               placeholder="密码"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              style={{ backgroundColor: "var(--bg-tertiary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)" }}
-              className="px-4 py-3 pr-10 text-sm outline-none focus:border-[var(--accent)] w-full"
+              className="pr-10"
             />
-            <button type="button" onClick={() => setShowPw(!showPw)}
-              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: 16, padding: 4, lineHeight: 1 }}>
+            <button
+              type="button"
+              onClick={() => setShowPw(!showPw)}
+              aria-label={showPw ? "隐藏密码" : "显示密码"}
+              style={{
+                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", cursor: "pointer",
+                color: "var(--text-secondary)", fontSize: 16, padding: 4, lineHeight: 1,
+              }}
+            >
               {showPw ? "🙈" : "👁"}
             </button>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              backgroundColor: "var(--accent)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              padding: "12px",
-              cursor: "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}
-            className="text-sm font-medium"
-          >
+          <Button type="submit" disabled={loading}>
             {loading ? "登录中..." : "登录"}
-          </button>
+          </Button>
         </form>
         <p className="text-sm mt-4 text-center" style={{ color: "var(--text-secondary)" }}>
           没有账号？{" "}
@@ -99,7 +84,7 @@ export default function Login() {
             注册
           </Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

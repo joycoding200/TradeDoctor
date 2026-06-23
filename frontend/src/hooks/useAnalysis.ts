@@ -29,7 +29,7 @@ export function useWhatIf(id: string | undefined, enabled = true) {
 export function useRunAnalysis() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: { ds?: string; de?: string }) => runAnalysis(params.ds, params.de),
+    mutationFn: (params: { ds?: string; de?: string }) => runAnalysis(params.ds || "", params.de || ""),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["stats", data.id] });
     },

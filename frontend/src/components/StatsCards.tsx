@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Card, Collapsible } from "./ui";
 
 interface StatsData {
   total_trades?: number;
@@ -13,6 +13,10 @@ interface StatsData {
   avg_loss_holding_days?: number;
   max_win?: number;
   max_loss?: number;
+  max_win_symbol?: string;
+  max_win_date?: string;
+  max_loss_symbol?: string;
+  max_loss_date?: string;
   consecutive_losses?: number;
   avg_win_amount?: number;
   avg_loss_amount?: number;
@@ -21,11 +25,8 @@ interface StatsData {
   max_drawdown?: number;
   avg_mae?: number;
   avg_mfe?: number;
-  mae_winners?: number;
-  mae_losers?: number;
   profit_capture_ratio?: number;
   expectancy?: number;
-  // V2.5 percentage versions
   max_drawdown_pct?: number;
   total_return_pct?: number;
   avg_win_pct?: number;
@@ -44,27 +45,19 @@ function formatMoney(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
-function ratingLabel(value: number, thresholds: [number, string, string][], fallback: string): string {
-  for (const [t, label] of thresholds) {
-    if (value >= t) return label;
-  }
-  return fallback;
+function card(cls: string, label: string, value: string, hint?: string, rating?: { text: string; color: string }) {
+  return (
+    <Card key={label} className="p-4">
+      <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</div>
+      <div className="text-xl font-semibold" style={{ color: cls }}>{value}</div>
+      {rating && <div className="text-xs mt-1 font-medium" style={{ color: rating.color }}>{rating.text}</div>}
+      {hint && <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{hint}</div>}
+    </Card>
+  );
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const unknown = stats.unknown_cost_count ?? 0;
-
-  function card(cls: string, label: string, value: string, hint?: string, rating?: { text: string; color: string }) {
-    return (
-      <div key={label} style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }} className="p-4">
-        <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</div>
-        <div className="text-xl font-semibold" style={{ color: cls }}>{value}</div>
-        {rating && <div className="text-xs mt-1 font-medium" style={{ color: rating.color }}>{rating.text}</div>}
-        {hint && <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{hint}</div>}
-      </div>
-    );
-  }
 
   const wlr = stats.win_loss_ratio ?? 0;
   const pf = stats.profit_factor ?? 0;
@@ -161,19 +154,9 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">{tier2}</div>
 
       {/* Tier 3: 专业指标 — collapsible */}
-      <button
-        onClick={() => setShowAdvanced(!showAdvanced)}
-        style={{
-          backgroundColor: "transparent", border: "none", cursor: "pointer",
-          color: "var(--text-secondary)", fontSize: "12px", fontWeight: 500,
-          padding: 0, marginBottom: showAdvanced ? 8 : 0,
-        }}
-      >
-        {showAdvanced ? "▾ 收起高级分析" : "▸ 展开高级分析（MAE/MFE/止盈效率）"}
-      </button>
-      {showAdvanced && (
+      <Collapsible title="展开高级分析（MAE/MFE/止盈效率）">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">{tier3}</div>
-      )}
+      </Collapsible>
     </div>
   );
 }

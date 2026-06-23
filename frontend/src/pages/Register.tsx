@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { register as registerApi } from "../api/auth";
+import { Card, Input, Button } from "../components/ui";
 
 const STRENGTH_LABELS: Record<number, { text: string; color: string; width: string }> = {
   0: { text: "弱", color: "var(--danger)", width: "25%" },
@@ -31,6 +33,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const strength = passwordStrength(password);
   const s = STRENGTH_LABELS[strength];
@@ -60,9 +63,11 @@ export default function Register() {
         password
       );
       login(token);
+      toast.addToast("success", "注册成功");
       navigate("/upload");
     } catch (err) {
       setError(err instanceof Error ? err.message : "注册失败");
+      toast.addToast("error", err instanceof Error ? err.message : "注册失败");
     } finally {
       setLoading(false);
     }
@@ -70,10 +75,7 @@ export default function Register() {
 
   return (
     <div className="flex items-center justify-center min-h-[80vh] px-4">
-      <div
-        style={{ backgroundColor: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}
-        className="w-full max-w-sm p-8"
-      >
+      <Card className="w-full max-w-sm p-8">
         <h1 className="text-xl font-semibold mb-6 text-center">注册</h1>
         {error && (
           <div className="text-sm mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(248,113,113,0.1)", color: "var(--danger)" }}>
@@ -97,24 +99,19 @@ export default function Register() {
           </div>
 
           {mode === "email" ? (
-            <input type="email" placeholder="请输入邮箱" value={email}
-              onChange={(e) => setEmail(e.target.value)} required
-              style={{ backgroundColor: "var(--bg-tertiary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)" }}
-              className="px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" />
+            <Input type="email" placeholder="请输入邮箱" value={email}
+              onChange={(e) => setEmail(e.target.value)} required />
           ) : (
-            <input type="tel" placeholder="请输入11位手机号" value={phone}
-              onChange={(e) => setPhone(e.target.value)} required maxLength={11}
-              style={{ backgroundColor: "var(--bg-tertiary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)" }}
-              className="px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" />
+            <Input type="tel" placeholder="请输入11位手机号" value={phone}
+              onChange={(e) => setPhone(e.target.value)} required maxLength={11} />
           )}
 
           <div style={{ position: "relative" }}>
-            <input type={showPw ? "text" : "password"} placeholder="密码（至少8位，含字母+数字）" value={password}
-              onChange={(e) => setPassword(e.target.value)} required minLength={8}
-              style={{ backgroundColor: "var(--bg-tertiary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)" }}
-              className="px-4 py-3 pr-10 text-sm outline-none focus:border-[var(--accent)] w-full" />
+            <Input type={showPw ? "text" : "password"} placeholder="密码（至少8位，含字母+数字）" value={password}
+              onChange={(e) => setPassword(e.target.value)} required minLength={8} className="pr-10" />
             <button type="button" onClick={() => setShowPw(!showPw)}
-              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: 16, padding: 4, lineHeight: 1 }}>
+              aria-label={showPw ? "隐藏密码" : "显示密码"}
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: 16, padding: 4, lineHeight: 1 }}>
               {showPw ? "🙈" : "👁"}
             </button>
             {password && (
@@ -127,16 +124,14 @@ export default function Register() {
             )}
           </div>
 
-          <button type="submit" disabled={loading}
-            style={{ backgroundColor: "var(--accent)", color: "#fff", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", opacity: loading ? 0.6 : 1 }}
-            className="text-sm font-medium">
+          <Button type="submit" disabled={loading}>
             {loading ? "注册中..." : "注册"}
-          </button>
+          </Button>
         </form>
         <p className="text-sm mt-4 text-center" style={{ color: "var(--text-secondary)" }}>
           已有账号？<Link to="/login" style={{ color: "var(--accent)" }}>登录</Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

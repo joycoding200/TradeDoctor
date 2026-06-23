@@ -1,0 +1,20 @@
+{
+  "whatif": [
+    {
+      "removed_pattern": "SWING",
+      "original_return": 0.3,
+      "what_if_return": 0.2,
+      "delta": -0.1,
+      "contribution_pct": 1.0,
+      "absolute_impact": 400.0
+    },
+    {
+      "removed_pattern": "SCALP",
+      "original_return": 0.3,
+      "what_if_return": 0.4,
+      "delta": 0.1,
+      "contribution_pct": 1.0,
+      "absolute_impact": 200.0
+    }
+  ]
+}

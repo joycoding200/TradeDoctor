@@ -138,7 +138,14 @@
       "mcp__plugin_ecc_context7__resolve-library-id",
       "mcp__plugin_ecc_context7__query-docs",
       "mcp__plugin_playwright_playwright__browser_take_screenshot",
-      "mcp__plugin_playwright_playwright__browser_tabs"
+      "mcp__plugin_playwright_playwright__browser_tabs",
+      "Bash(xxd \"d:/Dev/Projects/TradingJournalAnalyzer/backend/tests/golden/position/P004.csv\")",
+      "Bash(rmdir wahtif *)",
+      "Bash(rmdir futures *)",
+      "Bash(mv accounts *)",
+      "Bash(rm -f position/P007 position/P008 position/P008.expected.json)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/golden_runner.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_engine/ -v)"
     ]
   },
   "enableAllProjectMcpServers": true,

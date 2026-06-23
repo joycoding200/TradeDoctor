@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { Button, Card } from "../components/ui";
 
 export default function Landing() {
   const { isLoggedIn } = useAuth();
@@ -14,47 +15,16 @@ export default function Landing() {
       </p>
       <div className="flex gap-4">
         {isLoggedIn ? (
-          <Link
-            to="/upload"
-            style={{
-              backgroundColor: "var(--accent)",
-              color: "#fff",
-              borderRadius: "8px",
-              padding: "12px 32px",
-              textDecoration: "none",
-            }}
-            className="text-sm font-medium"
-          >
-            开始分析
+          <Link to="/upload">
+            <Button>开始分析</Button>
           </Link>
         ) : (
           <>
-            <Link
-              to="/login"
-              style={{
-                backgroundColor: "var(--accent)",
-                color: "#fff",
-                borderRadius: "8px",
-                padding: "12px 32px",
-                textDecoration: "none",
-              }}
-              className="text-sm font-medium"
-            >
-              登录
+            <Link to="/login">
+              <Button>登录</Button>
             </Link>
-            <Link
-              to="/register"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "12px 32px",
-                textDecoration: "none",
-              }}
-              className="text-sm font-medium"
-            >
-              注册
+            <Link to="/register">
+              <Button variant="outline">注册</Button>
             </Link>
           </>
         )}
@@ -68,21 +38,13 @@ export default function Landing() {
           { title: "行为分析", desc: "识别追涨、抄底、波段等交易模式", icon: "🔍" },
           { title: "AI 诊断", desc: "生成个性化交易行为诊断报告", icon: "🤖" },
         ].map((item) => (
-          <div
-            key={item.title}
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderRadius: "12px",
-              border: "1px solid var(--border)",
-            }}
-            className="p-6 text-left"
-          >
+          <Card key={item.title} className="p-6 text-left">
             <div className="text-2xl mb-3">{item.icon}</div>
             <h3 className="font-medium mb-2">{item.title}</h3>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
               {item.desc}
             </p>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

@@ -4,6 +4,7 @@ import FileDropzone from "../components/FileDropzone";
 import FormatSelector from "../components/FormatSelector";
 import { uploadFile, confirmFormat, importTrades } from "../api/upload";
 import { runAnalysis } from "../api/analysis";
+import { useToast } from "../context/ToastContext";
 
 interface FormatOption {
   source_type: string;
@@ -17,21 +18,17 @@ export default function Upload() {
   const [rawFileId, setRawFileId] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
   const [formats, setFormats] = useState<FormatOption[]>([]);
-  const [parsedData, setParsedData] = useState<Record<string, unknown>[]>([]);
   const navigate = useNavigate();
+  const toast = useToast();
 
   const autoProcess = async (fileId: string, sourceType: string, fileName: string) => {
-    // Confirm format
     setStatusText("正在解析交易记录...");
     const confirmed = await confirmFormat(fileId, sourceType);
     const trades = confirmed.trades || [];
-    setParsedData(trades);
 
-    // Import trades
     setStatusText("正在导入交易记录...");
     await importTrades(fileId);
 
-    // Run analysis with actual trade date range
     setStatusText("正在运行分析...");
     const dates = trades
       .map((t: any) => t.datetime)
@@ -41,6 +38,7 @@ export default function Upload() {
     const dateStart = dates[0]?.split("T")[0] || "2020-01-01";
     const dateEnd = dates[dates.length - 1]?.split("T")[0] || today;
     const analysis = await runAnalysis(dateStart, dateEnd, fileId, fileName);
+    toast.addToast("success", "分析完成");
     navigate(`/analysis/${analysis.analysis_id}`);
   };
 
@@ -55,19 +53,17 @@ export default function Upload() {
       setFormats(detectedFormats);
 
       if (detectedFormats.length > 0 && detectedFormats[0].score >= 0.7) {
-        // Auto-process: skip format selection
         await autoProcess(result.raw_file_id, detectedFormats[0].source_type, file.name);
       } else if (detectedFormats.length > 0) {
-        // Low confidence: let user pick format
         setLoading(false);
         setStatusText("");
       } else {
         setLoading(false);
-        alert("无法识别文件格式，请确认文件内容正确");
+        toast.addToast("warning", "无法识别文件格式，请确认文件内容正确");
       }
     } catch (err) {
       setLoading(false);
-      alert(err instanceof Error ? err.message : "上传失败");
+      toast.addToast("error", err instanceof Error ? err.message : "上传失败");
     }
   };
 
@@ -77,7 +73,7 @@ export default function Upload() {
       await autoProcess(rawFileId, sourceType, fileName);
     } catch (err) {
       setLoading(false);
-      alert(err instanceof Error ? err.message : "处理失败");
+      toast.addToast("error", err instanceof Error ? err.message : "处理失败");
     }
   };
 
@@ -106,9 +102,12 @@ export default function Upload() {
       <h1 className="text-xl font-semibold mb-6">上传交割单</h1>
       <FileDropzone onFile={handleFile} loading={loading} />
       {loading && statusText && (
-        <div className="text-center mt-6" style={{ color: "var(--text-secondary)" }}>
-          <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2 align-middle" />
-          {statusText}
+        <div className="flex items-center justify-center mt-6 gap-2" style={{ color: "var(--text-secondary)" }}>
+          <span
+            className="inline-block w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+          />
+          <span className="text-sm">{statusText}</span>
         </div>
       )}
     </div>
