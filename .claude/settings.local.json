@@ -148,8 +148,5 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_engine/ -v)"
     ]
   },
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "chrome-devtools"
-  ]
+  "enableAllProjectMcpServers": true
 }

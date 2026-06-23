@@ -6,6 +6,7 @@ import { Card, Button, LoadingSpinner, EmptyState } from "../components/ui";
 interface AnalysisItem {
   id: string;
   filename?: string;
+  filenames?: string[];
   date_start?: string;
   date_end?: string;
   created_at?: string;
@@ -61,6 +62,11 @@ export default function History() {
                   >
                     {a.filename ? `📄 ${a.filename}` : `分析 ${a.id.slice(0, 8)}`}
                   </Link>
+                  {a.filenames && a.filenames.length > 1 && (
+                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                      📎 共 {a.filenames.length} 个文件
+                    </div>
+                  )}
                   <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
                     {a.date_start} ~ {a.date_end}
                     {a.created_at && ` · ${new Date(a.created_at).toLocaleDateString("zh-CN")}`}

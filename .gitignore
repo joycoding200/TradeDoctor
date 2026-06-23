@@ -31,6 +31,9 @@ testfiles/
 # Environment
 .env
 
+# Claude
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db

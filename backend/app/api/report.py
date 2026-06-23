@@ -35,7 +35,37 @@ from app.schemas.report import (
 router = APIRouter(prefix="/api", tags=["report"])
 
 
-def _build_analysis_data(trades, positions, insight_items, whatif_items, stats_data: dict = None) -> dict:
+def _compute_date_segments(trades, gap_days: int = 14) -> str:
+    """Compute the actual date range(s) from trade data, detecting gaps.
+
+    If trade dates are continuous (no gap > gap_days), returns a single range.
+    If there are gaps, returns multiple segments joined by '、'.
+    Example: "2026-01-05 至 2026-03-31、2026-06-01 至 2026-06-17"
+    """
+    if not trades:
+        return "无数据"
+
+    dates = sorted({t.datetime.date() for t in trades})
+    if not dates:
+        return "无数据"
+
+    segments = []
+    seg_start = dates[0]
+    prev = dates[0]
+
+    for d in dates[1:]:
+        if (d - prev).days > gap_days:
+            segments.append((seg_start, prev))
+            seg_start = d
+        prev = d
+    segments.append((seg_start, prev))
+
+    if len(segments) == 1:
+        return f"{segments[0][0]} 至 {segments[0][1]}"
+    return "、".join(f"{s} 至 {e}" for s, e in segments)
+
+
+def _build_analysis_data(trades, positions, insight_items, whatif_items, stats_data: dict = None, report_date: str = "", date_start: str = "", date_end: str = "") -> dict:
     """Build the analysis_data dict expected by build_user_prompt.
 
     When stats_data is provided (V4.0), risk metrics and positions summary
@@ -53,6 +83,9 @@ def _build_analysis_data(trades, positions, insight_items, whatif_items, stats_d
     )
 
     result = {
+        "report_date": report_date,
+        "date_start": date_start,
+        "date_end": date_end,
         "total_trades": total_trades,
         "win_rate": round(win_rate, 2),
         "total_pnl": round(total_pnl, 2),
@@ -248,8 +281,16 @@ async def generate_report(
         "outcome_distribution": outcome_dist,
     }
 
-    # Build AI prompt
-    analysis_data = _build_analysis_data(trades, positions, insight_items, whatif_items, stats_data)
+    # Build AI prompt with exact dates (so the AI doesn't guess)
+    from datetime import date as date_type
+    today_str = date_type.today().isoformat()
+    date_range_str = _compute_date_segments(trades)
+    analysis_data = _build_analysis_data(
+        trades, positions, insight_items, whatif_items, stats_data,
+        report_date=today_str,
+        date_start=date_range_str,  # now contains full segment info
+        date_end="",  # no longer used individually
+    )
     user_prompt = build_user_prompt(analysis_data)
 
     # Call LLM

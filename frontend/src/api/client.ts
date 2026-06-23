@@ -4,6 +4,15 @@ function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
+function onAuthExpired() {
+  localStorage.removeItem("token");
+  // Avoid redirect loop on login/register pages
+  const path = window.location.pathname;
+  if (path !== "/login" && path !== "/register" && path !== "/") {
+    window.location.href = "/login?expired=1";
+  }
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -16,7 +25,11 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   if (!isFormData && options.body && typeof options.body === "string") {
     headers["Content-Type"] = "application/json";
   }
-  return fetch(`${BASE_URL}${path}`, { ...options, headers });
+  const resp = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  if (resp.status === 401) {
+    onAuthExpired();
+  }
+  return resp;
 }
 
 export async function apiPost(path: string, body?: unknown): Promise<any> {
@@ -44,6 +57,10 @@ export async function apiUpload(path: string, formData: FormData): Promise<any> 
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
+  if (resp.status === 401) {
+    onAuthExpired();
+    throw new Error("登录已过期，请重新登录");
+  }
   if (!resp.ok) throw new Error("Upload failed");
   return resp.json();
 }

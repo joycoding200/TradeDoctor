@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import FileDropzone from "../components/FileDropzone";
 import FormatSelector from "../components/FormatSelector";
 import { uploadFile, confirmFormat, importTrades } from "../api/upload";
-import { runAnalysis } from "../api/analysis";
+import { runAnalysis, linkFilesToAnalysis } from "../api/analysis";
 import { useToast } from "../context/ToastContext";
 
 interface FormatOption {
@@ -20,6 +20,8 @@ export default function Upload() {
   const [formats, setFormats] = useState<FormatOption[]>([]);
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const attachToAnalysisId = searchParams.get("attach_to");
 
   const autoProcess = async (fileId: string, sourceType: string, fileName: string) => {
     setStatusText("正在解析交易记录...");
@@ -29,17 +31,26 @@ export default function Upload() {
     setStatusText("正在导入交易记录...");
     await importTrades(fileId);
 
-    setStatusText("正在运行分析...");
-    const dates = trades
-      .map((t: any) => t.datetime)
-      .filter(Boolean)
-      .sort();
-    const today = new Date().toISOString().split("T")[0];
-    const dateStart = dates[0]?.split("T")[0] || "2020-01-01";
-    const dateEnd = dates[dates.length - 1]?.split("T")[0] || today;
-    const analysis = await runAnalysis(dateStart, dateEnd, fileId, fileName);
-    toast.addToast("success", "分析完成");
-    navigate(`/analysis/${analysis.analysis_id}`);
+    if (attachToAnalysisId) {
+      // Linking mode: attach this file to an existing analysis
+      setStatusText("正在添加到分析...");
+      await linkFilesToAnalysis(attachToAnalysisId, [fileId]);
+      toast.addToast("success", "文件已添加到分析");
+      navigate(`/analysis/${attachToAnalysisId}`);
+    } else {
+      // New analysis mode
+      setStatusText("正在运行分析...");
+      const dates = trades
+        .map((t: any) => t.datetime)
+        .filter(Boolean)
+        .sort();
+      const today = new Date().toISOString().split("T")[0];
+      const dateStart = dates[0]?.split("T")[0] || "2020-01-01";
+      const dateEnd = dates[dates.length - 1]?.split("T")[0] || today;
+      const analysis = await runAnalysis(dateStart, dateEnd, fileId, fileName);
+      toast.addToast("success", "分析完成");
+      navigate(`/analysis/${analysis.analysis_id}`);
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -77,11 +88,13 @@ export default function Upload() {
     }
   };
 
+  const pageTitle = attachToAnalysisId ? "添加交割单" : "上传交割单";
+
   // Show format selector only when confidence is low
   if (formats.length > 0 && formats[0].score < 0.7) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold mb-6">上传交割单</h1>
+        <h1 className="text-xl font-semibold mb-6">{pageTitle}</h1>
         <FormatSelector formats={formats} onConfirm={handleConfirm} loading={loading} />
       </div>
     );
@@ -91,7 +104,7 @@ export default function Upload() {
   if (formats.length === 0 && !loading && rawFileId) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold mb-6">上传交割单</h1>
+        <h1 className="text-xl font-semibold mb-6">{pageTitle}</h1>
         <FileDropzone onFile={handleFile} loading={false} />
       </div>
     );
@@ -99,7 +112,7 @@ export default function Upload() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-xl font-semibold mb-6">上传交割单</h1>
+      <h1 className="text-xl font-semibold mb-6">{pageTitle}</h1>
       <FileDropzone onFile={handleFile} loading={loading} />
       {loading && statusText && (
         <div className="flex items-center justify-center mt-6 gap-2" style={{ color: "var(--text-secondary)" }}>

@@ -32,6 +32,11 @@ class ReportListItem(BaseModel):
     created_at: datetime
 
 
+class ReportCheckResponse(BaseModel):
+    exists: bool
+    report_id: str = ""
+
+
 class ReportsListResponse(BaseModel):
     reports: list[ReportListItem]
     total: int

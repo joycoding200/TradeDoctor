@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 import pandas as pd
 
-from app.parsers.base import BaseParser, TradeData
+from app.parsers.base import BaseParser, TradeData, _safe_parse_date
 from app.parsers import _get_exchange
 
 
@@ -60,7 +60,7 @@ def _classify_column(name: str, values: list) -> dict[str, float]:
         if not is_likely_date:
             continue
         try:
-            pd.to_datetime(v)
+            _safe_parse_date(v)
             parsed_count += 1
         except Exception:
             pass
@@ -373,7 +373,7 @@ class SmartParser(BaseParser):
                     margin = float(row[margin_col])
 
                 trades.append(TradeData(
-                    datetime=pd.to_datetime(row[date_col]),
+                    datetime=_safe_parse_date(row[date_col]),
                     symbol=symbol,
                     exchange=exchange,
                     side=side,

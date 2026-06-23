@@ -1,7 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useStats, useInsight, useWhatIf, useGenerateReport } from "../hooks/useAnalysis";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStats, useInsight, useWhatIf, useGenerateReport, useCheckReport } from "../hooks/useAnalysis";
 import { Button, InlineSpinner } from "../components/ui";
+import AddFileModal from "../components/AddFileModal";
 import { useToast } from "../context/ToastContext";
 import StatsTab from "./tabs/StatsTab";
 import InsightTab from "./tabs/InsightTab";
@@ -12,7 +14,9 @@ type Tab = "stats" | "insight" | "whatif";
 export default function Analysis() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("stats");
+  const [showAddFile, setShowAddFile] = useState(false);
   const toast = useToast();
 
   const stats = useStats(id);
@@ -20,6 +24,7 @@ export default function Analysis() {
   const insight = useInsight(id, statsReady);
   const whatIf = useWhatIf(id, statsReady);
   const genReport = useGenerateReport();
+  const checkReport = useCheckReport(id);
 
   const handleGenerateReport = () => {
     if (!id) return;
@@ -44,15 +49,40 @@ export default function Analysis() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold">分析面板</h1>
-          {stats.data?.filename && (
+          {(stats.data?.filenames && stats.data.filenames.length > 1) ? (
+            <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+              📄 {stats.data.filenames.join(" + ")}
+            </div>
+          ) : stats.data?.filename ? (
             <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
               📄 {stats.data.filename}
             </div>
-          )}
+          ) : null}
         </div>
-        <Button variant="success" onClick={handleGenerateReport} disabled={genReport.isPending}>
-          {genReport.isPending ? <><InlineSpinner /> 生成中...</> : "生成 AI 报告"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowAddFile(true)}>
+            + 添加交割单
+          </Button>
+          <Button
+            variant="success"
+            onClick={
+              checkReport.data?.exists
+                ? () => navigate(`/report/${checkReport.data.report_id}`)
+                : handleGenerateReport
+            }
+            disabled={checkReport.isLoading || genReport.isPending}
+          >
+            {genReport.isPending ? (
+              <><InlineSpinner /> 生成中...</>
+            ) : checkReport.isLoading ? (
+              <><InlineSpinner /> 检查中...</>
+            ) : checkReport.data?.exists ? (
+              "查看 AI 报告"
+            ) : (
+              "生成 AI 报告"
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--border)" }} role="tablist">
@@ -84,6 +114,18 @@ export default function Analysis() {
         {activeTab === "insight" && <InsightTab insight={insight} />}
         {activeTab === "whatif" && <WhatIfTab whatIf={whatIf} />}
       </div>
+
+      {showAddFile && id && (
+        <AddFileModal
+          analysisId={id}
+          onClose={() => setShowAddFile(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["stats", id] });
+            queryClient.invalidateQueries({ queryKey: ["insight", id] });
+            queryClient.invalidateQueries({ queryKey: ["whatif", id] });
+          }}
+        />
+      )}
     </div>
   );
 }

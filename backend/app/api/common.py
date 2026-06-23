@@ -3,7 +3,7 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.analysis import Analysis
+from app.models.analysis import Analysis, AnalysisFile
 from app.models.trade import Trade
 
 
@@ -19,23 +19,51 @@ def load_analysis(analysis_id: str, user_id: str, db: Session) -> Analysis:
     return analysis
 
 
+def get_raw_file_ids(analysis_id: str, db: Session) -> list[str]:
+    """Return all RawFile IDs linked to an analysis via the association table.
+
+    Falls back to the legacy Analysis.raw_file_id column for analyses
+    created before the multi-file feature was added.
+    """
+    rows = (
+        db.query(AnalysisFile.raw_file_id)
+        .filter(AnalysisFile.analysis_id == analysis_id)
+        .all()
+    )
+    file_ids = [row[0] for row in rows]
+    if not file_ids:
+        analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+        if analysis and analysis.raw_file_id:
+            file_ids = [analysis.raw_file_id]
+    return file_ids
+
+
+def get_raw_file_filenames(raw_file_ids: list[str], db: Session) -> dict[str, str]:
+    """Return {raw_file_id: filename} for a list of IDs."""
+    from app.models.raw_file import RawFile
+
+    filename_map: dict[str, str] = {}
+    if raw_file_ids:
+        rfs = db.query(RawFile).filter(RawFile.id.in_(raw_file_ids)).all()
+        filename_map = {rf.id: rf.filename for rf in rfs}
+    return filename_map
+
+
 def load_trades(analysis: Analysis, user_id: str, db: Session) -> list[Trade]:
     """Load the trades that belong to THIS analysis.
 
-    An analysis is bound to exactly one uploaded raw file (Upload flow always
-    passes raw_file_id). Loading by user_id + date range instead is wrong: if a
-    user re-uploads an already-imported statement (or uploads several whose
-    dates overlap), the overlapping trades get double-counted and silently
-    corrupt PnL/win-rate. So the analysis's data boundary is its raw_file_id,
-    not the user's entire history within a date window.
+    An analysis can reference one or more uploaded raw files via the
+    analysis_files association table. Trades are always scoped by
+    raw_file_id — never by user_id + date range — to prevent
+    double-counting when overlapping files are uploaded.
     """
-    if not analysis.raw_file_id:
-        # Defensive: an analysis without a raw file has no trades to analyze.
+    file_ids = get_raw_file_ids(analysis.id, db)
+    if not file_ids:
         return []
     return (
         db.query(Trade)
         .filter(
-            Trade.raw_file_id == analysis.raw_file_id,
+            Trade.raw_file_id.in_(file_ids),
             Trade.user_id == user_id,
             Trade.is_deleted.is_(False),
         )

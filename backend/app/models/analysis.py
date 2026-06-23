@@ -23,3 +23,20 @@ class Analysis(Base):
     created_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+
+
+class AnalysisFile(Base):
+    """Many-to-many association between Analysis and RawFile.
+
+    Allows one analysis to span multiple uploaded trading statements,
+    which is necessary because Chinese brokerages limit export date ranges
+    (typically 3 months per file).
+    """
+    __tablename__ = "analysis_files"
+
+    analysis_id = Column(
+        String(36), ForeignKey("analyses.id", ondelete="CASCADE"), primary_key=True
+    )
+    raw_file_id = Column(
+        String(36), ForeignKey("raw_files.id", ondelete="CASCADE"), primary_key=True
+    )

@@ -14,6 +14,28 @@ import pandas as pd
 _FORMULA_STRING_RE = re.compile(r'^="(.*)"$', re.DOTALL)
 
 
+def _safe_parse_date(value) -> datetime:
+    """Parse a date value robustly, handling YYYYMMDD int/str from broker exports.
+
+    pd.to_datetime interprets 20260105 as nanoseconds since epoch → 1970-01-01,
+    which silently corrupts dates. This helper detects 8-digit date-like values
+    and converts them correctly.
+    """
+    import pandas as pd
+
+    if isinstance(value, (int, float)):
+        s = str(int(value))
+    else:
+        s = str(value).strip()
+
+    # 8-digit integer starting with 19/20 → YYYYMMDD (broker export format)
+    if s.isdigit() and len(s) == 8 and s.startswith(("19", "20")):
+        return datetime(int(s[:4]), int(s[4:6]), int(s[6:8]))
+
+    # Let pandas handle everything else (ISO strings, timestamps, etc.)
+    return pd.to_datetime(value).to_pydatetime()
+
+
 @dataclass
 class TradeData:
     datetime: datetime

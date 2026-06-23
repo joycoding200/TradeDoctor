@@ -167,6 +167,22 @@ def link_files_to_analysis(
     if added > 0:
         analysis.stats_snapshot = None
 
+        # Recalculate date range to cover all linked files
+        all_file_ids = get_raw_file_ids(analysis.id, db)
+        trade_dates = (
+            db.query(Trade.datetime)
+            .filter(
+                Trade.raw_file_id.in_(all_file_ids),
+                Trade.user_id == current_user.id,
+                Trade.is_deleted.is_(False),
+            )
+            .order_by(Trade.datetime)
+            .all()
+        )
+        if trade_dates:
+            analysis.date_start = trade_dates[0][0].date()
+            analysis.date_end = trade_dates[-1][0].date()
+
     db.commit()
     return {"detail": f"已添加 {added} 个文件到分析", "raw_file_ids": body.raw_file_ids}
 

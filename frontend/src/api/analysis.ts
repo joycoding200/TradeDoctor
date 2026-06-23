@@ -19,3 +19,7 @@ export async function getWhatIf(id: string): Promise<any> {
 export async function listAnalyses(): Promise<any> {
   return apiGet("/api/analysis");
 }
+
+export async function linkFilesToAnalysis(analysisId: string, rawFileIds: string[]): Promise<any> {
+  return apiPost(`/api/analysis/${analysisId}/link-files`, { raw_file_ids: rawFileIds });
+}

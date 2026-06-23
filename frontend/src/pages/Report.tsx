@@ -1,11 +1,31 @@
 import { useParams, Link } from "react-router-dom";
 import { useReport } from "../hooks/useAnalysis";
+import { downloadReport } from "../api/report";
 import ReactMarkdown from "react-markdown";
 import { Card, Button, LoadingSpinner, EmptyState } from "../components/ui";
+import { useToast } from "../context/ToastContext";
 
 export default function Report() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, error } = useReport(id);
+  const toast = useToast();
+
+  const handleDownload = async () => {
+    if (!id) return;
+    try {
+      const blob = await downloadReport(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `交易诊断报告_${id.substring(0, 8)}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.addToast("error", "下载报告失败");
+    }
+  };
 
   if (isLoading) {
     return <LoadingSpinner text="加载报告..." />;
@@ -29,9 +49,12 @@ export default function Report() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">交易行为诊断书</h1>
-        <Link to={`/analysis/${data.analysis_id}`} style={{ color: "var(--accent)" }} className="text-sm no-underline">
-          返回分析面板
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={handleDownload}>下载报告</Button>
+          <Link to={`/analysis/${data.analysis_id}`} style={{ color: "var(--accent)" }} className="text-sm no-underline">
+            返回分析面板
+          </Link>
+        </div>
       </div>
 
       {data.validation_passed === false && (
