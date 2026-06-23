@@ -33,9 +33,9 @@ pip install -r requirements.txt
 # 创建数据库
 psql -U postgres -c "CREATE DATABASE tradelens;"
 
-# 配置环境变量 .env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/tradelens
-SECRET_KEY=change-me
+# 配置环境变量（从模板复制后修改）
+cp .env.example .env
+# 编辑 .env，至少设置 DATABASE_URL 和 SECRET_KEY
 
 # 初始化行情数据服务器
 python -m mootdx bestip
@@ -43,6 +43,18 @@ python -m mootdx bestip
 # 启动
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+**环境变量**：后端启动前必须配置 `backend/.env`。从 `.env.example` 复制后修改：
+
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `DATABASE_URL` | 是 | PostgreSQL 连接串 |
+| `SECRET_KEY` | 是 | JWT 签名密钥，生产环境须 >=32 字符 |
+| `AI_PROVIDER` | 否 | AI 提供商：openai / claude / deepseek（默认 openai） |
+| `OPENAI_API_KEY` | 否 | OpenAI API 密钥（使用 AI 诊断报告时需要） |
+| `ENV` | 否 | 设为 `production` 时启用严格安全校验 |
+
+完整变量列表见 `backend/.env.example`。
 
 ### 前端
 
