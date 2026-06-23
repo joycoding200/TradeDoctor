@@ -2,7 +2,7 @@
 
 上传交割单，系统自动重建持仓、识别交易行为、分析盈亏来源。面向 A 股散户的交易行为诊断工具。
 
-**核心能力**：FIFO 持仓重建 + 4 维行为标签 + MAE/MFE 风险分析 + Shapley 归因 + What-If 止损回测 + AI 诊断报告。
+**核心能力**：FIFO 持仓重建 + 4 维行为标签 + MAE/MFE 风险分析 + Shapley 归因 + What-If 止损回测 + 净值曲线 + 股票维度盈亏 + AI 诊断报告（含 10+ 风险指标）。
 
 ## 技术栈
 
@@ -87,6 +87,8 @@ cd backend && pytest tests/ -q
 | 最大浮盈（MFE） | 持仓期间平均最高盈利% |
 | 止盈效率（Profit Capture） | 浮盈兑现率 |
 | Shapley 归因 | 公平归因各标签对总盈亏的贡献 |
+| 净值曲线 | 按持仓退出日期累计盈亏的面积图，盈利绿色/亏损红色 |
+| 股票维度盈亏 | 按个股汇总交易次数、胜率、总盈亏、平均持仓天数 |
 
 ## 4 维行为标签体系
 
@@ -121,11 +123,12 @@ TradingJournalAnalyzer/
 │   └── tests/             # 单元测试 + 引擎测试
 ├── frontend/
 │   └── src/
-│       ├── pages/         # upload, analysis, report
-│       ├── components/    # StatsCards, PatternChart, WhatIfChart
+│       ├── pages/         # upload, analysis, report, history, auth
+│       ├── components/    # StatsCards, EquityCurve, SymbolSummaryTable, PatternChart, WhatIfChart
 │       └── constants/     # patterns.ts（标签中英文映射）
 ├── docs/
-│   └── superpowers/       # 金融领域知识 + 验证清单
+│   ├── superpowers/       # 金融领域知识 + 验证清单
+│   └── review/            # 评测报告、PRD、代码审查记录
 └── testfiles/             # 测试用交割单（6 种交易风格）
 ```
 
@@ -136,6 +139,18 @@ TradingJournalAnalyzer/
 - **散户可理解** — 每个指标附评级（优秀/良好/一般/较差）和一行解释
 - **信息分层** — 核心结果 → 进阶分析 → 高级分析（折叠）
 - **领域知识驱动** — 开发前参考 `docs/superpowers/FINANCE_DOMAIN.md`，完成后按 `docs/superpowers/VERIFICATION_CHECKLIST.md` 自检
+
+## 版本历史
+
+| 版本 | 日期 | 主要变更 |
+|------|------|---------|
+| V4.0 | 2026-06-23 | 净值曲线图 + 股票维度盈亏表 + AI Prompt 扩充（10+ 风险指标 + 关键交易） |
+| V3.1 | 2026-06-22 | 第三轮代码审查修复（8 阻塞 + 10 建议 + 4 改进）+ 前端 UI/UX 优化 |
+| V2.5 | 2026-06-20 | max_drawdown_pct / total_return_pct 等百分比版本指标（行业标准） |
+| V2.3 | 2026-06-19 | 真实券商导出适配（GBK 编码、伪 .xls 文本、="..." 外壳、费用列误判） |
+| V1.3 | 2026-06-15 | Expectancy（R-multiple）+ Shapley 归因 |
+| V1.2 | 2026-06-12 | MAE/MFE 风险分析 + 费用扣除修复 |
+| V1.1 | 2026-06-10 | 4 维行为标签体系 + SmartParser 格式自动识别 |
 
 ## License
 
