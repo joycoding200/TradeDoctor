@@ -2,7 +2,7 @@
 import re
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
@@ -33,7 +33,7 @@ class LoginRequest(BaseModel):
 
 
 class PasswordCheckRequest(BaseModel):
-    password: str
+    password: str = Field(min_length=1, max_length=128)
 
 
 class UpdateProfileRequest(BaseModel):

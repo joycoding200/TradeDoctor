@@ -166,10 +166,11 @@ class PatternEngine:
             first = same_symbol_positions[0]
 
             if all_trades is not None:
-                # P0-3/P0-4: Trade-level price comparison
+                # P0-3/P0-4: Trade-level price comparison, scoped to current position's cycle
                 same_symbol_trades = [
                     t for t in all_trades
                     if t.symbol == pos.symbol and t.side == "BUY"
+                    and pos.entry_date <= t.datetime.date() <= pos.exit_date
                 ]
                 same_symbol_trades.sort(key=lambda t: t.datetime)
                 if len(same_symbol_trades) >= 2:
@@ -203,7 +204,7 @@ class PatternEngine:
                         for prev_pos in all_positions:
                             if (prev_pos.symbol == pos.symbol
                                     and prev_pos.entry_date <= last_buy_date <= prev_pos.exit_date
-                                    and last_buy_price < prev_pos.avg_entry_price):
+                                    and last_buy_price < prev_pos.avg_entry_price * 0.95):
                                 is_loss_add = True
                                 break
                         if is_loss_add:
@@ -251,7 +252,12 @@ class PatternEngine:
         trades = kwargs.get("trades")
         if trades is not None:
             # Check raw trades for same-symbol same-date opposite-side pairs
-            same_symbol_trades = [t for t in trades if t.symbol == pos.symbol]
+            # scoped to this position's holding period
+            same_symbol_trades = [
+                t for t in trades
+                if t.symbol == pos.symbol
+                and pos.entry_date <= t.datetime.date() <= pos.exit_date
+            ]
             dates_with_both: set = set()
             buy_dates: set = set()
             sell_dates: set = set()
@@ -265,7 +271,7 @@ class PatternEngine:
                 tags.append(
                     PatternResult(
                         "TURN",
-                        0.7,
+                        1.0,  # boost to avoid being overwritten by SCALP/SWING/POSITION
                         {
                             "turn_dates": sorted(str(d) for d in dates_with_both),
                         },
@@ -440,7 +446,7 @@ class PatternEngine:
                     )
 
         # -- FOMO: entry near day's high after streak of up days -------
-        if entry_idx >= 5:
+        if entry_idx >= 6:
             up_count = 0
             for i in range(entry_idx - 5, entry_idx):
                 prev = symbol_data[dates[i - 1]]["close"]
@@ -688,7 +694,7 @@ class PatternEngine:
 
         # --- HOLD_LOSER / CUT_WINNER: median holding duration comparison ---
         winners = [p for p in positions if p.pnl > 0]
-        losers = [p for p in positions if p.pnl < 0]
+        losers = [p for p in positions if p.pnl <= 0]
         if len(winners) >= 5 and len(losers) >= 5:
             median_hold_winners = median(p.holding_days for p in winners)
             median_hold_losers = median(p.holding_days for p in losers)

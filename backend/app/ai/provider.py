@@ -93,24 +93,43 @@ class DeepSeekProvider(LLMProvider):
         return response.choices[0].message.content.strip()
 
 
+# Module-level cached provider — avoids connection pool leaks from repeated instantiation
+_provider_instance: LLMProvider | None = None
+
+
 def get_llm() -> LLMProvider:
-    """Factory: return the LLM provider configured in settings.
+    """Factory: return the LLM provider configured in settings. Cached for reuse.
 
     Raises:
-        ValueError: If settings.ai_provider is not one of the supported values.
+        ValueError: If settings.ai_provider is not one of the supported values,
+                    or if the configured API key is empty.
     """
+    global _provider_instance
+    if _provider_instance is not None:
+        return _provider_instance
+
     provider = settings.ai_provider.lower()
     if provider == "openai":
-        return OpenAIProvider()
-    if provider == "openrouter":
+        if not settings.openai_api_key:
+            raise ValueError("OPENAI_API_KEY is not configured")
+        _provider_instance = OpenAIProvider()
+    elif provider == "openrouter":
         base_url = settings.ai_base_url or "https://openrouter.ai/api/v1"
         model = settings.ai_model or settings.openai_model
-        return OpenAIProvider(base_url=base_url, model=model)
-    if provider == "claude":
-        return ClaudeProvider()
-    if provider == "deepseek":
-        return DeepSeekProvider()
-    raise ValueError(
-        f"Unknown AI provider: '{settings.ai_provider}'. "
-        f"Expected one of: openai, claude, deepseek, openrouter."
-    )
+        if not settings.openai_api_key:
+            raise ValueError("OPENAI_API_KEY is not configured")
+        _provider_instance = OpenAIProvider(base_url=base_url, model=model)
+    elif provider == "claude":
+        if not settings.claude_api_key:
+            raise ValueError("CLAUDE_API_KEY is not configured")
+        _provider_instance = ClaudeProvider()
+    elif provider == "deepseek":
+        if not settings.deepseek_api_key:
+            raise ValueError("DEEPSEEK_API_KEY is not configured")
+        _provider_instance = DeepSeekProvider()
+    else:
+        raise ValueError(
+            f"Unknown AI provider: '{settings.ai_provider}'. "
+            f"Expected one of: openai, claude, deepseek, openrouter."
+        )
+    return _provider_instance

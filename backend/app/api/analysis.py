@@ -1,6 +1,6 @@
 """Analysis API routes: run analysis, fetch stats / insight / what-if."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import get_current_user
@@ -17,6 +17,7 @@ from app.engine.market_fetcher import ensure_market_data
 from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
 from app.engine.whatif import ProfitAttribution
+from app.ratelimit import limiter
 from app.schemas.analysis import (
     AnalysisListItem,
     AnalysisListResponse,
@@ -71,7 +72,9 @@ PATTERN_MODULES: dict[str, str] = {
     response_model=AnalysisRunResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("10/minute")
 def run_analysis(
+    request: Request,
     body: AnalysisRunRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -165,7 +168,9 @@ def get_stats(
     max_win_date = str(max_win_pos.exit_date) if max_win_pos else ""
     max_loss_symbol = max_loss_pos.symbol if max_loss_pos else ""
     max_loss_date = str(max_loss_pos.exit_date) if max_loss_pos else ""
-    consecutive_losses = _compute_consecutive_losses(valid_positions)
+    consecutive_losses = _compute_consecutive_losses(
+        sorted(valid_positions, key=lambda p: p.exit_date)
+    )
 
     # Outcome distribution
     outcome_counts: dict[str, int] = {}
@@ -357,7 +362,7 @@ def _build_category_map(
             results.extend(
                 PatternEngine.tag_market_patterns(pos, market_data)
             )
-            results = PatternEngine.resolve_hierarchy(results)
+        results = PatternEngine.resolve_hierarchy(results)
 
         # Attach psychology patterns that belong to this position
         if i in psyche_by_pos:

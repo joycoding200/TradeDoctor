@@ -1,7 +1,7 @@
 """Upload API routes: upload file, confirm format, import trades."""
 
 import os
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, Header
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, Header, Request
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import get_current_user
@@ -11,6 +11,7 @@ from app.models.raw_file import RawFile
 from app.models.trade import Trade
 from app.models.user import User
 from app.parsers.registry import ParserRegistry
+from app.ratelimit import limiter
 from app.schemas.upload import (
     ConfirmRequest,
     ConfirmResponse,
@@ -28,7 +29,9 @@ ALLOWED_EXTENSIONS = (".csv", ".xls", ".xlsx")
 
 
 @router.post("", response_model=UploadResponse)
+@limiter.limit("10/minute")
 def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     content_length: int | None = Header(None),
     current_user: User = Depends(get_current_user),
@@ -45,8 +48,8 @@ def upload_file(
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Only CSV/XLS/XLSX files are allowed")
 
-    # Read and check size
-    content = file.file.read()
+    # Read with size cap to prevent OOM (read 1 byte more to detect overflow)
+    content = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large")
 

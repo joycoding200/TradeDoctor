@@ -3,14 +3,22 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class AnalysisRunRequest(BaseModel):
     date_start: date
     date_end: date
     raw_file_id: str = ""
-    filename: str = ""
+    filename: str = Field(default="", max_length=255)
+
+    @field_validator("date_end")
+    @classmethod
+    def validate_date_range(cls, v: date, info) -> date:
+        ds = info.data.get("date_start")
+        if ds is not None and v < ds:
+            raise ValueError("date_end must be >= date_start")
+        return v
 
 
 class AnalysisRunResponse(BaseModel):

@@ -39,11 +39,12 @@ class ReportValidator:
 
         total_trades = input_data.get("total_trades")
         if total_trades is not None:
-            # Look for number with context like "交易次数"
+            # Look for number with context like "交易次数" or "共N笔交易"
             found = ReportValidator._extract_number(report, r"交易次数[：:\s]*(\d+)")
             if found is None:
-                # Fallback: any number
-                found = ReportValidator._extract_number(report, r"(\d+)")
+                found = ReportValidator._extract_number(report, r"(\d+)\s*笔\s*交易")
+            if found is None:
+                found = ReportValidator._extract_number(report, r"共\s*(\d+)\s*笔")
             if found is not None and found != total_trades:
                 errors.append(
                     f"交易次数不匹配: 报告={found}, 数据={total_trades}"
@@ -56,9 +57,8 @@ class ReportValidator:
                 report, r"胜率[：:\s]*(\d+(?:\.\d+)?)%"
             )
             if found is None:
-                # Fallback: any percentage
                 found = ReportValidator._extract_percentage(
-                    report, r"(\d+(?:\.\d+)?)%"
+                    report, r"成功率[：:\s]*(\d+(?:\.\d+)?)%"
                 )
             if found is not None and abs(found - win_rate) > 1.0:
                 errors.append(
@@ -95,11 +95,17 @@ class ReportValidator:
 
     @staticmethod
     def _find_pnl_for_pattern(text: str, pattern_name: str) -> float | None:
-        """Search for a signed float near the given pattern name."""
+        """Search for the PnL number near the given pattern name, using semantic context."""
         escaped = re.escape(pattern_name)
-        # Matches "PATTERN_NAME..." optionally followed by delimiters and a number.
-        m = re.search(rf"{escaped}.*?([+-]?\d+\.?\d*)", text, re.DOTALL)
-        return float(m.group(1)) if m else None
+        # Match "总盈亏+1234.56" or "盈亏: +1234.56" or "pnl: +1234.56" near the pattern name
+        m = re.search(rf"{escaped}[^+-]*?(?:总?盈亏|pnl|PnL)[：:\s]*([+-]?\d+\.?\d*)", text, re.DOTALL)
+        if not m:
+            # Fallback: signed float within 50 chars after pattern name
+            m = re.search(rf"{escaped}(.{{0,50}}?)([+-]\d+\.?\d*)", text, re.DOTALL)
+        if m:
+            group = m.group(2) if m.lastindex and m.lastindex >= 2 else m.group(1)
+            return float(group)
+        return None
 
 
 import asyncio
@@ -132,6 +138,7 @@ async def generate_with_retry(
     """
     validator = ReportValidator()
     current_prompt = user_prompt
+    all_errors: list[str] = []
 
     for attempt in range(max_retries):
         try:
@@ -148,9 +155,10 @@ async def generate_with_retry(
             return report
 
         if attempt < max_retries - 1:
+            all_errors.extend(result.errors)
             correction = (
                 "\n\n【修正】上轮生成的报告数据与输入数据不匹配：\n"
-                + "\n".join(result.errors)
+                + "\n".join(all_errors)
                 + "\n请修正数据后重新生成。"
             )
             current_prompt = user_prompt + correction

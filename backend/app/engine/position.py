@@ -306,7 +306,7 @@ class PositionBuilder:
                 pnl = matched_sell_revenue - total_buy_cost - total_commission
 
                 entry_date = buy_batches[0][3].date()
-                exit_date = sell_batches[0][3].date()
+                exit_date = sell_batches[-1][3].date()  # last sell date = full exit
 
                 all_ids = [b[2] for b in buy_batches] + [s[2] for s in sell_batches]
 

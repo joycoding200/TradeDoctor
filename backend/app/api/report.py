@@ -1,6 +1,6 @@
 """Report API routes: generate AI report, fetch report(s)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.ai.prompt import SYSTEM_PROMPT, build_user_prompt
@@ -19,6 +19,7 @@ from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
 from app.engine.whatif import ProfitAttribution
 from app.engine.market_fetcher import ensure_market_data
+from app.ratelimit import limiter
 from app.schemas.report import (
     ReportGenerateRequest,
     ReportGenerateResponse,
@@ -73,7 +74,9 @@ def _build_analysis_data(trades, positions, insight_items, whatif_items) -> dict
     response_model=ReportGenerateResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("3/minute")
 async def generate_report(
+    request: Request,
     body: ReportGenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -90,12 +93,20 @@ async def generate_report(
         market_data = ensure_market_data(db, symbols, analysis.date_start, analysis.date_end)
 
     # Build patterns map with confidence scores (including market env patterns)
+    # Detect psychology patterns once for all positions
+    psychology_results = PatternEngine.detect_psychological_patterns(positions, all_trades=trades)
+    psyche_by_pos: dict[int, list] = {}
+    for idx, psy_result in psychology_results:
+        psyche_by_pos.setdefault(idx, []).append(psy_result)
+
     patterns_map: dict[int, list[tuple[str, float]]] = {}
     for i, pos in enumerate(positions):
-        results = PatternEngine.tag_position(pos, positions)
+        results = PatternEngine.tag_position(pos, positions, trades=trades, all_trades=trades)
         if market_data:
             results.extend(PatternEngine.tag_market_patterns(pos, market_data))
-            results = PatternEngine.resolve_hierarchy(results)
+        results = PatternEngine.resolve_hierarchy(results)
+        if i in psyche_by_pos:
+            results.extend(psyche_by_pos[i])
         patterns_map[i] = [(r.pattern_name, r.confidence) for r in results]
 
     # Resolve primary pattern per position for insight PnL attribution
@@ -204,7 +215,7 @@ def list_reports(
                 id=r.id,
                 analysis_id=r.analysis_id or "",
                 filename=filename_map.get(r.analysis_id, ""),
-                username=current_user.email.split("@")[0],
+                username=(current_user.email or "").split("@")[0],
                 created_at=r.created_at,
             )
             for r in reports
