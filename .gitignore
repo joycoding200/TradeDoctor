@@ -32,9 +32,12 @@ testfiles/
 .env
 
 # Claude
-.claude/settings.local.json
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
 .playwright-mcp/
+
+# User uploads (runtime data, never commit)
+backend/uploads/

@@ -1,0 +1,31 @@
+# ============================================================
+# GitHub Actions — 自动部署到阿里云服务器
+# ============================================================
+# 功能：push 到 main 分支后，自动 SSH 到服务器执行更新
+#
+# 前置配置（GitHub 仓库 Settings → Secrets and variables → Actions）：
+#   SSH_HOST     服务器公网 IP
+#   SSH_USER     SSH 用户名（通常 root）
+#   SSH_KEY      SSH 私钥全文（cat ~/.ssh/id_rsa 的输出）
+#   PROJECT_PATH 项目在服务器上的路径（如 /opt/TradingJournalAnalyzer）
+#
+# 配好后，每次 push 到 main 分支自动触发部署，无需手动操作
+# ============================================================
+
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH Deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: bash ${{ secrets.PROJECT_PATH }}/deploy/update.sh
