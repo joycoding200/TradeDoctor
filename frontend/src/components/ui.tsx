@@ -1,15 +1,27 @@
-import { useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type CSSProperties } from "react";
+import { useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from "react";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ui.tsx — Shared UI primitives
+ *
+ * All styling uses Tailwind utility classes backed by the design tokens
+ * declared in index.css (`@theme`). No inline `style={{}}` here, which means:
+ *  - hover/active/focus pseudo-states work properly
+ *  - `prefers-reduced-motion` is respected
+ *  - the markup is purge-friendly (classes survive Tailwind's JIT)
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 // ─── Card ───────────────────────────────────────────────────────────────────
-const cardStyle: CSSProperties = {
-  backgroundColor: "var(--bg-secondary)",
-  borderRadius: "12px",
-  border: "1px solid var(--border)",
-};
-
-export function Card({ children, className = "", style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
+export function Card({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div style={{ ...cardStyle, ...style }} className={className}>
+    <div
+      className={`rounded-xl border border-border bg-bg-secondary ${className}`}
+    >
       {children}
     </div>
   );
@@ -18,47 +30,41 @@ export function Card({ children, className = "", style }: { children: ReactNode;
 // ─── Button ──────────────────────────────────────────────────────────────────
 type ButtonVariant = "primary" | "success" | "danger" | "ghost" | "outline";
 
-const variantStyles: Record<ButtonVariant, CSSProperties> = {
-  primary: { backgroundColor: "var(--accent)", color: "#fff", border: "none" },
-  success: { backgroundColor: "var(--success)", color: "#000", border: "none" },
-  danger:  { backgroundColor: "var(--danger)", color: "#fff", border: "none" },
-  ghost:   { backgroundColor: "transparent", color: "var(--text-primary)", border: "none" },
-  outline: { backgroundColor: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" },
-};
-
-const btnBase: CSSProperties = {
-  borderRadius: "8px",
-  padding: "10px 20px",
-  cursor: "pointer",
-  fontSize: "14px",
-  fontWeight: 500,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "6px",
-  transition: "opacity 0.15s",
+const VARIANT_CLASS: Record<ButtonVariant, string> = {
+  primary:
+    "bg-accent text-white hover:bg-accent-hover active:scale-[0.97] disabled:hover:bg-accent",
+  success:
+    "bg-success text-black hover:brightness-110 active:scale-[0.97]",
+  danger:
+    "bg-danger text-white hover:brightness-110 active:scale-[0.97]",
+  ghost:
+    "bg-transparent text-text-primary hover:bg-bg-tertiary",
+  outline:
+    "bg-bg-tertiary text-text-primary border border-border hover:border-accent hover:text-accent",
 };
 
 export function Button({
   variant = "primary",
   children,
   className = "",
-  style,
   disabled,
+  type = "button",
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
     <button
       {...rest}
+      type={type}
       disabled={disabled}
-      style={{
-        ...btnBase,
-        ...variantStyles[variant],
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? "not-allowed" : "pointer",
-        ...style,
-      }}
-      className={className}
+      className={[
+        "inline-flex items-center justify-center gap-1.5",
+        "rounded-lg px-5 py-2.5 text-sm font-medium",
+        "transition-[transform,background-color,color,border-color,filter] duration-150 ease-out",
+        "cursor-pointer select-none focus-ring",
+        disabled ? "opacity-50 cursor-not-allowed" : "",
+        VARIANT_CLASS[variant],
+        className,
+      ].join(" ")}
     >
       {children}
     </button>
@@ -66,41 +72,39 @@ export function Button({
 }
 
 // ─── Input ───────────────────────────────────────────────────────────────────
-const inputBase: CSSProperties = {
-  backgroundColor: "var(--bg-tertiary)",
-  border: "1px solid var(--border)",
-  borderRadius: "8px",
-  color: "var(--text-primary)",
-  padding: "12px 16px",
-  fontSize: "14px",
-  outline: "none",
-  width: "100%",
-  transition: "border-color 0.15s",
-};
-
 export function Input({
   className = "",
-  style,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...rest}
-      style={{ ...inputBase, ...style }}
-      className={`${className} focus:ring-1 focus:ring-[var(--accent)] focus:border-[var(--accent)]`}
+      className={[
+        "w-full rounded-lg border border-border bg-bg-tertiary",
+        "px-4 py-3 text-sm text-text-primary",
+        "placeholder:text-text-secondary",
+        "outline-none transition-[border-color,box-shadow] duration-150",
+        "focus:border-accent focus:ring-1 focus:ring-accent",
+        className,
+      ].join(" ")}
     />
   );
 }
 
 // ─── LoadingSpinner ──────────────────────────────────────────────────────────
-export function LoadingSpinner({ text = "加载中...", className = "" }: { text?: string; className?: string }) {
+export function LoadingSpinner({
+  text = "加载中...",
+  className = "",
+}: {
+  text?: string;
+  className?: string;
+}) {
   return (
-    <div className={`flex flex-col items-center justify-center py-8 gap-3 ${className}`}>
-      <div
-        className="animate-spin w-6 h-6 border-2 rounded-full"
-        style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
-      />
-      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{text}</span>
+    <div
+      className={`flex flex-col items-center justify-center gap-3 py-8 ${className}`}
+    >
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      <span className="text-sm text-text-secondary">{text}</span>
     </div>
   );
 }
@@ -108,62 +112,71 @@ export function LoadingSpinner({ text = "加载中...", className = "" }: { text
 // ─── InlineSpinner ──────────────────────────────────────────────────────────
 export function InlineSpinner() {
   return (
-    <span
-      className="inline-block w-4 h-4 border-2 border-t-transparent rounded-full animate-spin align-middle"
-      style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
-    />
+    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent align-middle" />
   );
 }
 
 // ─── ErrorBox ───────────────────────────────────────────────────────────────
-export function ErrorBox({ message, className = "" }: { message: string; className?: string }) {
+export function ErrorBox({
+  message,
+  className = "",
+}: {
+  message: string;
+  className?: string;
+}) {
   return (
-    <div
-      className={`text-center py-8 ${className}`}
-      style={{ color: "var(--danger)" }}
-    >
-      {message}
+    <div className={`py-8 text-center text-danger ${className}`}>
+      <p>{message}</p>
     </div>
   );
 }
 
-// ─── Collapsible ───────────────────────────────────────────────────────────
-export function Collapsible({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+// ─── Collapsible ────────────────────────────────────────────────────────────
+/* Uses the `.collapsible-content` CSS grid trick (see index.css) so the open
+ * AND close transitions animate the real content height — no fixed
+ * `maxHeight` guesswork. */
+export function Collapsible({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        style={{
-          backgroundColor: "transparent", border: "none", cursor: "pointer",
-          color: "var(--text-secondary)", fontSize: "13px", fontWeight: 500,
-          padding: 0, marginBottom: open ? 12 : 0,
-          transition: "margin-bottom 0.2s",
-        }}
+        className={`mb-0 border-0 bg-transparent p-0 text-[13px] font-medium text-text-secondary transition-[margin] duration-200 hover:text-text-primary focus-ring ${open ? "mb-3" : ""}`}
       >
-        {open ? "▾ " : "▸ "}{title}
+        {open ? "▾ " : "▸ "}
+        {title}
       </button>
-      <div
-        style={{
-          display: open ? "block" : "none",
-          overflow: "hidden",
-          maxHeight: open ? 2000 : 0,
-          transition: open ? "max-height 0.3s ease-in" : undefined,
-        }}
-      >
-        {children}
+      <div className="collapsible-content" data-open={open}>
+        <div>{children}</div>
       </div>
     </div>
   );
 }
 
 // ─── EmptyState ─────────────────────────────────────────────────────────────
-export function EmptyState({ icon = "📭", message, action }: { icon?: string; message: string; action?: ReactNode }) {
+export function EmptyState({
+  icon = "📭",
+  message,
+  action,
+}: {
+  icon?: string;
+  message: string;
+  action?: ReactNode;
+}) {
   return (
-    <div className="text-center py-12">
-      <div className="text-3xl mb-3">{icon}</div>
-      <p className="mb-4" style={{ color: "var(--text-secondary)" }}>{message}</p>
+    <div className="py-12 text-center">
+      <div className="mb-3 text-3xl">{icon}</div>
+      <p className="mb-4 text-text-secondary">{message}</p>
       {action}
     </div>
   );

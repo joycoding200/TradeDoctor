@@ -133,6 +133,17 @@ class InsightPatternItem(BaseModel):
     gross_loss: float = 0.0
 
 
+class CrossAnalysisItem(BaseModel):
+    """Cross-dimension analysis: market_env × behavior combination stats."""
+    market_env: str   # BULL_TREND / BEAR_TREND / BREAKDOWN / "未标记"
+    behavior: str     # CHASE / SCALP / SWING / ...
+    count: int
+    win_count: int
+    win_rate: float
+    total_pnl: float
+    avg_pnl_pct: float
+
+
 class InsightResponse(BaseModel):
     patterns: list[InsightPatternItem]  # flat list (backward compat)
     # V1.1: 4-dimension system
@@ -149,6 +160,7 @@ class InsightResponse(BaseModel):
     best_pattern: Optional[InsightPatternItem] = None
     worst_pattern: Optional[InsightPatternItem] = None
     baseline_expectancy: float = 0.0  # V2.3 overall expectancy for comparison
+    cross_analysis: list[CrossAnalysisItem] = []  # market_env × behavior
 
 
 class AttributionItem(BaseModel):

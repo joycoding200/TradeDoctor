@@ -210,7 +210,7 @@ psychological_patterns:
     description: 大幅亏损后急于翻本，开仓量增大
 
   - name: OVERTRADING
-    label: 过度交易
+    label: 高频交易日
     confidence: 0.5
     rule:
       summary: 单日交易次数超过个人均值+2个标准差且>=5次

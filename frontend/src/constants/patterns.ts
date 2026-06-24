@@ -36,7 +36,7 @@ export const PATTERN_LABELS: Record<string, string> = {
   LARGE_LOSS_EXIT: "大亏离场",
   // 心理推测 (AI推测)
   POSSIBLE_REVENGE: "可能报复",
-  OVERTRADING: "过度交易",
+  OVERTRADING: "高频交易日",
   HOLD_LOSER: "死扛亏损",
   CUT_WINNER: "过早止盈",
   PSY_FOMO: "害怕错过(心理)",

@@ -98,7 +98,7 @@ export default function Admin() {
       <div className="flex items-center justify-center min-h-[80vh] px-4">
         <Card className="w-full max-w-sm p-8">
           <h1 className="text-xl font-semibold mb-6 text-center">管理员登录</h1>
-          {error && <div className="text-sm mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(248,113,113,0.1)", color: "var(--danger)" }}>{error}</div>}
+          {error && <div className="text-sm mb-4 p-3 rounded-lg bg-danger/10 text-danger">{error}</div>}
           <div className="flex flex-col gap-4">
             <Input value={user} onChange={e => setUser(e.target.value)} placeholder="管理员账号" />
             <Input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="密码"
@@ -115,7 +115,7 @@ export default function Admin() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">管理员面板</h1>
         <button onClick={() => { setToken(""); localStorage.removeItem("admin_token"); }}
-          className="text-xs" style={{ color: "var(--text-secondary)", background: "none", border: "none", cursor: "pointer" }}>
+          className="text-xs text-text-secondary bg-transparent border-0 cursor-pointer">
           退出
         </button>
       </div>
@@ -135,18 +135,16 @@ export default function Admin() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         {users.map(u => (
           <div key={u.id} onClick={() => selectUser(u)}
-            style={{
-              backgroundColor: selected?.id === u.id ? "rgba(59,130,246,0.1)" : "var(--bg-secondary)",
-              border: `1px solid ${selected?.id === u.id ? "var(--accent)" : "var(--border)"}`,
-              borderRadius: 12, cursor: "pointer",
-              transition: "background-color 0.15s, border-color 0.15s",
-            }}
-            className="p-4">
+            className={`p-4 rounded-xl cursor-pointer transition-[background-color,border-color] duration-150 ${
+              selected?.id === u.id
+                ? "bg-accent/10 border border-accent"
+                : "bg-bg-secondary border border-border"
+            }`}>
             <div className="font-medium">{u.nickname || u.email || u.phone}</div>
-            <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+            <div className="text-xs mt-1 text-text-secondary">
               {u.email}{u.phone ? ` · ${u.phone}` : ""}
             </div>
-            <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+            <div className="text-xs mt-1 text-text-secondary">
               📄{u.file_count} 份交割单 · 📊{u.analysis_count} 次分析 · 📝{u.report_count} 份报告
             </div>
           </div>
@@ -157,51 +155,48 @@ export default function Admin() {
       {selected && loading && <LoadingSpinner text="加载数据..." />}
       {selected && !loading && (
         <div>
-          <h2 className="text-sm font-medium mb-4" style={{ color: "var(--text-secondary)" }}>
+          <h2 className="text-sm font-medium mb-4 text-text-secondary">
             {selected.nickname || selected.email} 的数据
           </h2>
 
-          <h3 className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>上传的交割单</h3>
+          <h3 className="text-xs font-medium mb-2 text-text-secondary">上传的交割单</h3>
           <div className="flex flex-col gap-2 mb-4">
             {files.map(f => (
               <Card key={f.id} className="flex items-center justify-between p-3">
                 <div>
                   <span className="text-sm">📄 {f.filename}</span>
-                  <span className="text-xs ml-2" style={{ color: "var(--text-secondary)" }}>{f.source_type} · {f.uploaded_at?.slice(0, 10)}</span>
+                  <span className="text-xs ml-2 text-text-secondary">{f.source_type} · {f.uploaded_at?.slice(0, 10)}</span>
                 </div>
                 <button
                   onClick={() => adminDownload(`/api/admin/download/raw/${f.id}`, f.filename)}
-                  className="border-0 cursor-pointer bg-transparent text-xs"
-                  style={{ color: "var(--accent)" }}
+                  className="border-0 cursor-pointer bg-transparent text-xs text-accent"
                 >
                   ⬇ 下载
                 </button>
               </Card>
             ))}
-            {files.length === 0 && <div className="text-xs" style={{ color: "var(--text-secondary)" }}>无文件</div>}
+            {files.length === 0 && <div className="text-xs text-text-secondary">无文件</div>}
           </div>
 
-          <h3 className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>分析记录</h3>
+          <h3 className="text-xs font-medium mb-2 text-text-secondary">分析记录</h3>
           <div className="flex flex-col gap-2">
             {analyses.map(a => (
               <Card key={a.id} className="flex items-center justify-between p-3">
                 <div>
                   <span className="text-sm">{a.filename ? `📄 ${a.filename}` : `分析 ${a.id.slice(0, 8)}`}</span>
-                  <span className="text-xs ml-2" style={{ color: "var(--text-secondary)" }}>{a.date_start}~{a.date_end}</span>
+                  <span className="text-xs ml-2 text-text-secondary">{a.date_start}~{a.date_end}</span>
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => adminDownload(`/api/admin/download/analysis/${a.id}`, `analysis_${a.id.slice(0,8)}.json`)}
-                    className="border-0 cursor-pointer bg-transparent text-xs"
-                    style={{ color: "var(--accent)" }}
+                    className="border-0 cursor-pointer bg-transparent text-xs text-accent"
                   >
                     📊 下载
                   </button>
                   {a.has_report && (
                     <button
                       onClick={() => adminDownload(`/api/admin/download/report/${a.id}`, `report_${a.id.slice(0,8)}.md`)}
-                      className="border-0 cursor-pointer bg-transparent text-xs"
-                      style={{ color: "var(--accent)" }}
+                      className="border-0 cursor-pointer bg-transparent text-xs text-accent"
                     >
                       📝 下载
                     </button>
@@ -209,7 +204,7 @@ export default function Admin() {
                 </div>
               </Card>
             ))}
-            {analyses.length === 0 && <div className="text-xs" style={{ color: "var(--text-secondary)" }}>无分析记录</div>}
+            {analyses.length === 0 && <div className="text-xs text-text-secondary">无分析记录</div>}
           </div>
         </div>
       )}

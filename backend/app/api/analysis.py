@@ -27,6 +27,7 @@ from app.schemas.analysis import (
     EquityPoint,
     InsightPatternItem,
     InsightResponse,
+    CrossAnalysisItem,
     LinkFilesRequest,
     PnlLevelItem,
     PositionItem,
@@ -566,11 +567,40 @@ def get_insight(
 
     # V2.3: baseline expectancy (overall) for behavior evaluation
     valid_positions = [p for i, p in enumerate(positions) if getattr(p, "cost_known", True)]
+    valid_indices = {i for i, p in enumerate(positions) if getattr(p, "cost_known", True)}
     baseline_expectancy = InsightItem.compute(valid_positions) if valid_positions else 0.0
 
     significant = [p for p in all_items if p.count >= 5]
     best = significant[0] if significant else None
     worst = significant[-1] if len(significant) > 1 else None
+
+    # Cross-dimension analysis: market_env × behavior
+    cross_data: dict[tuple[str, str], dict] = {}
+    for i in valid_indices:
+        cat = category_map.get(i, {})
+        env = cat.get("market_env", "未标记")
+        beh = cat.get("behavior", "未标记")
+        key = (env, beh)
+        p = positions[i]
+        if key not in cross_data:
+            cross_data[key] = {"count": 0, "win_count": 0, "total_pnl": 0.0, "total_pnl_pct": 0.0}
+        cross_data[key]["count"] += 1
+        if p.pnl > 0:
+            cross_data[key]["win_count"] += 1
+        cross_data[key]["total_pnl"] += p.pnl
+        cross_data[key]["total_pnl_pct"] += p.pnl_pct
+    cross_analysis = [
+        CrossAnalysisItem(
+            market_env=env,
+            behavior=beh,
+            count=d["count"],
+            win_count=d["win_count"],
+            win_rate=round(d["win_count"] / d["count"], 4) if d["count"] > 0 else 0.0,
+            total_pnl=round(d["total_pnl"], 2),
+            avg_pnl_pct=round(d["total_pnl_pct"] / d["count"], 4) if d["count"] > 0 else 0.0,
+        )
+        for (env, beh), d in sorted(cross_data.items(), key=lambda kv: kv[1]["total_pnl"], reverse=True)
+    ]
 
     return InsightResponse(
         patterns=all_items,
@@ -587,6 +617,7 @@ def get_insight(
         best_pattern=best,
         worst_pattern=worst,
         baseline_expectancy=round(baseline_expectancy, 4),
+        cross_analysis=cross_analysis,
     )
 
 

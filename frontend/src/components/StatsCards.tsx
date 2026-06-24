@@ -46,105 +46,240 @@ function formatPct(value: number): string {
 }
 
 function formatMoney(value: number): string {
+  const abs = Math.abs(value);
+  const wan = abs / 10000;
+  if (wan >= 1) {
+    return `${value >= 0 ? "+" : "-"}${wan.toFixed(1)}万`;
+  }
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
-function card(cls: string, label: string, value: string, hint?: string, rating?: { text: string; color: string }) {
+interface Rating {
+  text: string;
+  color: string;
+}
+
+const COLOR_CLASS: Record<string, string> = {
+  success: "text-success",
+  danger: "text-danger",
+  accent: "text-accent",
+  primary: "text-text-primary",
+  secondary: "text-text-secondary",
+};
+
+/** Large hero-style card for the 4 core metrics. */
+function heroCard(
+  cls: string,
+  label: string,
+  value: string,
+  summary: string,
+  rating?: Rating
+) {
   return (
-    <Card key={label} className="p-4">
-      <div className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</div>
-      <div className="text-xl font-semibold" style={{ color: cls }}>{value}</div>
-      {rating && <div className="text-xs mt-1 font-medium" style={{ color: rating.color }}>{rating.text}</div>}
-      {hint && <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{hint}</div>}
+    <Card className="p-5">
+      <div className="mb-1 text-xs text-text-secondary">{label}</div>
+      <div className={`text-2xl font-bold ${COLOR_CLASS[cls] ?? "text-text-primary"}`}>
+        {value}
+      </div>
+      {rating && (
+        <div className={`mt-1 text-xs font-medium ${COLOR_CLASS[rating.color] ?? ""}`}>
+          {rating.text}
+        </div>
+      )}
+      <div className="mt-1.5 text-xs text-text-secondary leading-relaxed">{summary}</div>
+    </Card>
+  );
+}
+
+/** Compact card for detailed metrics section. */
+function detailCard(
+  cls: string,
+  label: string,
+  value: string,
+  hint?: string,
+  rating?: Rating,
+  summary?: string,
+) {
+  return (
+    <Card className="p-4">
+      <div className="mb-1 text-xs text-text-secondary">{label}</div>
+      <div className={`text-lg font-semibold ${COLOR_CLASS[cls] ?? "text-text-primary"}`}>
+        {value}
+      </div>
+      {rating && (
+        <div className={`mt-0.5 text-xs font-medium ${COLOR_CLASS[rating.color] ?? ""}`}>
+          {rating.text}
+        </div>
+      )}
+      {hint && (
+        <div className="mt-0.5 text-xs text-text-secondary opacity-70">{hint}</div>
+      )}
+      {summary && (
+        <div className="mt-1 text-xs text-text-secondary opacity-80">{summary}</div>
+      )}
     </Card>
   );
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
   const unknown = stats.unknown_cost_count ?? 0;
-
   const wlr = stats.win_loss_ratio ?? 0;
   const pf = stats.profit_factor ?? 0;
   const expectancy = stats.expectancy ?? 0;
   const mae = stats.avg_mae ?? 0;
   const mfe = stats.avg_mfe ?? 0;
   const capture = stats.profit_capture_ratio ?? 0;
-
-  // ---- Tier 1: 核心结果 ---------------------------------
-  const tier1 = [
-    card((stats.total_pnl ?? 0) >= 0 ? "var(--success)" : "var(--danger)", "总盈亏", formatMoney(stats.total_pnl ?? 0),
-      `收益率 ${formatPct(stats.total_return_pct ?? 0)}`,
-      { text: (stats.total_pnl ?? 0) >= 0 ? "✓ 整体盈利" : "✗ 整体亏损", color: (stats.total_pnl ?? 0) >= 0 ? "var(--success)" : "var(--danger)" }),
-    card((stats.win_rate ?? 0) >= 0.5 ? "var(--success)" : "var(--danger)", "胜率", formatPct(stats.win_rate ?? 0),
-      "盈利笔数 ÷ 总笔数"),
-    card((stats.max_drawdown_pct ?? 0) > 0.2 ? "var(--danger)" : (stats.max_drawdown_pct ?? 0) > 0.1 ? "var(--accent)" : "var(--success)", "最大回撤", formatPct(stats.max_drawdown_pct ?? 0),
-      `最大回撤金额 ${formatMoney(stats.max_drawdown ?? 0)}`),
-    card("var(--success)", "单笔最大盈利", formatMoney(stats.max_win ?? 0),
-      stats.max_win_symbol ? `${stats.max_win_symbol} ${stats.max_win_date}` : undefined),
-    card("var(--danger)", "单笔最大亏损", (stats.loss_count ?? 1) === 0 ? "--" : formatMoney(stats.max_loss ?? 0),
-      (stats.loss_count ?? 1) === 0 ? "无亏损记录" : (stats.max_loss_symbol ? `${stats.max_loss_symbol} ${stats.max_loss_date}` : undefined)),
-    card("var(--text-primary)", "完整交易", `${stats.total_positions ?? 0}`,
-      `${stats.win_count ?? 0}盈 / ${stats.loss_count ?? 0}亏`),
-  ];
-
-  // ---- Tier 2: 进阶分析 ---------------------------------
   const noLoss = (stats.loss_count ?? 0) === 0 && (stats.win_count ?? 0) > 0;
-  const pfRating = noLoss ? { text: "无亏损", color: "var(--success)" }
-    : pf >= 3 ? { text: "优秀（>3.0）", color: "var(--success)" }
-    : pf >= 1.5 ? { text: "良好（>1.5）", color: "var(--success)" }
-    : pf >= 1 ? { text: "合格（>1.0）", color: "var(--accent)" }
-    : { text: "不合格（<1.0）", color: "var(--danger)" };
+  const ddPct = stats.max_drawdown_pct ?? 0;
 
-  const exRating = expectancy > 0.02 ? { text: "优秀", color: "var(--success)" }
-    : expectancy > 0 ? { text: "正期望", color: "var(--success)" }
-    : { text: "负期望", color: "var(--danger)" };
+  // ── 人话总结（P1）─────────────────────────────────────────────
+  const pnlSummary = (stats.total_pnl ?? 0) >= 0
+    ? `每笔交易平均赚 ${formatMoney((stats.total_pnl ?? 0) / Math.max(stats.total_positions ?? 1, 1))}，你的交易整体是赚钱的`
+    : `扣除手续费后整体亏损，需要找出亏损来源并纠正`;
 
-  const tier2 = [
-    card(noLoss ? "var(--success)" : (pf >= 1.5 ? "var(--success)" : pf >= 1 ? "var(--accent)" : "var(--danger)"),
-      "盈亏比（Profit Factor）", noLoss ? "∞" : pf.toFixed(2),
-      "总盈利 ÷ 总亏损，>1.5为合格", pfRating),
-    card(expectancy >= 0 ? "var(--success)" : "var(--danger)",
-      "预期收益（Expectancy）", formatPct(expectancy),
-      "每笔交易预期赚多少", exRating),
-    card("var(--text-primary)", "损益比（Payoff Ratio）", noLoss ? "∞" : wlr.toFixed(2),
-      "平均盈利 ÷ 平均亏损"),
-    card("var(--text-primary)", "平均持仓", `${(stats.avg_holding_days ?? 0).toFixed(1)}天`,
-      `盈利${(stats.avg_win_holding_days ?? 0).toFixed(0)}天 / 亏损${(stats.avg_loss_holding_days ?? 0).toFixed(0)}天`),
-    card("var(--success)", "平均盈利", formatMoney(stats.avg_win_amount ?? 0),
-      `平均 ${formatPct(stats.avg_win_pct ?? 0)} / 笔`),
-    card("var(--danger)", "平均亏损", noLoss ? "无亏损记录" : formatMoney(stats.avg_loss_amount ?? 0),
-      noLoss ? undefined : `平均 ${formatPct(stats.avg_loss_pct ?? 0)} / 笔`),
+  const wrSummary = (stats.win_rate ?? 0) >= 0.5
+    ? "超过一半的交易在赚钱，选股或择时能力不错"
+    : "多数交易在赔钱，需要重点关注入场时机";
+
+  const ddSummary = ddPct > 0.3
+    ? `回撤很大——你的账户一度亏掉 ${formatPct(ddPct)}，这说明扛了不该扛的亏损`
+    : ddPct > 0.15
+    ? "回撤偏高，建议控制单笔亏损来降低波动"
+    : "回撤控制得很好，亏的时候砍得快";
+
+  const countSummary = ((stats.win_count ?? 0) + (stats.loss_count ?? 0)) < 10
+    ? "交易次数偏少，统计结论仅供参考"
+    : `${stats.win_count ?? 0} 笔赚钱、${stats.loss_count ?? 0} 笔亏钱，样本量足够做分析`;
+
+  // ── Core 4 hero cards ─────────────────────────────────────────
+  const heroes = [
+    heroCard(
+      (stats.total_pnl ?? 0) >= 0 ? "success" : "danger",
+      "总盈亏",
+      formatMoney(stats.total_pnl ?? 0),
+      pnlSummary,
+      { text: (stats.total_pnl ?? 0) >= 0 ? "✓ 整体盈利" : "✗ 整体亏损", color: (stats.total_pnl ?? 0) >= 0 ? "success" : "danger" }
+    ),
+    heroCard(
+      (stats.win_rate ?? 0) >= 0.5 ? "success" : "danger",
+      "胜率",
+      formatPct(stats.win_rate ?? 0),
+      wrSummary,
+    ),
+    heroCard(
+      ddPct > 0.2 ? "danger" : ddPct > 0.1 ? "accent" : "success",
+      "最大回撤",
+      formatPct(ddPct),
+      ddSummary,
+    ),
+    heroCard(
+      "primary",
+      "完整交易",
+      `${stats.total_positions ?? 0} 笔`,
+      countSummary,
+    ),
   ];
 
-  // ---- Tier 3: 专业指标 ---------------------------------
-  const maeRating = mae < -0.1 ? { text: "风险较高", color: "var(--danger)" }
-    : mae < -0.05 ? { text: "风险可控", color: "var(--accent)" }
-    : { text: "回撤较小", color: "var(--success)" };
+  // ── Detail cards (was tier2 + some tier1, now collapsed) ─────
+  const pfRating: Rating = noLoss ? { text: "无亏损", color: "success" }
+    : pf >= 3 ? { text: "优秀", color: "success" }
+    : pf >= 1.5 ? { text: "良好", color: "success" }
+    : pf >= 1 ? { text: "合格", color: "accent" }
+    : { text: "不合格", color: "danger" };
 
-  const captureRating = capture >= 0.5 ? { text: "优秀", color: "var(--success)" }
-    : capture >= 0.3 ? { text: "良好", color: "var(--success)" }
-    : capture >= 0.15 ? { text: "一般", color: "var(--accent)" }
-    : { text: "较差：存在过早卖出", color: "var(--danger)" };
+  const exRating: Rating = expectancy > 0.02 ? { text: "优秀", color: "success" }
+    : expectancy > 0 ? { text: "正期望", color: "success" }
+    : { text: "负期望", color: "danger" };
 
-  const tier3 = [
-    card(mae < -0.08 ? "var(--danger)" : "var(--text-primary)",
-      "最大回撤容忍度（MAE）", formatPct(mae),
-      "持仓期间平均最大浮亏", maeRating),
-    card("var(--text-primary)",
+  const ddRating: Rating = ddPct > 0.3
+    ? { text: "严重 — 需要立即止损", color: "danger" }
+    : ddPct > 0.15
+    ? { text: "偏高 — 注意控风险", color: "accent" }
+    : { text: "健康", color: "success" };
+
+  const maeRating: Rating = mae < -0.1 ? { text: "风险较高", color: "danger" }
+    : mae < -0.05 ? { text: "风险可控", color: "accent" }
+    : { text: "回撤较小", color: "success" };
+
+  const captureRating: Rating = capture >= 0.5 ? { text: "优秀", color: "success" }
+    : capture >= 0.3 ? { text: "良好", color: "success" }
+    : capture >= 0.15 ? { text: "一般", color: "accent" }
+    : { text: "较差：存在过早卖出", color: "danger" };
+
+  const detailCards: ReturnType<typeof detailCard>[] = [
+    // Basic stats
+    detailCard("success", "单笔最大盈利", formatMoney(stats.max_win ?? 0),
+      stats.max_win_symbol ? `${stats.max_win_symbol} ${stats.max_win_date}` : undefined,
+      undefined,
+      stats.max_win && stats.max_win > 0 ? "你最好的一笔交易，想想当时做对了什么" : undefined),
+    detailCard("danger", "单笔最大亏损", noLoss ? "--" : formatMoney(stats.max_loss ?? 0),
+      noLoss ? "无亏损记录" : (stats.max_loss_symbol ? `${stats.max_loss_symbol} ${stats.max_loss_date}` : undefined),
+      undefined,
+      stats.max_loss && stats.max_loss < 0 ? "这笔亏损贡献了最大回撤的大部分，值得复盘" : undefined),
+    detailCard("primary", "平均持仓", `${(stats.avg_holding_days ?? 0).toFixed(1)}天`,
+      `盈利${(stats.avg_win_holding_days ?? 0).toFixed(0)}天 / 亏损${(stats.avg_loss_holding_days ?? 0).toFixed(0)}天`,
+      undefined,
+      (stats.avg_loss_holding_days ?? 0) > (stats.avg_win_holding_days ?? 0) * 2
+        ? "亏钱的持仓时间远长于赚钱的——典型的'截断利润，让亏损奔跑'" : undefined),
+
+    // Financial ratios
+    detailCard("primary", "平均盈利", formatMoney(stats.avg_win_amount ?? 0),
+      `平均 ${formatPct(stats.avg_win_pct ?? 0)} / 笔`,
+      undefined,
+      (stats.avg_win_pct ?? 0) > 0.1 ? "盈利能力不错，单笔赚 10% 以上" : "单笔盈利偏薄，可以考虑让利润跑一跑"),
+    detailCard("danger", "平均亏损", noLoss ? "无亏损记录" : formatMoney(stats.avg_loss_amount ?? 0),
+      noLoss ? undefined : `平均 ${formatPct(stats.avg_loss_pct ?? 0)} / 笔`,
+      undefined,
+      (stats.avg_loss_pct ?? 0) < -0.08
+        ? "平均亏损超过 8%，需要设止损来限亏" : "平均亏损控制在可接受范围"),
+
+    // PF — key metric
+    detailCard(noLoss ? "success" : (pf >= 1.5 ? "success" : pf >= 1 ? "accent" : "danger"),
+      "盈亏比（赚的钱 ÷ 亏的钱）", noLoss ? "∞" : pf.toFixed(2),
+      ">1.0 合格, >1.5 良好, >3.0 优秀", pfRating,
+      pf < 1 ? "赚的不够亏的多，问题出在要么胜率太低要么亏的太快" : pf < 1.5
+        ? "勉强盈利，还有改善空间" : "盈亏结构健康"),
+  ];
+
+  // ── Advanced metrics (collapsed) ──────────────────────────────
+  const advancedCards: ReturnType<typeof detailCard>[] = [
+    detailCard(expectancy >= 0 ? "success" : "danger",
+      "预期收益（Expectancy）", formatPct(expectancy),
+      "每笔交易平均预期盈亏", exRating,
+      expectancy > 0.02 ? "长期来看你的策略有正期望，坚持执行就能赚钱"
+        : expectancy > 0 ? "微弱的正期望，需要提高胜率或盈亏比"
+        : "策略长期必亏，必须调整"),
+    detailCard("primary", "损益比（Payoff Ratio）", noLoss ? "∞" : wlr.toFixed(2),
+      "平均盈利 ÷ 平均亏损",
+      undefined,
+      wlr >= 2 ? "赚的时候赚得多，亏的时候亏得少，很健康" : wlr >= 1
+        ? "盈亏金额基本持平" : "亏的时候比赚的时候金额大"),
+
+    detailCard(mae < -0.08 ? "danger" : "primary",
+      "最大浮亏容忍（MAE）", formatPct(mae),
+      "持仓期间平均最大浮亏", maeRating,
+      mae < -0.08 ? "你经常扛到浮亏很深才止损，这是亏损的主要来源" : undefined),
+    detailCard("primary",
       "最大浮盈（MFE）", formatPct(mfe),
-      "持仓期间平均最高盈利"),
-    card(capture >= 0.3 ? "var(--success)" : capture >= 0.15 ? "var(--accent)" : "var(--danger)",
-      "止盈效率（Profit Capture）", formatPct(capture),
-      "最终盈利 ÷ 最大浮盈，衡量兑现能力", captureRating),
-    card((stats.consecutive_losses ?? 0) > 3 ? "var(--danger)" : "var(--text-primary)",
+      "持仓期间平均最高浮盈",
+      undefined,
+      mfe > 0.05 ? "持仓期间经常能赚到 5% 以上，说明选股方向对" : undefined),
+    detailCard(capture >= 0.3 ? "success" : capture >= 0.15 ? "accent" : "danger",
+      "止盈效率", formatPct(capture),
+      "最终盈利 ÷ 最大浮盈，越高越能拿住利润", captureRating,
+      capture < 0.2 ? "经常在赚钱的时候过早离场，浮盈变实盈的比例太低" : undefined),
+    detailCard((stats.consecutive_losses ?? 0) > 3 ? "danger" : "primary",
       "连续亏损", `${stats.consecutive_losses ?? 0}次`,
-      "最长连续亏损次数"),
+      "最长连续亏损次数",
+      undefined,
+      (stats.consecutive_losses ?? 0) > 5
+        ? "连亏超过 5 次，情绪容易崩——建议设一个'连亏休息日'规则" : undefined),
   ];
 
   return (
     <div>
       {unknown > 0 && (
-        <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.3)", color: "#eab308" }}>
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
           ⚠ 检测到 {unknown} 笔卖出对应的买入发生在交割单起始日期之前，持仓成本未知，已标记为盈亏=0。建议导入更早期的交割单以获得完整分析。
         </div>
       )}
@@ -152,23 +287,24 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       {/* V4.0: 净值曲线图 */}
       <EquityCurve data={stats.equity_curve || []} />
 
-      {/* Tier 1: 核心结果 */}
-      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>核心结果</div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">{tier1}</div>
+      {/* ── Core 4 hero cards ─────────────────────────────── */}
+      <div className="mb-2 text-xs font-medium text-text-secondary">核心概览</div>
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">{heroes}</div>
 
       {/* V4.0: 股票维度盈亏 */}
-      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>股票维度盈亏</div>
-      <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: "var(--card-bg, rgba(255,255,255,0.03))", border: "1px solid var(--border)" }}>
+      <div className="mb-2 text-xs font-medium text-text-secondary">股票维度盈亏</div>
+      <div className="mb-6 rounded-lg border border-border bg-bg-tertiary/30 p-4">
         <SymbolSummaryTable data={stats.symbol_summary || []} />
       </div>
 
-      {/* Tier 2: 进阶分析 */}
-      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>进阶分析</div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">{tier2}</div>
+      {/* ── Detailed metrics (collapsed) ──────────────────── */}
+      <Collapsible title="展开详细数据（盈亏比、单笔明细、持仓分析）">
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">{detailCards}</div>
 
-      {/* Tier 3: 专业指标 — collapsible */}
-      <Collapsible title="展开高级分析（MAE/MFE/止盈效率）">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">{tier3}</div>
+        {/* ── Advanced (deeply collapsed) ─── */}
+        <Collapsible title="展开高级指标（预期收益、MAE/MFE、止盈效率）">
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">{advancedCards}</div>
+        </Collapsible>
       </Collapsible>
     </div>
   );

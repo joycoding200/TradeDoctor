@@ -1,4 +1,4 @@
-const BASE_URL = "";
+const BASE_URL = import.meta.env.VITE_API_BASE || "";
 
 function getToken(): string | null {
   return localStorage.getItem("token");
