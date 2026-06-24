@@ -1,6 +1,7 @@
 """Case Library API: anonymous contribution of analysis data."""
 
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -27,14 +28,23 @@ class ContributeRequest(BaseModel):
     analysis_id: str = ""
 
 
-def _decode_raw_content(raw_content: bytes) -> str:
-    """Decode raw file bytes to text, trying common encodings."""
+_UPLOAD_ROOT = Path(__file__).resolve().parent.parent.parent / "uploads"
+
+
+def _read_and_decode_raw_file(rf) -> str:
+    """Read raw file from disk and decode to text, trying common encodings."""
+    if not rf.file_path:
+        return ""
+    full_path = _UPLOAD_ROOT / rf.file_path
+    if not full_path.exists():
+        return ""
+    raw_bytes = full_path.read_bytes()
     for encoding in ("utf-8", "gbk", "gb2312", "latin-1"):
         try:
-            return raw_content.decode(encoding)
+            return raw_bytes.decode(encoding)
         except (UnicodeDecodeError, UnicodeError):
             continue
-    return raw_content.decode("utf-8", errors="replace")
+    return raw_bytes.decode("utf-8", errors="replace")
 
 
 def _serialize_trades(trades) -> list[dict]:
@@ -182,7 +192,7 @@ def contribute(
         for rf in raw_files:
             raw_filenames.append(rf.filename)
             raw_file_content_parts.append(
-                _decode_raw_content(rf.raw_content)
+                _read_and_decode_raw_file(rf)
             )
     raw_file_content = "\n".join(raw_file_content_parts)
     raw_filename = "; ".join(raw_filenames)

@@ -3,6 +3,7 @@ import io
 import json
 import re
 import urllib.parse
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from fastapi.responses import StreamingResponse
@@ -18,6 +19,17 @@ from app.models.raw_file import RawFile
 from app.models.report import Report
 from app.models.trade import Trade
 from app.models.user import User
+
+
+UPLOAD_ROOT = Path(__file__).resolve().parent.parent.parent / "uploads"
+
+
+def _read_raw_file_bytes(rf) -> bytes:
+    """Read a RawFile's content from disk."""
+    if not rf.file_path:
+        return b""
+    full_path = UPLOAD_ROOT / rf.file_path
+    return full_path.read_bytes() if full_path.exists() else b""
 
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -209,7 +221,7 @@ def download_raw_file(
     safe_name = _safe_filename(rf.filename)
     encoded_name = urllib.parse.quote(safe_name)
     return StreamingResponse(
-        io.BytesIO(rf.raw_content),
+        io.BytesIO(_read_raw_file_bytes(rf)),
         media_type="application/octet-stream",
         headers={
             "Content-Disposition": f"attachment; filename={safe_name}; filename*=UTF-8''{encoded_name}"

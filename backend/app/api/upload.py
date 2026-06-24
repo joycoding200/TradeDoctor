@@ -1,6 +1,9 @@
 """Upload API routes: upload file, confirm format, import trades."""
 
 import os
+import shutil
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, Header, Request
 from sqlalchemy.orm import Session
 
@@ -25,8 +28,36 @@ from app.schemas.upload import (
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10MB
+MAX_UPLOAD_BYTES = 10 * 1024 * 100  # 10MB
 ALLOWED_EXTENSIONS = (".csv", ".xls", ".xlsx")
+
+# ── File storage ────────────────────────────────────────────────────────────
+
+UPLOAD_ROOT = Path(__file__).resolve().parent.parent.parent / "uploads"
+
+
+def _make_file_path(user_id: str, raw_file_id: str, ext: str) -> str:
+    """Return relative path: uploads/{user_id}/{raw_file_id}.ext"""
+    return f"{user_id}/{raw_file_id}{ext}"
+
+
+def _read_raw_content(rf: RawFile) -> bytes:
+    """Read a RawFile's content from disk (backward compat with parser API)."""
+    if not rf.file_path:
+        return b""
+    full_path = UPLOAD_ROOT / rf.file_path
+    return full_path.read_bytes() if full_path.exists() else b""
+
+
+def _delete_raw_file(rf: RawFile) -> None:
+    """Remove raw file from disk (used during clear_trades)."""
+    if not rf.file_path:
+        return
+    full_path = UPLOAD_ROOT / rf.file_path
+    try:
+        full_path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 @router.post("", response_model=UploadResponse)
@@ -57,9 +88,19 @@ def upload_file(
     raw_file = RawFile(
         user_id=current_user.id,
         filename=filename,
-        raw_content=content,
     )
     db.add(raw_file)
+    db.flush()  # get raw_file.id before writing to disk
+
+    # Write file to disk under uploads/{user_id}/{raw_file_id}.{ext}
+    ext = os.path.splitext(filename)[1].lower()
+    rel_path = _make_file_path(current_user.id, raw_file.id, ext)
+    full_path = UPLOAD_ROOT / rel_path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.write_bytes(content)
+
+    raw_file.file_path = rel_path
+    raw_file.file_size = len(content)
     db.commit()
     db.refresh(raw_file)
 
@@ -96,7 +137,8 @@ def confirm_format(
             status_code=400, detail=f"Unknown source type: {body.source_type}"
         )
 
-    trades = parser_cls.parse(raw_file.raw_content, raw_file.filename)
+    content = _read_raw_content(raw_file)
+    trades = parser_cls.parse(content, raw_file.filename)
 
     # Persist the chosen format
     raw_file.source_type = body.source_type
@@ -147,7 +189,8 @@ def import_trades(
             detail=f"Unknown source type: {raw_file.source_type}",
         )
 
-    trades = parser_cls.parse(raw_file.raw_content, raw_file.filename)
+    content = _read_raw_content(raw_file)
+    trades = parser_cls.parse(content, raw_file.filename)
     for t in trades:
         db.add(
             Trade(
@@ -200,8 +243,18 @@ def clear_trades(
     # 4. Trades
     db.query(Trade).filter(Trade.user_id == user_id).delete(synchronize_session=False)
 
-    # 5. RawFiles
+    # 5. RawFiles — delete files from disk first, then rows
+    raw_files = db.query(RawFile).filter(RawFile.user_id == user_id).all()
+    for rf in raw_files:
+        _delete_raw_file(rf)
     db.query(RawFile).filter(RawFile.user_id == user_id).delete(synchronize_session=False)
+
+    # Clean up empty user upload directories
+    user_upload_dir = UPLOAD_ROOT / user_id
+    try:
+        shutil.rmtree(user_upload_dir, ignore_errors=True)
+    except OSError:
+        pass
 
     db.commit()
     return {"detail": "所有交易数据已永久删除"}

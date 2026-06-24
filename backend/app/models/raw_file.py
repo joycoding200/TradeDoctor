@@ -1,8 +1,8 @@
-"""RawFile model."""
+"""RawFile model — stores file metadata, content lives on disk under uploads/."""
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, ForeignKey, LargeBinary, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 
 from app.database import Base
 
@@ -17,7 +17,8 @@ class RawFile(Base):
     filename = Column(String(500), nullable=False)
     source_type = Column(String(50), nullable=True)
     asset_type = Column(String(20), nullable=True)
-    raw_content = Column(LargeBinary, nullable=False)
+    file_path = Column(String(1000), nullable=True)  # rel path under backend/uploads/
+    file_size = Column(Integer, nullable=True)         # bytes
     uploaded_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
