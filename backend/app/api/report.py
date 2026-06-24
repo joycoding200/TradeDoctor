@@ -121,7 +121,7 @@ def _build_analysis_data(trades, positions, insight_items, whatif_items, stats_d
         result["profit_capture_ratio"] = stats_data.get("profit_capture_ratio")
         result["win_loss_ratio"] = stats_data.get("win_loss_ratio")
         result["total_return_pct"] = stats_data.get("total_return_pct")
-        result["outcome_distribution"] = stats_data.get("outcome_distribution", [])
+        result["pnl_distribution"] = stats_data.get("pnl_distribution", [])
 
         # V4.0: top 3 winners + bottom 3 losers
         sorted_by_pnl = sorted(positions, key=lambda p: p.pnl, reverse=True)
@@ -258,14 +258,14 @@ async def generate_report(
     from app.engine.insight import InsightItem
     expectancy_val = InsightItem.compute(valid_positions) if valid_positions else 0.0
 
-    # Outcome distribution
-    outcome_counts: dict[str, int] = {}
+    # PnL level distribution (NOT behavioral outcome patterns)
+    pnl_counts: dict[str, int] = {}
     for p in valid_positions:
-        outcome = PatternEngine.compute_outcome(p)
-        label = outcome["label"]
-        if label:
-            outcome_counts[label] = outcome_counts.get(label, 0) + 1
-    outcome_dist = [{"label": l, "count": c} for l, c in sorted(outcome_counts.items())]
+        level_info = PatternEngine.classify_pnl_level(p)
+        level = level_info["level"]
+        if level:
+            pnl_counts[level] = pnl_counts.get(level, 0) + 1
+    pnl_dist = [{"level": l, "count": c} for l, c in sorted(pnl_counts.items())]
 
     stats_data = {
         "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
@@ -278,7 +278,7 @@ async def generate_report(
         "profit_capture_ratio": round(mae_mfe_stats.get("profit_capture_ratio", 0.0), 4),
         "win_loss_ratio": round(win_loss_ratio, 2) if win_loss_ratio is not None else None,
         "total_return_pct": round(total_return_pct, 4),
-        "outcome_distribution": outcome_dist,
+        "pnl_distribution": pnl_dist,
     }
 
     # Build AI prompt with exact dates (so the AI doesn't guess)

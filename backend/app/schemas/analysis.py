@@ -45,8 +45,13 @@ class PositionItem(BaseModel):
     trade_ids: list[str]
 
 
-class OutcomeItem(BaseModel):
-    label: str
+class PnlLevelItem(BaseModel):
+    """A single PnL-magnitude bucket (大盈/正常盈利/小盈/小亏/大亏).
+
+    Used for the pnl_distribution chart — distinct from the outcome dimension
+    behavioral tags (TIGHT_STOP/TRAILING_STOP/TIME_EXIT/LARGE_LOSS_EXIT).
+    """
+    level: str
     count: int
 
 
@@ -99,7 +104,7 @@ class StatsResponse(BaseModel):
     filename: str = ""
     filenames: list[str] = []  # multi-file: all linked filenames
     raw_file_ids: list[str] = []  # multi-file: all linked raw_file IDs
-    outcome_distribution: list[OutcomeItem] = []
+    pnl_distribution: list[PnlLevelItem] = []
     positions: list[PositionItem]
     # V1.2 MAE/MFE
     avg_mae: float = 0.0

@@ -183,69 +183,68 @@ class TestPositionTag:
 # ============================================================================
 
 
-class TestComputeOutcome:
-    """PatternEngine.compute_outcome() produces outcome labels, not behavior tags."""
+class TestClassifyPnlLevel:
+    """PatternEngine.classify_pnl_level() produces PnL-magnitude buckets, not behavior tags."""
 
-    def test_big_win(self):
+    def test_da_ying(self):
         pos = make_pos(pnl_pct=0.25, holding_days=10)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "BIG_WIN"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "大盈"
 
-    def test_normal_profit(self):
+    def test_zhengchang_yingli(self):
         pos = make_pos(pnl_pct=0.10, holding_days=8)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "NORMAL_PROFIT"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "正常盈利"
 
-    def test_normal_profit_boundary_lower(self):
+    def test_zhengchang_yingli_boundary_lower(self):
         pos = make_pos(pnl_pct=0.05, holding_days=5)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "NORMAL_PROFIT"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "正常盈利"
 
-    def test_normal_profit_boundary_upper(self):
+    def test_zhengchang_yingli_boundary_upper(self):
         pos = make_pos(pnl_pct=0.20, holding_days=8)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "NORMAL_PROFIT"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "正常盈利"
 
-    def test_quick_profit(self):
+    def test_xiao_ying(self):
         pos = make_pos(pnl_pct=0.03, holding_days=2)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "QUICK_PROFIT"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "小盈"
 
-    def test_small_loss(self):
+    def test_xiao_kui(self):
         pos = make_pos(pnl_pct=-0.05, holding_days=5)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "SMALL_LOSS"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "小亏"
 
-    def test_small_loss_at_boundary(self):
+    def test_xiao_kui_at_boundary(self):
         pos = make_pos(pnl_pct=-0.08, holding_days=3)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "SMALL_LOSS"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "小亏"
 
-    def test_large_loss(self):
+    def test_da_kui(self):
         pos = make_pos(pnl_pct=-0.25, holding_days=5)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "LARGE_LOSS"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "大亏"
 
-    def test_large_loss_beyond_eight(self):
+    def test_da_kui_beyond_eight(self):
         pos = make_pos(pnl_pct=-0.09, holding_days=5)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] == "LARGE_LOSS"
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] == "大亏"
 
-    def test_zero_pnl_has_no_label(self):
+    def test_zero_pnl_has_no_level(self):
         pos = make_pos(pnl_pct=0.0, holding_days=1)
-        result = PatternEngine.compute_outcome(pos)
-        assert result["label"] is None
+        result = PatternEngine.classify_pnl_level(pos)
+        assert result["level"] is None
 
-    def test_outcome_not_in_tag_position(self):
-        """Outcome tags should NOT appear in tag_position() results."""
+    def test_pnl_level_not_in_tag_position(self):
+        """PnL level buckets should NOT appear in tag_position() results."""
         pos = make_pos(pnl_pct=0.25, holding_days=10)
         tags = tag_names(pos)
-        assert "BIG_WIN" not in tags
-        assert "NORMAL_PROFIT" not in tags
-        assert "QUICK_PROFIT" not in tags
-        assert "SMALL_LOSS_EXIT" not in tags
-        assert "SMALL_LOSS" not in tags
-        assert "LARGE_LOSS" not in tags
+        assert "大盈" not in tags
+        assert "正常盈利" not in tags
+        assert "小盈" not in tags
+        assert "小亏" not in tags
+        assert "大亏" not in tags
 
 
 class TestTurnTag:

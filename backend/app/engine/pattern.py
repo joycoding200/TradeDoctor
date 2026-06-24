@@ -9,6 +9,10 @@ Produces behavior tags across four dimensions:
   Dimension 4 - psychology:  AI-inferred patterns (POSSIBLE_REVENGE, OVERTRADING,
                              HOLD_LOSER, CUT_WINNER, PSY_FOMO) — low confidence
 
+Also provides classify_pnl_level() — a pure PnL-magnitude classification
+(大盈/正常盈利/小盈/小亏/大亏) for the pnl_distribution chart. This is a
+STATISTICAL BUCKET, not a behavioral label — it answers "how much" not "how."
+
 Key financial fixes from code audit:
   - TREND/COUNTER_TREND were "market state" mislabeled as "trading behavior"
     → renamed to BULL_TREND/BEAR_TREND and placed in market_env dimension
@@ -94,25 +98,30 @@ class PatternEngine:
         return list(best.values())
 
     @staticmethod
-    def compute_outcome(pos) -> dict:
-        """Compute outcome classification (NOT a behavior pattern).
+    def classify_pnl_level(pos) -> dict:
+        """Classify a position by PnL magnitude (PnL level bucket).
+
+        This is a pure-numeric classification — it answers "how big was the
+        gain/loss?" It is NOT a behavioral pattern and is separate from the
+        outcome dimension tags (TIGHT_STOP / TRAILING_STOP / TIME_EXIT /
+        LARGE_LOSS_EXIT) which answer "how did the trade end?"
 
         Returns:
-            dict with keys: pnl, pnl_pct, label (one of BIG_WIN, NORMAL_PROFIT,
-            QUICK_PROFIT, SMALL_LOSS, LARGE_LOSS, or None for zero PnL).
+            dict with keys: pnl, pnl_pct, level (one of 大盈, 正常盈利,
+            小盈, 小亏, 大亏, or None for zero PnL).
         """
-        outcome = {"pnl": pos.pnl, "pnl_pct": pos.pnl_pct, "label": None}
+        result = {"pnl": pos.pnl, "pnl_pct": pos.pnl_pct, "level": None}
         if pos.pnl_pct > 0.20:
-            outcome["label"] = "BIG_WIN"
+            result["level"] = "大盈"
         elif pos.pnl_pct >= 0.05:
-            outcome["label"] = "NORMAL_PROFIT"
+            result["level"] = "正常盈利"
         elif pos.pnl_pct > 0:
-            outcome["label"] = "QUICK_PROFIT"
+            result["level"] = "小盈"
         elif pos.pnl_pct < 0 and pos.pnl_pct >= -0.08:
-            outcome["label"] = "SMALL_LOSS"
+            result["level"] = "小亏"
         elif pos.pnl_pct < -0.08:
-            outcome["label"] = "LARGE_LOSS"
-        return outcome
+            result["level"] = "大亏"
+        return result
 
     # ------------------------------------------------------------------
     # Module 2 & 3 -- available without market data

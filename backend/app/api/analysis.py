@@ -28,7 +28,7 @@ from app.schemas.analysis import (
     InsightPatternItem,
     InsightResponse,
     LinkFilesRequest,
-    OutcomeItem,
+    PnlLevelItem,
     PositionItem,
     RuleSimulationItem,
     ShapleyItem,
@@ -259,16 +259,16 @@ def get_stats(
         sorted(valid_positions, key=lambda p: p.exit_date)
     )
 
-    # Outcome distribution
-    outcome_counts: dict[str, int] = {}
+    # PnL level distribution (NOT behavioral outcome patterns)
+    pnl_counts: dict[str, int] = {}
     for p in valid_positions:
-        outcome = PatternEngine.compute_outcome(p)
-        label = outcome["label"]
-        if label:
-            outcome_counts[label] = outcome_counts.get(label, 0) + 1
-    outcome_distribution = [
-        OutcomeItem(label=label, count=count)
-        for label, count in sorted(outcome_counts.items())
+        level_info = PatternEngine.classify_pnl_level(p)
+        level = level_info["level"]
+        if level:
+            pnl_counts[level] = pnl_counts.get(level, 0) + 1
+    pnl_distribution = [
+        PnlLevelItem(level=level, count=count)
+        for level, count in sorted(pnl_counts.items())
     ]
 
     # V4.0: symbol summary — group valid positions by symbol
@@ -390,7 +390,7 @@ def get_stats(
     if valid_count > 0:
         total_expectancy = InsightItem.compute(valid_positions)
 
-    # --- Outcome distribution ---
+    # --- PnL distribution ---
 
     # Auto-save snapshot on first view or when raw_file_ids change (multi-file aware)
     snapshot_needs_update = False
@@ -450,7 +450,7 @@ def get_stats(
         total_return_pct=round(total_return_pct, 4),
         avg_win_pct=round(avg_win_pct, 4),
         avg_loss_pct=round(avg_loss_pct, 4),
-        outcome_distribution=outcome_distribution,
+        pnl_distribution=pnl_distribution,
         positions=position_items,
         # V1.2 MAE/MFE
         avg_mae=round(mae_mfe_stats.get("avg_mae", 0.0), 4),
