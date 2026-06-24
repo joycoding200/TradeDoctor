@@ -38,7 +38,7 @@ def get_auth_header(client, email=TEST_EMAIL):
 
 
 def import_trades(client, headers):
-    """Helper: upload, confirm, and import QMT trades."""
+    """Helper: upload, confirm, and import QMT trades. Returns raw_file_id."""
     r = client.post(
         "/api/upload",
         headers=headers,
@@ -48,20 +48,24 @@ def import_trades(client, headers):
     client.post(
         "/api/upload/confirm",
         headers=headers,
-        json={"raw_file_id": raw_file_id, "source_type": "qmt"},
+        json={"raw_file_id": raw_file_id, "source_type": "smart"},
     )
     client.post(
         "/api/upload/import",
         headers=headers,
         json={"raw_file_id": raw_file_id},
     )
+    return raw_file_id
 
 
-def run_analysis(client, headers):
+def run_analysis(client, headers, raw_file_id=None):
+    body = {"date_start": "2024-01-01", "date_end": "2024-12-31"}
+    if raw_file_id:
+        body["raw_file_id"] = raw_file_id
     resp = client.post(
         "/api/analysis/run",
         headers=headers,
-        json={"date_start": "2024-01-01", "date_end": "2024-12-31"},
+        json=body,
     )
     return resp.json()["analysis_id"]
 
@@ -72,8 +76,8 @@ class _BaseReportTest:
     @pytest.fixture(autouse=True)
     def setup(self, client):
         self.headers = get_auth_header(client)
-        import_trades(client, self.headers)
-        self.analysis_id = run_analysis(client, self.headers)
+        raw_file_id = import_trades(client, self.headers)
+        self.analysis_id = run_analysis(client, self.headers, raw_file_id)
 
 
 class TestReportGenerate(_BaseReportTest):
@@ -220,8 +224,8 @@ class TestReportsList:
         mock_get_llm.return_value = mock_provider
 
         headers = get_auth_header(client, "report_list_gen@test.com")
-        import_trades(client, headers)
-        analysis_id = run_analysis(client, headers)
+        raw_file_id = import_trades(client, headers)
+        analysis_id = run_analysis(client, headers, raw_file_id)
 
         # Generate a report
         client.post(

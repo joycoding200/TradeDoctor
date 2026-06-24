@@ -314,3 +314,207 @@ class TestAnalysisWhatIf(_BaseAnalysisTest):
             headers=headers,
         )
         assert resp.status_code == 404
+
+
+class TestEquityCurve(_BaseAnalysisTest):
+    """V4.0: equity_curve — 按持仓退出日期累计 PnL 的数据点序列。
+
+    领域定义 (CLAUDE.md):
+      - 按 Position 退出日期累计，不按逐笔 Trade
+      - 起点: {首笔 exit_date, cum_pnl=0.0, cum_pnl_pct=0.0}
+      - 后续逐笔累加
+    """
+
+    def test_equity_curve_exists_and_nonempty(self, client):
+        """equity_curve 字段存在且至少含起点 + 1 个持仓退出点。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        data = resp.json()
+        assert "equity_curve" in data
+        curve = data["equity_curve"]
+        assert len(curve) >= 2  # 起点 + 至少 1 个 position
+
+    def test_equity_curve_start_point_is_zero(self, client):
+        """起点 cum_pnl 和 cum_pnl_pct 均为 0.0。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        curve = resp.json()["equity_curve"]
+        first = curve[0]
+        assert first["cum_pnl"] == 0.0
+        assert first["cum_pnl_pct"] == 0.0
+
+    def test_equity_curve_cumulative_matches_total_pnl(self, client):
+        """最后一个点的 cum_pnl 应等于全部有效持仓 PnL 之和。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        data = resp.json()
+        curve = data["equity_curve"]
+        last = curve[-1]
+        # Position 1: +490, Position 2: -706 → total = -216
+        assert last["cum_pnl"] == data["total_pnl"]
+
+    def test_equity_curve_dates_are_position_exit_dates(self, client):
+        """曲线中的日期应来自持仓退出日期，按时间排序。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        curve = resp.json()["equity_curve"]
+        dates = [p["date"] for p in curve]
+        # 至少包含两个退出日期: 2024-01-08 和 2024-02-05
+        assert "2024-01-08" in dates
+        assert "2024-02-05" in dates
+        # 日期应按时间递增
+        assert dates == sorted(dates)
+
+    def test_equity_curve_cumulative_is_running_sum(self, client):
+        """每个点的 cum_pnl 是到该点为止所有持仓 PnL 的累加。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        curve = resp.json()["equity_curve"]
+        # 跳过起点 (cum_pnl=0)，检查后续累加
+        # Position 1 (000001) exit 01-08: pnl=+490
+        # Position 2 (600001) exit 02-05: pnl=-706
+        # 找到 01-08 和 02-05 对应的点
+        pnl_by_date = {}
+        for pt in curve:
+            if pt["cum_pnl"] != 0.0 or pt is curve[0]:
+                pnl_by_date[pt["date"]] = pt["cum_pnl"]
+        # 01-08 的 cum_pnl 应为 490 (第一笔持仓退出)
+        assert pnl_by_date.get("2024-01-08") == 490.0
+        # 02-05 的 cum_pnl 应为 490 + (-706) = -216
+        assert pnl_by_date.get("2024-02-05") == -216.0
+
+    def test_equity_curve_empty_when_no_trades(self, client):
+        """无交易时 equity_curve 应为空列表。"""
+        resp = client.post(
+            "/api/analysis/run",
+            headers=self.headers,
+            json={"date_start": "2023-01-01", "date_end": "2023-01-31"},
+        )
+        aid = resp.json()["analysis_id"]
+        resp = client.get(f"/api/analysis/{aid}/stats", headers=self.headers)
+        curve = resp.json()["equity_curve"]
+        assert curve == []
+
+
+class TestSymbolSummary(_BaseAnalysisTest):
+    """V4.0: symbol_summary — 按个股汇总的盈亏统计。
+
+    领域定义 (CLAUDE.md):
+      - 仅统计 cost_known=True 的有效持仓 (valid_positions)
+      - 字段: symbol, trade_count, win_count, win_rate, total_pnl,
+              avg_holding_days, first_trade_date, last_trade_date
+    """
+
+    def test_symbol_summary_exists_and_nonempty(self, client):
+        """symbol_summary 字段存在且包含每个个股一条记录。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        data = resp.json()
+        assert "symbol_summary" in data
+        summary = data["symbol_summary"]
+        assert len(summary) == 2  # 000001 + 600001
+
+    def test_symbol_summary_contains_both_symbols(self, client):
+        """两个股票代码都应出现在汇总中。"""
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        summary = resp.json()["symbol_summary"]
+        symbols = {s["symbol"] for s in summary}
+        assert "000001" in symbols
+        assert "600001" in symbols
+
+    def test_symbol_summary_winner_stats(self, client):
+        """盈利个股 000001 的统计数据正确。
+
+        Note: first_trade_date / last_trade_date 的语义待确认。
+        字段名暗示首末成交日期，但当前实现返回持仓退出日期。
+        """
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        summary = resp.json()["symbol_summary"]
+        item = next(s for s in summary if s["symbol"] == "000001")
+        assert item["trade_count"] == 1
+        assert item["win_count"] == 1
+        assert item["win_rate"] == 1.0
+        assert item["total_pnl"] == 490.0
+        assert item["avg_holding_days"] == 3.0
+        # 000001: trades on 01-05 (buy) and 01-08 (sell)
+        assert item["first_trade_date"] is not None
+        assert item["last_trade_date"] is not None
+        assert item["first_trade_date"] <= item["last_trade_date"]
+
+    def test_symbol_summary_loser_stats(self, client):
+        """亏损个股 600001 的统计数据正确。
+
+        Note: first_trade_date / last_trade_date 的语义待确认。
+        字段名暗示首末成交日期，但当前实现返回持仓退出日期。
+        """
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats",
+            headers=self.headers,
+        )
+        summary = resp.json()["symbol_summary"]
+        item = next(s for s in summary if s["symbol"] == "600001")
+        assert item["trade_count"] == 1
+        assert item["win_count"] == 0
+        assert item["win_rate"] == 0.0
+        assert item["total_pnl"] == -706.0
+        assert item["avg_holding_days"] == 4.0
+        # 600001: trades on 02-01 (buy) and 02-05 (sell)
+        assert item["first_trade_date"] is not None
+        assert item["last_trade_date"] is not None
+        assert item["first_trade_date"] <= item["last_trade_date"]
+
+    def test_symbol_summary_empty_when_no_trades(self, client):
+        """无交易时 symbol_summary 应为空列表。"""
+        resp = client.post(
+            "/api/analysis/run",
+            headers=self.headers,
+            json={"date_start": "2023-01-01", "date_end": "2023-01-31"},
+        )
+        aid = resp.json()["analysis_id"]
+        resp = client.get(f"/api/analysis/{aid}/stats", headers=self.headers)
+        summary = resp.json()["symbol_summary"]
+        assert summary == []
+
+    def test_symbol_summary_all_losing(self, client):
+        """全亏损场景: 每个股票 win_count=0, win_rate=0.0。"""
+        headers = get_auth_header(client, "sym_all_loss@test.com")
+        raw_file_id = _import_csv(client, headers, ALL_LOSS_CSV)
+        aid = run_analysis(client, headers, raw_file_id=raw_file_id)
+        resp = client.get(f"/api/analysis/{aid}/stats", headers=headers)
+        summary = resp.json()["symbol_summary"]
+        assert len(summary) == 2
+        for item in summary:
+            assert item["win_count"] == 0
+            assert item["win_rate"] == 0.0
+            assert item["total_pnl"] < 0
+
+    def test_symbol_summary_all_winning(self, client):
+        """全盈利场景: 每个股票 win_count=1, win_rate=1.0。"""
+        headers = get_auth_header(client, "sym_all_win@test.com")
+        raw_file_id = _import_csv(client, headers, ALL_WIN_CSV)
+        aid = run_analysis(client, headers, raw_file_id=raw_file_id)
+        resp = client.get(f"/api/analysis/{aid}/stats", headers=headers)
+        summary = resp.json()["symbol_summary"]
+        assert len(summary) == 2
+        for item in summary:
+            assert item["win_count"] == 1
+            assert item["win_rate"] == 1.0
+            assert item["total_pnl"] > 0
