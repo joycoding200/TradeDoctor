@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Analysis API routes: run analysis, fetch stats / insight / what-if."""
 
 import logging

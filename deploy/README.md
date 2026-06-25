@@ -121,7 +121,7 @@ http://你的服务器IP/
 SSH 免密配置好后，本地改完代码，一条命令：
 
 ```bash
-bash deploy/local-deploy.sh
+python deploy/local-deploy.py
 ```
 
 **工作流程：**
@@ -139,8 +139,8 @@ bash deploy/local-deploy.sh
 
 可选参数：
 ```bash
-bash deploy/local-deploy.sh --skip-build  # dist/ 已是最新，跳过构建
-bash deploy/local-deploy.sh --dry-run     # 只查看将同步的文件，不实际执行
+python deploy/local-deploy.py --skip-build  # dist/ 已是最新，跳过构建
+python deploy/local-deploy.py --dry-run     # 只查看将同步的文件，不实际执行
 ```
 
 ### 方式 2：GitHub Actions 全自动

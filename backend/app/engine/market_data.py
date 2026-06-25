@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Market data cache engine -- load/store daily bars."""
 from datetime import date
 from sqlalchemy.orm import Session

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Report API routes: generate AI report, fetch report(s)."""
 
 import io

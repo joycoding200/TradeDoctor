@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Pydantic schemas for analysis endpoints."""
 
 from datetime import date, datetime

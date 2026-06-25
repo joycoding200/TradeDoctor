@@ -1,3 +1,4 @@
+from __future__ import annotations
 """What-If engine (whatif.py).
 
 Two main capabilities:

@@ -148,7 +148,8 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_engine/ -v)",
       "mcp__chrome-devtools__navigate_page",
       "mcp__plugin_playwright_playwright__browser_type",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(git *)"
     ]
   },
   "enableAllProjectMcpServers": true

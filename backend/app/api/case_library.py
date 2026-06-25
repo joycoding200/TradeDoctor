@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Case Library API: anonymous contribution of analysis data."""
 
 import json

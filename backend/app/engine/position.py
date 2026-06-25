@@ -1,3 +1,4 @@
+from __future__ import annotations
 """FIFO position builder engine.
 
 Transforms raw trade records into closed positions using

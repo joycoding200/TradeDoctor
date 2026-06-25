@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Market data fetcher — pull A-share daily bars via mootdx (TDX TCP), cache to DailyBar.
 
 Data source priority: mootdx (TCP 7709, no IP blocking) → skip market patterns gracefully.

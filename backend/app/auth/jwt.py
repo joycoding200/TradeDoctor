@@ -1,3 +1,4 @@
+from __future__ import annotations
 """JWT auth helpers: hash, verify, create_token, get_current_user.
 
 Supports both Bearer token (Authorization header) and httpOnly cookie

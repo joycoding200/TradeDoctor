@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Insight engine: aggregate positions by behavior pattern and compute statistics."""
 from dataclasses import dataclass
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Load pattern definitions from pattern_definition.yaml (single source of truth).
 
 Data is loaded lazily on first access so a missing/malformed YAML file does not

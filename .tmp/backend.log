@@ -1,0 +1,280 @@
+INFO:     Started server process [25536]
+INFO:     Waiting for application startup.
+[18:28:11] INFO    app.main  TradeDoctor starting up (ENV=development)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_part_begin with no data
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_header_field with data[42:61]
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_header_value with data[63:125]
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_header_end with no data
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_header_field with data[127:139]
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_header_value with data[141:165]
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_header_end with no data
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_headers_finished with no data
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_part_data with data[169:16384]
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_part_data with data[0:17317]
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_part_end with no data
+[18:28:51] DEBUG   python_multipart.multipart  Calling on_end with no data
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_part_begin with no data
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_header_field with data[42:61]
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_header_value with data[63:120]
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_header_end with no data
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_header_field with data[122:134]
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_header_value with data[136:160]
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_header_end with no data
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_headers_finished with no data
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_part_data with data[164:26898]
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_part_end with no data
+[18:29:08] DEBUG   python_multipart.multipart  Calling on_end with no data
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u26a0' in position 1645: illegal multibyte sequence
+Call stack:
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1524, in __call__
+    return self.main(*args, **kwargs)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1445, in main
+    rv = self.invoke(ctx)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1308, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 877, in invoke
+    return callback(*args, **kwargs)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\main.py", line 412, in main
+    run(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\main.py", line 579, in run
+    server.run()
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\server.py", line 65, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 677, in run_forever
+    self._run_once()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 2057, in _run_once
+    handle._run()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\slowapi\extension.py", line 737, in async_wrapper
+    response = await func(*args, **kwargs)  # type: ignore
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\api\report.py", line 302, in generate_report
+    report_content = await generate_with_retry(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\ai\validator.py", line 177, in generate_with_retry
+    report = await provider.generate(system_prompt, current_prompt)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\ai\provider.py", line 83, in generate
+    response = await self.client.chat.completions.create(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 2814, in create
+    return await self._post(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1931, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1634, in request
+    request = self._build_request(options, retries_taken=retries_taken)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 505, in _build_request
+    log.debug(
+Message: 'Request options: %s'
+Arguments: {'method': 'post', 'url': '/chat/completions', 'files': None, 'idempotency_key': 'stainless-python-retry-8c350795-f5a2-4900-a8e6-4c1f42daefa6', 'security': {'bearer_auth': True}, 'content': None, 'json_data': {'messages': [{'role': 'system', 'content': '你是 TradeDoctor（交易诊断助手）的 AI 交易教练。你的任务是基于用户的交易数据，生成一份《交易行为诊断书》。\n\n## 数据真实性规范（极其重要 — 违反将导致报告被拒绝）\n\n**绝对禁止编造以下任何信息。如果数据中不存在，就写"无相关数据"而不是猜测：**\n\n1. **日期**：用户提示词中已提供"诊断日期（今天）"和"数据范围"，必须原样使用，不得加减天数。如果数据范围是多段（如"2026-01-01 至 2026-03-31、2026-06-01 至 2026-06-19"），表示用户上传了多个不连续的交割单，报告中也必须原样列出多段范围。\n2. **交易者身份**：不要写"[用户]"、"匿名用户"、"交易员"等。直接省略交易者ID这一行，从分析周期开始写。\n3. **股票名称**：系统只提供6位代码（如 600330、000901），**绝对禁止**根据代码猜测股票名称。报告中使用代码即可，不要添加名称。\n4. **百分比数值**：报告中的每一个百分比都必须来自用户提示词中的数据。**绝对禁止**自行计算或推断任何百分比（如"亏损超过100%"、"赚了50%"等），除非该数字明确出现在提示词中。\n5. **账户总资金/总投入**：如果没有提供，禁止猜测"总资金约X元"。\n6. **具体天数/日期**：不要估算"约5-6个月"、"大约半年"等模糊时间。直接使用提供的起止日期。\n7. **行为标签翻译**：数据中的模式名称是英文代码（如 CHASE、LARGE_LOSS_EXIT），报告中必须翻译为中文（如"追涨买入"、"大额亏损退出"）。\n\n## 核心原则\n1. **只分析行为，不预测市场。** 不推荐股票，不预测涨跌。\n2. **基于数据说话。** 每一条结论都必须有数据支撑。\n3. **建设性。** 指出问题的同时，给出可执行的改善建议。\n4. **简明扼要。** 用简洁的段落呈现，避免冗长。\n5. **面向散户。** 假设读者是一个炒股 3-5 年的老股民，不是金融科班出身，也不是小白。用茶馆聊天、股友交流的口吻写，三句话以内说清楚一件事。避免"建议您"、"请注意"等公文腔，直接用"你"。\n\n## 语言要求（重要）\n- **必须全部使用中文输出。** 禁止在正文中使用英文术语、英文缩写或中英混杂。\n- 所有指标必须附带中文解释（例：盈亏比即赚的钱除以亏的钱，大于1表示整体盈利）。\n- 所有英文缩写首次出现时必须替换为中文全称（例：用"最大不利变动"替代"MAE"，用"最大有利变动"替代"MFE"）。\n\n## 输出结构\n### 核心结论\n一句话概括当前交易状态。\n\n### 优势清单\n做得好的 2-3 个交易行为，每条包含：\n- 行为名称（中文，如：及时止损、顺势交易、仓位管理）\n- 数据支撑（如：止损交易平均亏损仅 X%，远低于不止损交易）\n- 一句话肯定\n\n### 风险警示\n最危险的 2-3 个交易行为，每条包含：\n- 行为名称（中文）\n- 数据支撑（如：该行为贡献了总亏损的 X%）\n- 潜在原因推测\n- 警示等级（\u26a0\ufe0f 注意 / \U0001f534 严重 / \U0001f6a8 高危）\n\n### 改善建议\n基于数据的 3-5 条具体可执行措施，每条必须是：\n1. **一个具体动作**（如"单笔亏损超过总资金 2% 时强制止损"），不是泛泛的"控制风险"\n2. **一个可量化目标**（如"将平均亏损控制在 X 元以内"），不是"少亏一些"\n3. **一个执行触发条件**（如"持仓超过 X 天未盈利则重新评估"），不是"要有耐心"\n\n建议格式：\n> 建议一：[具体动作]\n> 当前：[你的数据现状]\n> 目标：[可量化的改善目标]\n> 执行：[什么情况下触发此规则]'}, {'role': 'user', 'content': "请根据以下交易数据分析我的交易行为并生成诊断书。\n\n诊断日期（今天）：2026-06-25\n数据范围：2026-01-05 至 2026-06-17\n\n总交易笔数：311\n胜率：59.56%\n总盈亏：-33336.69\n平均持仓天数：12.7\n\n行为标签统计：\n- SCALP: 31次, 胜率90.3%, 总盈亏+19125.84\n- SWING: 78次, 胜率62.8%, 总盈亏+15461.52\n- POSITION: 18次, 胜率22.2%, 总盈亏-67924.05\n\n反事实回测（What If）：\n- 移除 HOLD_LOSER: 收益变化 +0.0548, 影响度 1.00\n- 移除 AVERAGE_DOWN: 收益变化 +0.0478, 影响度 0.87\n- 移除 SWING: 收益变化 -0.0371, 影响度 0.68\n- 移除 POSITION: 收益变化 +0.0350, 影响度 0.64\n- 移除 CUT_WINNER: 收益变化 -0.0211, 影响度 0.39\n- 移除 PYRAMID: 收益变化 -0.0195, 影响度 0.36\n- 移除 BULL_TREND: 收益变化 +0.0168, 影响度 0.31\n- 移除 PSY_FOMO: 收益变化 +0.0163, 影响度 0.30\n- 移除 LARGE_LOSS_EXIT: 收益变化 +0.0146, 影响度 0.27\n- 移除 SCALP: 收益变化 -0.0143, 影响度 0.26\n- 移除 CHASE: 收益变化 +0.0122, 影响度 0.22\n- 移除 TURN: 收益变化 -0.0119, 影响度 0.22\n- 移除 OVERTRADING: 收益变化 -0.0095, 影响度 0.17\n- 移除 FOMO: 收益变化 +0.0061, 影响度 0.11\n- 移除 TRAILING_STOP: 收益变化 -0.0039, 影响度 0.07\n- 移除 BREAKOUT: 收益变化 -0.0028, 影响度 0.05\n- 移除 BREAKDOWN: 收益变化 +0.0027, 影响度 0.05\n- 移除 SIDEWAYS: 收益变化 -0.0006, 影响度 0.01\n- 移除 TIME_EXIT: 收益变化 -0.0003, 影响度 0.01\n- 移除 TIGHT_STOP: 收益变化 +0.0002, 影响度 0.00\n\n风险指标：\n- 盈亏比（赚的钱÷亏的钱，>1表示整体盈利）: 0.74\n- 预期收益（每笔交易的平均预期盈亏百分比）: 0.01%\n- 最大回撤（账户从最高点回落的最大幅度）: 61578.98元 (224.7%)\n- 最大连续亏损（连续亏损的最多笔数）: 7次\n- 平均最大不利变动（持仓期间浮亏的最大幅度）: -6.8%\n- 平均最大有利变动（持仓期间浮盈的最大幅度）: 6.5%\n- 止盈效率（最终获利÷最高浮盈，越高越能拿住利润）: 63.7%\n- 总收益率: -1.5%\n\n关键交易：\n- 盈利最多:\n  \u2022 600330: +6893.45 (27.5%), 持仓9天 (2026-01-26 → 2026-02-04)\n  \u2022 300058: +6514.40 (22.7%), 持仓11天 (2026-01-16 → 2026-01-27)\n  \u2022 600330: +5391.24 (46.7%), 持仓14天 (2026-01-21 → 2026-02-04)\n- 亏损最多:\n  \u2022 002506: -15718.06 (-20.9%), 持仓37天 (2026-03-10 → 2026-04-16)\n  \u2022 000981: -12200.63 (-14.8%), 持仓83天 (2026-01-16 → 2026-04-09)\n  \u2022 603017: -10364.59 (-17.4%), 持仓19天 (2026-05-06 → 2026-05-25)\n\n请按照系统提示的格式输出《交易行为诊断书》。\n注意：报告中不要包含'交易者ID'这一行；诊断日期使用上面提供的日期；股票只用代码不要加名称；所有数字必须来自以上数据。"}], 'model': 'deepseek-chat', 'temperature': 0.3}}
+[18:30:37] DEBUG   openai._base_client  Sending HTTP Request: POST https://api.deepseek.com/chat/completions
+[18:30:52] DEBUG   openai._base_client  HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers({'server': 'openresty', 'content-type': 'application/json', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-credentials': 'true', 'x-ds-trace-id': '5b71d2ea4e99b9573b5fb72de05504bd', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'x-content-type-options': 'nosniff', 'age': '0', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'date': 'Thu, 25 Jun 2026 10:30:37 GMT', 'eo-log-uuid': '13069319837872186630', 'eo-cache-status': 'MISS'})
+[18:30:52] DEBUG   openai._base_client  request_id: None
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u26a0' in position 1645: illegal multibyte sequence
+Call stack:
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1524, in __call__
+    return self.main(*args, **kwargs)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1445, in main
+    rv = self.invoke(ctx)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1308, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 877, in invoke
+    return callback(*args, **kwargs)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\main.py", line 412, in main
+    run(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\main.py", line 579, in run
+    server.run()
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\server.py", line 65, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 677, in run_forever
+    self._run_once()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 2057, in _run_once
+    handle._run()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\slowapi\extension.py", line 737, in async_wrapper
+    response = await func(*args, **kwargs)  # type: ignore
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\api\report.py", line 302, in generate_report
+    report_content = await generate_with_retry(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\ai\validator.py", line 177, in generate_with_retry
+    report = await provider.generate(system_prompt, current_prompt)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\ai\provider.py", line 83, in generate
+    response = await self.client.chat.completions.create(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 2814, in create
+    return await self._post(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1931, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1634, in request
+    request = self._build_request(options, retries_taken=retries_taken)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 505, in _build_request
+    log.debug(
+Message: 'Request options: %s'
+Arguments: {'method': 'post', 'url': '/chat/completions', 'files': None, 'idempotency_key': 'stainless-python-retry-0ca266d6-7f51-4cf0-aa61-0383daa8af01', 'security': {'bearer_auth': True}, 'content': None, 'json_data': {'messages': [{'role': 'system', 'content': '你是 TradeDoctor（交易诊断助手）的 AI 交易教练。你的任务是基于用户的交易数据，生成一份《交易行为诊断书》。\n\n## 数据真实性规范（极其重要 — 违反将导致报告被拒绝）\n\n**绝对禁止编造以下任何信息。如果数据中不存在，就写"无相关数据"而不是猜测：**\n\n1. **日期**：用户提示词中已提供"诊断日期（今天）"和"数据范围"，必须原样使用，不得加减天数。如果数据范围是多段（如"2026-01-01 至 2026-03-31、2026-06-01 至 2026-06-19"），表示用户上传了多个不连续的交割单，报告中也必须原样列出多段范围。\n2. **交易者身份**：不要写"[用户]"、"匿名用户"、"交易员"等。直接省略交易者ID这一行，从分析周期开始写。\n3. **股票名称**：系统只提供6位代码（如 600330、000901），**绝对禁止**根据代码猜测股票名称。报告中使用代码即可，不要添加名称。\n4. **百分比数值**：报告中的每一个百分比都必须来自用户提示词中的数据。**绝对禁止**自行计算或推断任何百分比（如"亏损超过100%"、"赚了50%"等），除非该数字明确出现在提示词中。\n5. **账户总资金/总投入**：如果没有提供，禁止猜测"总资金约X元"。\n6. **具体天数/日期**：不要估算"约5-6个月"、"大约半年"等模糊时间。直接使用提供的起止日期。\n7. **行为标签翻译**：数据中的模式名称是英文代码（如 CHASE、LARGE_LOSS_EXIT），报告中必须翻译为中文（如"追涨买入"、"大额亏损退出"）。\n\n## 核心原则\n1. **只分析行为，不预测市场。** 不推荐股票，不预测涨跌。\n2. **基于数据说话。** 每一条结论都必须有数据支撑。\n3. **建设性。** 指出问题的同时，给出可执行的改善建议。\n4. **简明扼要。** 用简洁的段落呈现，避免冗长。\n5. **面向散户。** 假设读者是一个炒股 3-5 年的老股民，不是金融科班出身，也不是小白。用茶馆聊天、股友交流的口吻写，三句话以内说清楚一件事。避免"建议您"、"请注意"等公文腔，直接用"你"。\n\n## 语言要求（重要）\n- **必须全部使用中文输出。** 禁止在正文中使用英文术语、英文缩写或中英混杂。\n- 所有指标必须附带中文解释（例：盈亏比即赚的钱除以亏的钱，大于1表示整体盈利）。\n- 所有英文缩写首次出现时必须替换为中文全称（例：用"最大不利变动"替代"MAE"，用"最大有利变动"替代"MFE"）。\n\n## 输出结构\n### 核心结论\n一句话概括当前交易状态。\n\n### 优势清单\n做得好的 2-3 个交易行为，每条包含：\n- 行为名称（中文，如：及时止损、顺势交易、仓位管理）\n- 数据支撑（如：止损交易平均亏损仅 X%，远低于不止损交易）\n- 一句话肯定\n\n### 风险警示\n最危险的 2-3 个交易行为，每条包含：\n- 行为名称（中文）\n- 数据支撑（如：该行为贡献了总亏损的 X%）\n- 潜在原因推测\n- 警示等级（\u26a0\ufe0f 注意 / \U0001f534 严重 / \U0001f6a8 高危）\n\n### 改善建议\n基于数据的 3-5 条具体可执行措施，每条必须是：\n1. **一个具体动作**（如"单笔亏损超过总资金 2% 时强制止损"），不是泛泛的"控制风险"\n2. **一个可量化目标**（如"将平均亏损控制在 X 元以内"），不是"少亏一些"\n3. **一个执行触发条件**（如"持仓超过 X 天未盈利则重新评估"），不是"要有耐心"\n\n建议格式：\n> 建议一：[具体动作]\n> 当前：[你的数据现状]\n> 目标：[可量化的改善目标]\n> 执行：[什么情况下触发此规则]'}, {'role': 'user', 'content': "请根据以下交易数据分析我的交易行为并生成诊断书。\n\n诊断日期（今天）：2026-06-25\n数据范围：2026-01-05 至 2026-06-17\n\n总交易笔数：311\n胜率：59.56%\n总盈亏：-33336.69\n平均持仓天数：12.7\n\n行为标签统计：\n- SCALP: 31次, 胜率90.3%, 总盈亏+19125.84\n- SWING: 78次, 胜率62.8%, 总盈亏+15461.52\n- POSITION: 18次, 胜率22.2%, 总盈亏-67924.05\n\n反事实回测（What If）：\n- 移除 HOLD_LOSER: 收益变化 +0.0548, 影响度 1.00\n- 移除 AVERAGE_DOWN: 收益变化 +0.0478, 影响度 0.87\n- 移除 SWING: 收益变化 -0.0371, 影响度 0.68\n- 移除 POSITION: 收益变化 +0.0350, 影响度 0.64\n- 移除 CUT_WINNER: 收益变化 -0.0211, 影响度 0.39\n- 移除 PYRAMID: 收益变化 -0.0195, 影响度 0.36\n- 移除 BULL_TREND: 收益变化 +0.0168, 影响度 0.31\n- 移除 PSY_FOMO: 收益变化 +0.0163, 影响度 0.30\n- 移除 LARGE_LOSS_EXIT: 收益变化 +0.0146, 影响度 0.27\n- 移除 SCALP: 收益变化 -0.0143, 影响度 0.26\n- 移除 CHASE: 收益变化 +0.0122, 影响度 0.22\n- 移除 TURN: 收益变化 -0.0119, 影响度 0.22\n- 移除 OVERTRADING: 收益变化 -0.0095, 影响度 0.17\n- 移除 FOMO: 收益变化 +0.0061, 影响度 0.11\n- 移除 TRAILING_STOP: 收益变化 -0.0039, 影响度 0.07\n- 移除 BREAKOUT: 收益变化 -0.0028, 影响度 0.05\n- 移除 BREAKDOWN: 收益变化 +0.0027, 影响度 0.05\n- 移除 SIDEWAYS: 收益变化 -0.0006, 影响度 0.01\n- 移除 TIME_EXIT: 收益变化 -0.0003, 影响度 0.01\n- 移除 TIGHT_STOP: 收益变化 +0.0002, 影响度 0.00\n\n风险指标：\n- 盈亏比（赚的钱÷亏的钱，>1表示整体盈利）: 0.74\n- 预期收益（每笔交易的平均预期盈亏百分比）: 0.01%\n- 最大回撤（账户从最高点回落的最大幅度）: 61578.98元 (224.7%)\n- 最大连续亏损（连续亏损的最多笔数）: 7次\n- 平均最大不利变动（持仓期间浮亏的最大幅度）: -6.8%\n- 平均最大有利变动（持仓期间浮盈的最大幅度）: 6.5%\n- 止盈效率（最终获利÷最高浮盈，越高越能拿住利润）: 63.7%\n- 总收益率: -1.5%\n\n关键交易：\n- 盈利最多:\n  \u2022 600330: +6893.45 (27.5%), 持仓9天 (2026-01-26 → 2026-02-04)\n  \u2022 300058: +6514.40 (22.7%), 持仓11天 (2026-01-16 → 2026-01-27)\n  \u2022 600330: +5391.24 (46.7%), 持仓14天 (2026-01-21 → 2026-02-04)\n- 亏损最多:\n  \u2022 002506: -15718.06 (-20.9%), 持仓37天 (2026-03-10 → 2026-04-16)\n  \u2022 000981: -12200.63 (-14.8%), 持仓83天 (2026-01-16 → 2026-04-09)\n  \u2022 603017: -10364.59 (-17.4%), 持仓19天 (2026-05-06 → 2026-05-25)\n\n请按照系统提示的格式输出《交易行为诊断书》。\n注意：报告中不要包含'交易者ID'这一行；诊断日期使用上面提供的日期；股票只用代码不要加名称；所有数字必须来自以上数据。\n\n【修正】上轮生成的报告数据与输入数据不匹配：\n胜率不匹配: 报告≈63%, 数据=60%\n请修正数据后重新生成。"}], 'model': 'deepseek-chat', 'temperature': 0.3}}
+[18:30:52] DEBUG   openai._base_client  Sending HTTP Request: POST https://api.deepseek.com/chat/completions
+[18:31:06] DEBUG   openai._base_client  HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers({'server': 'openresty', 'content-type': 'application/json', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-credentials': 'true', 'x-ds-trace-id': '83036cbef5488bdd01521f00079c20cc', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'x-content-type-options': 'nosniff', 'age': '0', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'date': 'Thu, 25 Jun 2026 10:30:52 GMT', 'eo-log-uuid': '11119713468938184236', 'eo-cache-status': 'MISS'})
+[18:31:06] DEBUG   openai._base_client  request_id: None
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u26a0' in position 1645: illegal multibyte sequence
+Call stack:
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1524, in __call__
+    return self.main(*args, **kwargs)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1445, in main
+    rv = self.invoke(ctx)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 1308, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\click\core.py", line 877, in invoke
+    return callback(*args, **kwargs)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\main.py", line 412, in main
+    run(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\main.py", line 579, in run
+    server.run()
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\uvicorn\server.py", line 65, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 706, in run_until_complete
+    self.run_forever()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 677, in run_forever
+    self._run_once()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 2057, in _run_once
+    handle._run()
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\asyncio\events.py", line 94, in _run
+    self._context.run(self._callback, *self._args)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\slowapi\extension.py", line 737, in async_wrapper
+    response = await func(*args, **kwargs)  # type: ignore
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\api\report.py", line 302, in generate_report
+    report_content = await generate_with_retry(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\ai\validator.py", line 177, in generate_with_retry
+    report = await provider.generate(system_prompt, current_prompt)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\app\ai\provider.py", line 83, in generate
+    response = await self.client.chat.completions.create(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 2814, in create
+    return await self._post(
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1931, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1634, in request
+    request = self._build_request(options, retries_taken=retries_taken)
+  File "D:\Dev\Projects\TradingJournalAnalyzer\backend\.venv\Lib\site-packages\openai\_base_client.py", line 505, in _build_request
+    log.debug(
+Message: 'Request options: %s'
+Arguments: {'method': 'post', 'url': '/chat/completions', 'files': None, 'idempotency_key': 'stainless-python-retry-21507fb6-d8a5-4d6d-9b58-498692780cea', 'security': {'bearer_auth': True}, 'content': None, 'json_data': {'messages': [{'role': 'system', 'content': '你是 TradeDoctor（交易诊断助手）的 AI 交易教练。你的任务是基于用户的交易数据，生成一份《交易行为诊断书》。\n\n## 数据真实性规范（极其重要 — 违反将导致报告被拒绝）\n\n**绝对禁止编造以下任何信息。如果数据中不存在，就写"无相关数据"而不是猜测：**\n\n1. **日期**：用户提示词中已提供"诊断日期（今天）"和"数据范围"，必须原样使用，不得加减天数。如果数据范围是多段（如"2026-01-01 至 2026-03-31、2026-06-01 至 2026-06-19"），表示用户上传了多个不连续的交割单，报告中也必须原样列出多段范围。\n2. **交易者身份**：不要写"[用户]"、"匿名用户"、"交易员"等。直接省略交易者ID这一行，从分析周期开始写。\n3. **股票名称**：系统只提供6位代码（如 600330、000901），**绝对禁止**根据代码猜测股票名称。报告中使用代码即可，不要添加名称。\n4. **百分比数值**：报告中的每一个百分比都必须来自用户提示词中的数据。**绝对禁止**自行计算或推断任何百分比（如"亏损超过100%"、"赚了50%"等），除非该数字明确出现在提示词中。\n5. **账户总资金/总投入**：如果没有提供，禁止猜测"总资金约X元"。\n6. **具体天数/日期**：不要估算"约5-6个月"、"大约半年"等模糊时间。直接使用提供的起止日期。\n7. **行为标签翻译**：数据中的模式名称是英文代码（如 CHASE、LARGE_LOSS_EXIT），报告中必须翻译为中文（如"追涨买入"、"大额亏损退出"）。\n\n## 核心原则\n1. **只分析行为，不预测市场。** 不推荐股票，不预测涨跌。\n2. **基于数据说话。** 每一条结论都必须有数据支撑。\n3. **建设性。** 指出问题的同时，给出可执行的改善建议。\n4. **简明扼要。** 用简洁的段落呈现，避免冗长。\n5. **面向散户。** 假设读者是一个炒股 3-5 年的老股民，不是金融科班出身，也不是小白。用茶馆聊天、股友交流的口吻写，三句话以内说清楚一件事。避免"建议您"、"请注意"等公文腔，直接用"你"。\n\n## 语言要求（重要）\n- **必须全部使用中文输出。** 禁止在正文中使用英文术语、英文缩写或中英混杂。\n- 所有指标必须附带中文解释（例：盈亏比即赚的钱除以亏的钱，大于1表示整体盈利）。\n- 所有英文缩写首次出现时必须替换为中文全称（例：用"最大不利变动"替代"MAE"，用"最大有利变动"替代"MFE"）。\n\n## 输出结构\n### 核心结论\n一句话概括当前交易状态。\n\n### 优势清单\n做得好的 2-3 个交易行为，每条包含：\n- 行为名称（中文，如：及时止损、顺势交易、仓位管理）\n- 数据支撑（如：止损交易平均亏损仅 X%，远低于不止损交易）\n- 一句话肯定\n\n### 风险警示\n最危险的 2-3 个交易行为，每条包含：\n- 行为名称（中文）\n- 数据支撑（如：该行为贡献了总亏损的 X%）\n- 潜在原因推测\n- 警示等级（\u26a0\ufe0f 注意 / \U0001f534 严重 / \U0001f6a8 高危）\n\n### 改善建议\n基于数据的 3-5 条具体可执行措施，每条必须是：\n1. **一个具体动作**（如"单笔亏损超过总资金 2% 时强制止损"），不是泛泛的"控制风险"\n2. **一个可量化目标**（如"将平均亏损控制在 X 元以内"），不是"少亏一些"\n3. **一个执行触发条件**（如"持仓超过 X 天未盈利则重新评估"），不是"要有耐心"\n\n建议格式：\n> 建议一：[具体动作]\n> 当前：[你的数据现状]\n> 目标：[可量化的改善目标]\n> 执行：[什么情况下触发此规则]'}, {'role': 'user', 'content': "请根据以下交易数据分析我的交易行为并生成诊断书。\n\n诊断日期（今天）：2026-06-25\n数据范围：2026-01-05 至 2026-06-17\n\n总交易笔数：311\n胜率：59.56%\n总盈亏：-33336.69\n平均持仓天数：12.7\n\n行为标签统计：\n- SCALP: 31次, 胜率90.3%, 总盈亏+19125.84\n- SWING: 78次, 胜率62.8%, 总盈亏+15461.52\n- POSITION: 18次, 胜率22.2%, 总盈亏-67924.05\n\n反事实回测（What If）：\n- 移除 HOLD_LOSER: 收益变化 +0.0548, 影响度 1.00\n- 移除 AVERAGE_DOWN: 收益变化 +0.0478, 影响度 0.87\n- 移除 SWING: 收益变化 -0.0371, 影响度 0.68\n- 移除 POSITION: 收益变化 +0.0350, 影响度 0.64\n- 移除 CUT_WINNER: 收益变化 -0.0211, 影响度 0.39\n- 移除 PYRAMID: 收益变化 -0.0195, 影响度 0.36\n- 移除 BULL_TREND: 收益变化 +0.0168, 影响度 0.31\n- 移除 PSY_FOMO: 收益变化 +0.0163, 影响度 0.30\n- 移除 LARGE_LOSS_EXIT: 收益变化 +0.0146, 影响度 0.27\n- 移除 SCALP: 收益变化 -0.0143, 影响度 0.26\n- 移除 CHASE: 收益变化 +0.0122, 影响度 0.22\n- 移除 TURN: 收益变化 -0.0119, 影响度 0.22\n- 移除 OVERTRADING: 收益变化 -0.0095, 影响度 0.17\n- 移除 FOMO: 收益变化 +0.0061, 影响度 0.11\n- 移除 TRAILING_STOP: 收益变化 -0.0039, 影响度 0.07\n- 移除 BREAKOUT: 收益变化 -0.0028, 影响度 0.05\n- 移除 BREAKDOWN: 收益变化 +0.0027, 影响度 0.05\n- 移除 SIDEWAYS: 收益变化 -0.0006, 影响度 0.01\n- 移除 TIME_EXIT: 收益变化 -0.0003, 影响度 0.01\n- 移除 TIGHT_STOP: 收益变化 +0.0002, 影响度 0.00\n\n风险指标：\n- 盈亏比（赚的钱÷亏的钱，>1表示整体盈利）: 0.74\n- 预期收益（每笔交易的平均预期盈亏百分比）: 0.01%\n- 最大回撤（账户从最高点回落的最大幅度）: 61578.98元 (224.7%)\n- 最大连续亏损（连续亏损的最多笔数）: 7次\n- 平均最大不利变动（持仓期间浮亏的最大幅度）: -6.8%\n- 平均最大有利变动（持仓期间浮盈的最大幅度）: 6.5%\n- 止盈效率（最终获利÷最高浮盈，越高越能拿住利润）: 63.7%\n- 总收益率: -1.5%\n\n关键交易：\n- 盈利最多:\n  \u2022 600330: +6893.45 (27.5%), 持仓9天 (2026-01-26 → 2026-02-04)\n  \u2022 300058: +6514.40 (22.7%), 持仓11天 (2026-01-16 → 2026-01-27)\n  \u2022 600330: +5391.24 (46.7%), 持仓14天 (2026-01-21 → 2026-02-04)\n- 亏损最多:\n  \u2022 002506: -15718.06 (-20.9%), 持仓37天 (2026-03-10 → 2026-04-16)\n  \u2022 000981: -12200.63 (-14.8%), 持仓83天 (2026-01-16 → 2026-04-09)\n  \u2022 603017: -10364.59 (-17.4%), 持仓19天 (2026-05-06 → 2026-05-25)\n\n请按照系统提示的格式输出《交易行为诊断书》。\n注意：报告中不要包含'交易者ID'这一行；诊断日期使用上面提供的日期；股票只用代码不要加名称；所有数字必须来自以上数据。\n\n【修正】上轮生成的报告数据与输入数据不匹配：\n胜率不匹配: 报告≈63%, 数据=60%\n胜率不匹配: 报告≈63%, 数据=60%\n请修正数据后重新生成。"}], 'model': 'deepseek-chat', 'temperature': 0.3}}
+[18:31:06] DEBUG   openai._base_client  Sending HTTP Request: POST https://api.deepseek.com/chat/completions
+[18:31:20] DEBUG   openai._base_client  HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers({'server': 'openresty', 'content-type': 'application/json', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-credentials': 'true', 'x-ds-trace-id': 'ad2e3f34b6a6379f9bb3cf4d8df22c1a', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'x-content-type-options': 'nosniff', 'age': '0', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'date': 'Thu, 25 Jun 2026 10:31:06 GMT', 'eo-log-uuid': '14659062125083675331', 'eo-cache-status': 'MISS'})
+[18:31:20] DEBUG   openai._base_client  request_id: None
