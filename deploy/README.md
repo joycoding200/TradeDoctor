@@ -1,185 +1,190 @@
-# TradingJournalAnalyzer 部署更新指南
+# TradingJournalAnalyzer 部署指南
 
 ## 你的环境
 
-- 阿里云 ECS + PostgreSQL 17（裸机安装）
-- 前端：npm run build → nginx 托管 dist/ 静态文件
-- 后端：systemd service 托管 FastAPI
+- 阿里云轻量应用服务器 + 宝塔面板
+- 前端：本地构建 → rsync 上传 → nginx 托管 dist/ 静态文件
+- 后端：systemd service 托管 FastAPI（uvicorn）
 - Nginx：80 端口统一入口（静态文件 + /api 反代）
+- 数据库：PostgreSQL 17
 - 代码仓库：GitHub
 
 ## 文件说明
 
 ```
 deploy/
-├── update.sh          # 服务器端：一键更新（含前置检查、alembic 安全处理）
-├── local-push.sh      # 本地：push + SSH 触发 update.sh
-├── config-check.sh    # 服务器端：生产配置完整性校验
-├── init-admin.sh      # 管理员账户初始化/更新（shell 包装）
-├── init-admin.py      # 管理员账户初始化/更新（Python 实现）
-├── deploy.yml         # GitHub Actions 自动部署（可选，复制到 .github/workflows/）
+├── server-setup.sh    # 首次安装：一键配好 PG + Python + venv + systemd
+├── local-deploy.sh    # 日常部署（推荐）：本地 build + rsync + SSH 触发
+├── local-push.sh      # 旧版部署：git push + 服务器 build（保留兼容）
+├── update.sh          # 服务器端更新：含备份、迁移、健康检查
+├── config-check.sh    # 生产配置校验：6 维检查
+├── init-admin.sh      # 管理员账户初始化（shell 包装）
+├── init-admin.py      # 管理员账户初始化（Python 实现）
+├── nginx-tja.conf     # Nginx 配置模板（或用宝塔面板配置）
+├── deploy.yml         # GitHub Actions 自动部署（可选）
 └── README.md          # 本文件
 ```
 
+## 首次部署（从零开始）
+
+### 前提：服务器已有宝塔面板
+
+宝塔面板提供了 nginx，你不需要单独装 nginx。
+
+### 步骤 1：SSH 到服务器，克隆代码并执行首次安装
+
+```bash
+ssh root@你的服务器IP
+
+# 克隆项目
+cd /opt
+git clone https://github.com/joycoding200/TradingJournalAnalyzer.git
+cd TradingJournalAnalyzer
+
+# 执行首次安装脚本
+bash deploy/server-setup.sh
+```
+
+这个脚本会自动完成：
+1. 安装系统依赖（Python、编译工具、rsync）
+2. 安装 PostgreSQL 17
+3. 创建数据库 tradelens 和用户
+4. 创建 Python 虚拟环境 + 安装后端依赖
+5. 生成 backend/.env（含随机密钥）
+6. 初始化数据库表
+7. 创建 systemd 服务
+8. 启动后端并健康检查
+
+安装完成后，脚本会输出数据库密码和后续步骤提示。
+
+### 步骤 2：配置 .env
+
+```bash
+vim /opt/TradingJournalAnalyzer/backend/.env
+```
+
+确认以下配置（脚本已自动生成，你只需补填 API Key）：
+
+| 配置项 | 值 | 说明 |
+|--------|-----|------|
+| DATABASE_URL | postgresql://tradelens:密码@localhost:5432/tradelens | 脚本已生成 |
+| SECRET_KEY | 64 字符随机串 | 脚本已生成 |
+| ENV | production | 脚本已设置 |
+| CORS_ORIGINS | http://服务器IP | 脚本已生成 |
+| AI_PROVIDER | deepseek | 脚本已设置 |
+| DEEPSEEK_API_KEY | 你的 Key | **需要手动填入** |
+
+填完后重启后端使配置生效：
+```bash
+systemctl restart tja-backend
+```
+
+### 步骤 3：创建管理员账户
+
+```bash
+cd /opt/TradingJournalAnalyzer
+ADMIN_PASSWORD=你的密码123 bash deploy/init-admin.sh --email admin@你的邮箱.com
+```
+
+### 步骤 4：配置 Nginx
+
+**方式 A：宝塔面板（推荐）**
+
+1. 宝塔面板 → 网站 → 添加站点
+2. 域名填：你的服务器 IP（或域名）
+3. 根目录设为：`/opt/TradingJournalAnalyzer/frontend/dist`
+4. 设置 → 反向代理 → 添加：
+   - 代理名称：tja-api
+   - 目标URL：`http://127.0.0.1:8000`
+   - 发送域名：`$host`
+5. 设置 → 配置文件，在 location / 下添加：
+   ```nginx
+   location / {
+       try_files $uri $uri/ /index.html;
+   }
+   ```
+
+**方式 B：手动配置**
+
+```bash
+cp deploy/nginx-tja.conf /etc/nginx/conf.d/tja.conf
+# 编辑 server_name 和 root 路径
+vim /etc/nginx/conf.d/tja.conf
+nginx -t && nginx -s reload
+```
+
+### 步骤 5：本地构建并上传前端
+
+在你的本地电脑（不是服务器）：
+
+```bash
+cd frontend
+npm install
+npm run build
+rsync -avz --delete dist/ root@你的服务器IP:/opt/TradingJournalAnalyzer/frontend/dist/
+```
+
+### 步骤 6：验证
+
+```bash
+# 服务器上
+curl http://localhost/api/health
+# 应返回 {"status":"ok"}
+
+# 浏览器打开
+http://你的服务器IP/
+```
+
+---
+
 ## 日常更新流程
+
+### 方式 1：本地构建 + rsync（推荐，最快）
 
 本地改完代码，一条命令：
 
 ```bash
-bash deploy/local-push.sh
+bash deploy/local-deploy.sh
 ```
 
-这条命令会：git push → SSH 到服务器 → 前置检查 → git pull → npm run build → pip install → alembic 迁移 → systemctl restart → 健康检查
+流程：本地 npm run build → rsync dist/ 到服务器 → git push → SSH 触发 update.sh
 
-整个过程 30-60 秒。
+特点：服务器不需要 Node.js，10-20 秒完成。
 
-## 你已经在服务器上手动配置的（脚本不会碰）
-
-这些配置在服务器上手动做过，update.sh 不会覆盖它们：
-
-### 1. backend/.env — 环境配置
-
-.env 在 .gitignore 中，git pull 不会覆盖。但 update.sh 会在更新前做前置检查：
-- 确认 .env 存在
-- 确认 ENV=production
-- 检查 .env.example 是否有 .env 中缺少的新配置项（只提醒，不修改）
-
-你的 .env 应该包含这些生产环境专属值（与本地开发不同）：
-
-| 配置项 | 开发环境 | 生产环境 |
-|--------|----------|----------|
-| ENV | development | production |
-| DATABASE_URL | postgresql://localhost:5432/tradelens | postgresql://用户名:生产密码@localhost:5432/tradelens |
-| SECRET_KEY | dev-only-... | openssl rand -hex 32 生成的 32+ 字符随机串 |
-| CORS_ORIGINS | http://localhost:5173 | http://服务器IP 或 http://域名 |
-| AI_PROVIDER | openai | deepseek（推荐，国内速度快） |
-| DEEPSEEK_API_KEY | （空） | 你的 DeepSeek API Key |
-
-### 2. 管理员账户
-
-你手动在数据库里创建的 admin 用户（is_admin=True）。update.sh 不会动它。
-
-如果需要重新创建或更新密码，用 init-admin 脚本：
-
+可选参数：
 ```bash
-# 创建管理员（首次部署或新服务器）
-bash deploy/init-admin.sh --email admin@你的邮箱.com --password 你的密码123
-
-# 更新管理员密码
-bash deploy/init-admin.sh --email admin@你的邮箱.com --password 新密码456 --update
+bash deploy/local-deploy.sh --skip-build  # dist/ 已是最新，跳过构建
+bash deploy/local-deploy.sh --no-push     # 不 push，只部署当前 dist/
+bash deploy/local-deploy.sh --branch dev  # 部署 dev 分支
 ```
 
-### 3. 数据库用户和表结构
-
-你手动创建的 PostgreSQL 用户、数据库、表结构。update.sh 的处理逻辑：
-
-- 如果 alembic_version 表不存在（说明之前用 create_all 建表）：
-  → 先执行 alembic stamp head（标记当前状态，不执行任何迁移）
-  → 再执行 alembic upgrade head（只执行新增的迁移）
-- 如果 alembic_version 表已存在：
-  → 直接执行 alembic upgrade head
-
-这样不会因为表已存在而报错。
-
-### 4. uploads/ 目录
-
-用户上传的交割单文件存在 backend/uploads/ 下。
-
-- .gitignore 已添加 backend/uploads/，git pull 不会覆盖
-- update.sh 前置检查会确认该目录存在
-
-## 首次配置（做一次就行）
-
-### 1. 确认 .gitignore 已修复
-
-之前 .gitignore 把 deploy/ 排除了，导致部署脚本推不到服务器。已修复：
-- 移除了 deploy/（部署脚本现在可以 git push 到服务器）
-- 添加了 backend/uploads/（保护用户上传数据）
-
-确认服务器上 deploy/ 目录已通过 git pull 获取到：
-```bash
-ls deploy/
-# 应看到: update.sh  local-push.sh  config-check.sh  init-admin.sh  init-admin.py  deploy.yml  README.md
-```
-
-### 2. 配置本地推送脚本
-
-编辑 deploy/local-push.sh，修改顶部三个变量：
-
+首次使用前，编辑 `deploy/local-deploy.sh` 修改顶部变量：
 ```bash
 SERVER_USER="root"
-SERVER_HOST="47.xxx.xxx.xxx"           # 阿里云公网 IP
-PROJECT_PATH="/opt/TradingJournalAnalyzer"  # 服务器上项目路径
+SERVER_HOST="47.xxx.xxx.xxx"
+PROJECT_PATH="/opt/TradingJournalAnalyzer"
 ```
 
-### 3. 配置服务器端更新脚本
-
-SSH 到服务器，编辑 deploy/update.sh，确认顶部变量：
-
-```bash
-SERVICE_NAME="tja-backend"     # 你的 systemd service 名
-HEALTH_URL="http://localhost/api/health"
-```
-
-不确定 service 名：
-```bash
-systemctl list-units --type=service | grep -i trad
-# 或
-ls /etc/systemd/system/*.service
-```
-
-### 4. SSH 免密配置
-
-```bash
-# 本地生成密钥（已有则跳过）
-ssh-keygen -t ed25519
-
-# 推送到服务器
-ssh-copy-id root@你的服务器IP
-```
-
-### 5. sudo 免密（如果不是 root 用户）
-
-```bash
-sudo visudo
-# 末尾添加：
-#   你的用户名 ALL=(ALL) NOPASSWD: /bin/systemctl restart tja-backend
-```
-
-## 运行配置校验
-
-部署前或出问题时，在服务器上运行：
-
-```bash
-bash deploy/config-check.sh
-```
-
-检查 6 个维度：
-1. backend/.env 是否存在
-2. ENV / SECRET_KEY / DATABASE_URL / CORS_ORIGINS 是否正确
-3. AI 提供商和 API Key 是否配置
-4. 数据库连接是否正常
-5. 管理员账户是否存在
-6. systemd 服务是否运行
-
-## 三种更新方式
-
-### 方式 1：本地一键（日常推荐）
+### 方式 2：服务器端构建（旧版，兼容保留）
 
 ```bash
 bash deploy/local-push.sh
 ```
 
-### 方式 2：手动 SSH
+流程：git push → SSH → 服务器 npm build → pip install → alembic → restart
+
+特点：服务器需要 Node.js，30-60 秒完成。
+
+### 方式 3：手动 SSH
 
 ```bash
 git push origin main
 ssh root@服务器IP
 cd /opt/TradingJournalAnalyzer
-bash deploy/update.sh
+bash deploy/update.sh --skip-frontend  # 前端已通过 rsync 上传
 ```
 
-### 方式 3：GitHub Actions 全自动
+### 方式 4：GitHub Actions 全自动
 
 1. GitHub 仓库 Settings → Secrets → Actions，添加：
    - SSH_HOST：服务器 IP
@@ -195,20 +200,38 @@ cp deploy/deploy.yml .github/workflows/deploy.yml
 
 3. push 到 main 分支自动触发
 
+---
+
+## 服务器上脚本不会碰的配置
+
+这些配置在服务器上手动做过，脚本不会覆盖：
+
+### 1. backend/.env
+
+.env 在 .gitignore 中，git pull 不会覆盖。update.sh 会在更新前做前置检查。
+
+### 2. 管理员账户
+
+手动创建的 admin 用户。如需重置密码：
+```bash
+bash deploy/init-admin.sh --email admin@你的邮箱.com --password 新密码456 --update
+```
+
+### 3. uploads/ 目录
+
+用户上传的交割单文件，.gitignore 已排除。
+
+---
+
 ## 可选操作
 
-### 只更新后端（跳过前端构建）
+### 配置校验
 
 ```bash
-ssh root@服务器IP
-cd /opt/TradingJournalAnalyzer
-git pull
-cd backend && source .venv/bin/activate
-pip install -r requirements.txt --quiet
-alembic upgrade head 2>/dev/null
-sudo systemctl restart tja-backend
-curl -sf http://localhost/api/health
+bash deploy/config-check.sh
 ```
+
+检查 6 个维度：.env、关键配置项、AI 配置、数据库连接、管理员账户、systemd 服务。
 
 ### 回滚
 
@@ -217,38 +240,62 @@ cd /opt/TradingJournalAnalyzer
 git log --oneline -5
 git reset --hard HEAD~1
 
-cd frontend && npm run build && cd ..
+# 如需回滚迁移
 cd backend && source .venv/bin/activate
-# 如需回滚迁移：alembic downgrade -1
+alembic downgrade -1
+
 sudo systemctl restart tja-backend
 ```
 
 ### 数据库备份
 
-```bash
-# 手动备份
-pg_dump -U postgres tradelens > backup_$(date +%Y%m%d).sql
+update.sh 已自动在每次迁移前备份到 `/opt/backups/`，保留最近 7 个。
 
-# 自动备份（crontab -e）
+手动备份：
+```bash
+pg_dump -U postgres tradelens > backup_$(date +%Y%m%d).sql
+```
+
+自动备份（crontab -e）：
+```
 0 2 * * * pg_dump -U postgres tradelens > /opt/backups/tradelens_$(date +\%Y\%m\%d).sql
 ```
 
 ### HTTPS 配置
 
-如果有域名，建议配 HTTPS：
+**方式 A：宝塔面板（推荐）**
+
+宝塔面板 → 网站 → 你的站点 → SSL → Let's Encrypt → 申请
+
+**方式 B：手动**
 
 ```bash
-# 停止 nginx 释放 80 端口
 systemctl stop nginx
-
-# 申请证书
 certbot certonly --standalone -d your-domain.com
-
 # 修改 nginx 配置添加 443 server 块
 # 修改 backend/.env 中 CORS_ORIGINS 为 https://your-domain.com
-
-# 证书自动续期（crontab -e）
-0 3 * * 1 certbot renew --quiet && systemctl reload nginx
+systemctl start nginx
 ```
 
 注意：配了 HTTPS 后，backend/app/auth/jwt.py 中的 `secure=False` 应改为 `secure=True`。
+
+---
+
+## SSH 免密配置
+
+```bash
+# 本地生成密钥（已有则跳过）
+ssh-keygen -t ed25519
+
+# 推送到服务器
+ssh-copy-id root@你的服务器IP
+```
+
+## 防火墙
+
+宝塔面板 → 安全 → 放行端口：
+- 80（HTTP）
+- 443（HTTPS，如配了 SSL）
+- 22（SSH）
+
+**不要**放行 8000 端口（后端只通过 nginx 反代访问）。
