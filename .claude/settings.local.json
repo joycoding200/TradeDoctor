@@ -145,7 +145,10 @@
       "Bash(mv accounts *)",
       "Bash(rm -f position/P007 position/P008 position/P008.expected.json)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/golden_runner.py -v)",
-      "Bash(.venv/Scripts/python.exe -m pytest tests/test_engine/ -v)"
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_engine/ -v)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__plugin_playwright_playwright__browser_type",
+      "Bash(git check-ignore *)"
     ]
   },
   "enableAllProjectMcpServers": true

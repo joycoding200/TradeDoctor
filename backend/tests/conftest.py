@@ -1,3 +1,4 @@
+"""Test configuration — in-memory SQLite for all DB operations during tests."""
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -30,6 +31,11 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
+
+# Also redirect SessionLocal so direct imports (e.g. in data-integrity tests)
+# use the same in-memory SQLite database as API calls.
+import app.database as db_mod
+db_mod.SessionLocal = TestingSessionLocal
 
 
 @pytest.fixture(autouse=True)
