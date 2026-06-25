@@ -115,11 +115,8 @@ export default function Upload() {
       <h1 className="text-xl font-semibold mb-6">{pageTitle}</h1>
       <FileDropzone onFile={handleFile} loading={loading} />
       {loading && statusText && (
-        <div className="flex items-center justify-center mt-6 gap-2" style={{ color: "var(--text-secondary)" }}>
-          <span
-            className="inline-block w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
-          />
+        <div className="mt-6 flex items-center justify-center gap-2 text-text-secondary">
+          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           <span className="text-sm">{statusText}</span>
         </div>
       )}

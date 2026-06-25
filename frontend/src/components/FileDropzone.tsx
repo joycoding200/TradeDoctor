@@ -36,14 +36,12 @@ export default function FileDropzone({ onFile, loading }: FileDropzoneProps) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{
-        border: `2px dashed ${dragging ? "var(--accent)" : "var(--border)"}`,
-        backgroundColor: dragging ? "rgba(79,140,255,0.08)" : "var(--bg-secondary)",
-        borderRadius: "12px",
-        cursor: "pointer",
-        transition: "all 0.2s",
-      }}
-      className="flex flex-col items-center justify-center p-12"
+      className={[
+        "flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-all duration-200 focus-ring",
+        dragging
+          ? "border-accent bg-accent/[0.08]"
+          : "border-border bg-bg-secondary hover:border-text-secondary",
+      ].join(" ")}
     >
       <input
         ref={inputRef}
@@ -54,16 +52,16 @@ export default function FileDropzone({ onFile, loading }: FileDropzoneProps) {
       />
       {loading ? (
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin w-8 h-8 border-2 border-t-transparent rounded-full" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
-          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>上传中...</span>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <span className="text-sm text-text-secondary">上传中...</span>
         </div>
       ) : (
         <>
-          <span className="text-3xl mb-3">📄</span>
-          <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+          <span className="mb-3 text-3xl">📄</span>
+          <span className="text-sm font-medium text-text-secondary">
             拖拽交割单到此处，或点击选择文件
           </span>
-          <span className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>
+          <span className="mt-2 text-xs text-text-secondary">
             支持 .csv .xlsx .xls 格式
           </span>
         </>

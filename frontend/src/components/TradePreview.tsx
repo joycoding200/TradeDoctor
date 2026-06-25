@@ -17,29 +17,22 @@ export default function TradePreview({ trades, onImport, loading }: TradePreview
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-sm text-text-secondary">
           共解析 {trades.length} 条交易记录{trades.length > 100 ? "（仅显示前 100 条）" : ""}
         </span>
         <Button onClick={onImport} disabled={loading}>
           {loading ? "导入中..." : "确认导入"}
         </Button>
       </div>
-      <div style={{ overflowX: "auto", borderRadius: "8px", border: "1px solid var(--border)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: 600 }}>
+      <div className="min-w-[600px] overflow-x-auto rounded-lg border border-border">
+        <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr style={{ backgroundColor: "var(--bg-tertiary)" }}>
+            <tr className="bg-bg-tertiary">
               {COLUMNS.map((col) => (
                 <th
                   key={col}
-                  style={{
-                    padding: "8px 12px",
-                    textAlign: "left",
-                    borderBottom: "1px solid var(--border)",
-                    color: "var(--text-secondary)",
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                  }}
+                  className="whitespace-nowrap border-b border-border px-3 py-2 text-left font-medium text-text-secondary"
                 >
                   {col}
                 </th>
@@ -50,19 +43,12 @@ export default function TradePreview({ trades, onImport, loading }: TradePreview
             {display.map((trade, i) => (
               <tr
                 key={i}
-                style={{
-                  borderBottom: "1px solid var(--border)",
-                  backgroundColor: i % 2 === 0 ? "transparent" : "var(--bg-secondary)",
-                }}
+                className="border-b border-border even:bg-bg-secondary"
               >
                 {COLUMNS.map((col) => (
                   <td
                     key={col}
-                    style={{
-                      padding: "6px 12px",
-                      whiteSpace: "nowrap",
-                      color: "var(--text-primary)",
-                    }}
+                    className="whitespace-nowrap px-3 py-1.5 text-text-primary"
                   >
                     {String(trade[col] ?? "")}
                   </td>

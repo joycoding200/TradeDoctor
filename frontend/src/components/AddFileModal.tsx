@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import FileDropzone from "./FileDropzone";
 import { uploadFile, confirmFormat, importTrades } from "../api/upload";
 import { linkFilesToAnalysis } from "../api/analysis";
@@ -14,6 +14,49 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const toast = useToast();
+  // Refs for focus-trap + restore
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  // Focus trap + ESC + scroll lock — mirrors ConfirmContext behavior
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    cancelBtnRef.current?.focus();
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !loading) {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === "Tab") {
+        const focusables = dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+      previouslyFocused.current?.focus();
+    };
+  }, [loading, onClose]);
 
   const processFile = async (file: File) => {
     setLoading(true);
@@ -29,7 +72,7 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
 
       const sourceType = formats[0].source_type;
       setStatus("正在解析交易记录...");
-      const confirmed = await confirmFormat(result.raw_file_id, sourceType);
+      await confirmFormat(result.raw_file_id, sourceType);
 
       setStatus("正在导入交易记录...");
       await importTrades(result.raw_file_id);
@@ -50,40 +93,26 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
     <>
       {/* Backdrop */}
       <div
-        style={{
-          position: "fixed", inset: 0, zIndex: 200,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          animation: "fadeIn 0.15s ease-out",
-        }}
+        className="fixed inset-0 z-[200] animate-fade-in bg-black/50"
         onClick={loading ? undefined : onClose}
       />
       {/* Dialog */}
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        style={{
-          position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-          zIndex: 201,
-          backgroundColor: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: "16px",
-          padding: "24px",
-          width: 440,
-          maxWidth: "90%",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-          animation: "scaleIn 0.15s ease-out",
-        }}
+        aria-label="添加交割单"
+        className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[440px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+        style={{ transform: "translate(-50%, -50%)" }}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 style={{ fontSize: "16px", fontWeight: 600 }}>添加交割单</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-text-primary">添加交割单</h2>
           <button
+            ref={cancelBtnRef}
+            type="button"
             onClick={onClose}
             disabled={loading}
-            style={{
-              background: "none", border: "none", cursor: loading ? "default" : "pointer",
-              color: "var(--text-secondary)", fontSize: 18, padding: "2px 6px",
-              opacity: loading ? 0.3 : 1,
-            }}
+            className="border-0 bg-transparent p-[2px_6px] text-lg text-text-secondary transition-opacity hover:text-text-primary focus-ring disabled:opacity-30"
           >
             ✕
           </button>
@@ -92,26 +121,16 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
         {!loading ? (
           <FileDropzone onFile={processFile} loading={false} />
         ) : (
-          <div
-            className="flex flex-col items-center justify-center gap-3 py-8 rounded-lg"
-            style={{ border: "1px dashed var(--border)" }}
-          >
-            <span
-              className="inline-block w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-              style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
-            />
-            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{status}</span>
+          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-8">
+            <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+            <span className="text-sm text-text-secondary">{status}</span>
           </div>
         )}
 
-        <p className="text-xs mt-3" style={{ color: "var(--text-secondary)" }}>
+        <p className="mt-3 text-xs text-text-secondary">
           支持 .csv .xlsx .xls 格式，新文件的交易记录将合并到当前分析中。
         </p>
       </div>
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes scaleIn { from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-      `}</style>
     </>
   );
 }

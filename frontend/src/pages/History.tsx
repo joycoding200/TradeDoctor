@@ -29,8 +29,8 @@ export default function History() {
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-8 text-center">
-        <p style={{ color: "var(--danger)" }}>{error instanceof Error ? error.message : "加载失败"}</p>
+      <div className="mx-auto max-w-3xl px-4 py-8 text-center">
+        <p className="text-danger">{error instanceof Error ? error.message : "加载失败"}</p>
       </div>
     );
   }
@@ -54,31 +54,30 @@ export default function History() {
           {analyses.map((a) => (
             <Card key={a.id} className="p-4">
               <div className="flex justify-between items-center">
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <Link
                     to={`/analysis/${a.id}`}
-                    style={{ textDecoration: "none", color: "var(--text-primary)" }}
-                    className="font-medium hover:text-[var(--accent)] transition-colors block truncate"
+                    className="block truncate font-medium text-text-primary no-underline transition-colors hover:text-accent"
                   >
                     {a.filename ? `📄 ${a.filename}` : `分析 ${a.id.slice(0, 8)}`}
                   </Link>
                   {a.filenames && a.filenames.length > 1 && (
-                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                    <div className="mt-0.5 text-xs text-text-secondary">
                       📎 共 {a.filenames.length} 个文件
                     </div>
                   )}
-                  <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                  <div className="mt-1 text-xs text-text-secondary">
                     {a.date_start} ~ {a.date_end}
                     {a.created_at && ` · ${new Date(a.created_at).toLocaleDateString("zh-CN")}`}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                <div className="ml-3 flex flex-shrink-0 items-center gap-3">
                   {a.has_report && a.report_id && (
-                    <Link to={`/report/${a.report_id}`} className="text-xs no-underline" style={{ color: "var(--accent)" }}>
+                    <Link to={`/report/${a.report_id}`} className="text-xs no-underline text-accent">
                       AI 报告 →
                     </Link>
                   )}
-                  <Link to={`/analysis/${a.id}`} className="text-xs no-underline" style={{ color: "var(--accent)" }}>
+                  <Link to={`/analysis/${a.id}`} className="text-xs no-underline text-accent">
                     分析面板 →
                   </Link>
                 </div>
