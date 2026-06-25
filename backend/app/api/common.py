@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Common functions shared between API modules."""
 
 from fastapi import HTTPException

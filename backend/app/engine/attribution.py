@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Shapley Value attribution (attribution.py).
 
 Fair contribution of each behavioral pattern to total PnL using Monte Carlo

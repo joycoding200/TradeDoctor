@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Upload API routes: upload file, confirm format, import trades."""
 
 import logging

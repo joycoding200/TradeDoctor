@@ -8,8 +8,6 @@ to infer what each column represents (date, symbol, price, quantity, etc.).
 Works with virtually any broker's CSV/Excel export without configuration.
 """
 
-from __future__ import annotations
-
 import re
 import logging
 from datetime import datetime

@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Pattern engine for tagging positions with behavioral labels.
 
 Produces behavior tags across four dimensions:

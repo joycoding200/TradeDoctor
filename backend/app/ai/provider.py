@@ -1,4 +1,3 @@
-from __future__ import annotations
 """LLM provider abstraction with OpenAI / Claude / DeepSeek backends.
 
 Usage:

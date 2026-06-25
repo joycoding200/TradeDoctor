@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Auth API routes: register, login, me, update profile."""
 import logging
 import re

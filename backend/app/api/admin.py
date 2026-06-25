@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Admin API: user search, data retrieval, file download."""
 import io
 import json
