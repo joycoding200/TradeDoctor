@@ -29,7 +29,15 @@ export default function Upload() {
     const trades = confirmed.trades || [];
 
     setStatusText("正在导入交易记录...");
-    await importTrades(fileId);
+    const importResult = await importTrades(fileId);
+    const { imported_count, skipped_count } = importResult;
+
+    if (skipped_count > 0) {
+      toast.addToast(
+        "info",
+        `已导入 ${imported_count} 笔交易，跳过 ${skipped_count} 笔重复记录`
+      );
+    }
 
     if (attachToAnalysisId) {
       // Linking mode: attach this file to an existing analysis
