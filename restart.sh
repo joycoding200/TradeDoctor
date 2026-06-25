@@ -1,13 +1,13 @@
 #!/bin/bash
-# TradingJournalAnalyzer 重启脚本
+# TradeDoctor 重启脚本
 # 用法: bash restart.sh
 # 默认端口: 后端 8001, 前端 5173
 
 BACKEND_PORT=8000
 FRONTEND_PORT=5173
-ROOT="/d/Dev/Projects/TradingJournalAnalyzer"
+ROOT="/d/Dev/Projects/TradeDoctor"
 
-echo "=== 重启 TradingJournalAnalyzer ==="
+echo "=== 重启 TradeDoctor ==="
 
 # 1. 释放端口 (用 Python 调用 netstat，兼容 Git Bash)
 echo "[1/3] 释放端口..."

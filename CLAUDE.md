@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-TradingJournalAnalyzer（交易日志分析器）— A 股散户上传交割单，系统重建持仓、识别行为、归因盈亏、回测策略、生成 AI 诊断报告。已进入"值得长期使用的交易复盘工具"阶段。
+TradeDoctor（交易诊断助手）— A 股散户上传交割单，系统重建持仓、识别行为、归因盈亏、回测策略、生成 AI 诊断报告。已进入"值得长期使用的交易复盘工具"阶段。
 
 ## 技术栈
 
@@ -103,7 +103,7 @@ npm run dev                  # http://localhost:5173
 ## 项目结构
 
 ```
-TradingJournalAnalyzer/
+TradeDoctor/
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # analysis, auth, report, upload

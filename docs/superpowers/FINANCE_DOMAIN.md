@@ -1,4 +1,4 @@
-# 金融领域知识 — TradingJournalAnalyzer
+# 金融领域知识 — TradeDoctor
 
 > 所有分析相关开发必须参考本文档。
 > 指标定义、标签边界、行业标准格式是这里最核心的三部分。

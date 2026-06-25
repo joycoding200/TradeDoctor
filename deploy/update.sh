@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# TradingJournalAnalyzer — 服务器端更新脚本
+# TradeDoctor — 服务器端更新脚本
 # ============================================================
 # 由本地 deploy/local-deploy.sh SSH 触发，在服务器端执行。
 # 代码已通过 rsync 同步到服务器，此脚本只做后端更新操作。
@@ -9,7 +9,7 @@
 #   bash deploy/update.sh
 #
 # 或从本地通过 SSH 触发（由 local-deploy.sh 自动执行）：
-#   ssh root@server "bash /opt/TradingJournalAnalyzer/deploy/update.sh"
+#   ssh root@server "bash /opt/TradeDoctor/deploy/update.sh"
 # ============================================================
 set -euo pipefail
 

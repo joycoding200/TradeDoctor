@@ -14,7 +14,7 @@
 | 3 | index.css @theme 整合 | ✅ | 全部 11 个颜色已注册为 Tailwind 主题 token，可用 `text-accent`、`bg-bg-secondary` 等 |
 | 4 | 逐文件消除内联样式（组件层） | ✅ | Layout、ToastContext、ConfirmContext、ui.tsx、FileDropzone、FormatSelector、InsightTable、ShapleyPanel、TradePreview、StatsCards 全部使用 Tailwind class |
 | 5 | ui.tsx 用 Tailwind 重写 | ✅ | Card/Button/Input/LoadingSpinner/InlineSpinner/ErrorBox/Collapsible/EmptyState 全部用 Tailwind，Button 有真实 hover/active 效果 |
-| 6 | index.html 标题修复 | ✅ | `<title>TradingJournalAnalyzer · AI 交易行为诊断</title>` + meta description |
+| 6 | index.html 标题修复 | ✅ | `<title>TradeDoctor · AI 交易行为诊断</title>` + meta description |
 | 7 | 路由懒加载 | ✅ | App.tsx 全部 9 个页面用 `React.lazy()` + `<Suspense>` 包裹 |
 | 8 | 全局 ErrorBoundary | ✅ | ErrorBoundary.tsx 已创建并包裹在 App.tsx BrowserRouter 内，暗色主题 |
 | 9 | QueryClient 配置 | ✅ | staleTime=60s, gcTime=300s, retry=2, refetchOnWindowFocus=false |

@@ -1,4 +1,4 @@
-# TradingJournalAnalyzer — 行为标签统一定义
+# TradeDoctor — 行为标签统一定义
 # 这是前后端共享的单一真相来源，新增/修改标签只需改此文件
 # 文件位置: <project_root>/pattern_definition.yaml
 

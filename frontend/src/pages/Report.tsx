@@ -171,7 +171,7 @@ export default function Report() {
           >
             <div className="mb-4 text-center text-2xl">📊</div>
             <h2 className="mb-2 text-center text-base font-semibold text-text-primary">
-              帮助改进 TradingJournalAnalyzer
+              帮助改进 TradeDoctor
             </h2>
             <p className="mb-4 text-center text-sm text-text-secondary">
               您的交易数据能帮助系统变得更聪明。贡献后，您的交割单、分析数据、AI 报告将以完全匿名的方式加入案例库。

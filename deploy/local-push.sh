@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# TradingJournalAnalyzer — 本地一键推送+部署脚本
+# TradeDoctor — 本地一键推送+部署脚本
 # ============================================================
 # 用法：
 #   bash deploy/local-push.sh          # push 并触发服务器更新
@@ -15,7 +15,7 @@ set -euo pipefail
 # ============ 配置区（按实际修改） ============
 SERVER_USER="root"
 SERVER_HOST="你的服务器公网IP"
-PROJECT_PATH="/opt/TradingJournalAnalyzer"
+PROJECT_PATH="/opt/TradeDoctor"
 # =============================================
 
 GREEN='\033[0;32m'

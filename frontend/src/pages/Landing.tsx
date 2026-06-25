@@ -8,7 +8,7 @@ export default function Landing() {
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
       <h1 className="mb-4 text-4xl font-bold">
-        TradingJournalAnalyzer
+        TradeDoctor
       </h1>
       <p className="mb-8 max-w-[480px] text-lg text-text-secondary">
         上传您的交易交割单，AI 将分析您的交易行为，找出亏损原因并生成改善建议。

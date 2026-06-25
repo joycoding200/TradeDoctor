@@ -7,7 +7,7 @@
 #   SSH_HOST     服务器公网 IP
 #   SSH_USER     SSH 用户名（通常 root）
 #   SSH_KEY      SSH 私钥全文（cat ~/.ssh/id_rsa 的输出）
-#   PROJECT_PATH 项目在服务器上的路径（如 /opt/TradingJournalAnalyzer）
+#   PROJECT_PATH 项目在服务器上的路径（如 /opt/TradeDoctor）
 #
 # 配好后，每次 push 到 main 分支自动触发部署，无需手动操作
 # ============================================================

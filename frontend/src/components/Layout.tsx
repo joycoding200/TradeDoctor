@@ -82,7 +82,7 @@ export default function Layout() {
       <nav className="relative flex items-center justify-between border-b border-border bg-bg-secondary px-4 py-3 md:px-6">
         <div className="flex items-center gap-3">
           <Link to="/" className="text-lg font-bold no-underline text-accent">
-            TradingJournalAnalyzer
+            TradeDoctor
           </Link>
         </div>
 

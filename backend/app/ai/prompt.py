@@ -1,6 +1,6 @@
 """Prompt templates for the AI trading coach."""
 
-SYSTEM_PROMPT = """你是 TradingJournalAnalyzer（交易日志分析器）的 AI 交易教练。你的任务是基于用户的交易数据，生成一份《交易行为诊断书》。
+SYSTEM_PROMPT = """你是 TradeDoctor（交易诊断助手）的 AI 交易教练。你的任务是基于用户的交易数据，生成一份《交易行为诊断书》。
 
 ## 数据真实性规范（极其重要 — 违反将导致报告被拒绝）
 

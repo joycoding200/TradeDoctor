@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TradingJournalAnalyzer — 管理员账户初始化/更新脚本
+TradeDoctor — 管理员账户初始化/更新脚本
 
 用法：
     # 通过环境变量（推荐，不会出现在进程列表中）

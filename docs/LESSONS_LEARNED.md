@@ -1,4 +1,4 @@
-# 项目经验教训 — TradingJournalAnalyzer
+# 项目经验教训 — TradeDoctor
 
 ## 1. 解析器：永远不要精确匹配用户输入
 

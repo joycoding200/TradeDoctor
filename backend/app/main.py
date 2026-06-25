@@ -20,7 +20,7 @@ import app.models  # noqa: F401
 async def lifespan(app: FastAPI):
     setup_logging()
     logger = get_logger(__name__)
-    logger.info("TradingJournalAnalyzer starting up (ENV=%s)", settings.env)
+    logger.info("TradeDoctor starting up (ENV=%s)", settings.env)
 
     # Development convenience: create_all is safe for prototyping.
     # Production deployments MUST use Alembic instead:
@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("TradingJournalAnalyzer shutting down")
+    logger.info("TradeDoctor shutting down")
 
 
 def _backfill_analysis_files():
@@ -85,7 +85,7 @@ def _backfill_analysis_files():
         db.close()
 
 
-app = FastAPI(title="TradingJournalAnalyzer API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="TradeDoctor API", version="0.1.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

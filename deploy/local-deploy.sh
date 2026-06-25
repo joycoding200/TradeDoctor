@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# TradingJournalAnalyzer — 本地构建 + rsync 全量代码部署
+# TradeDoctor — 本地构建 + rsync 全量代码部署
 # ============================================================
 # 用法：
 #   bash deploy/local-deploy.sh                 # 完整流程
@@ -16,7 +16,7 @@ set -euo pipefail
 # ============ 配置区 ============
 SERVER_USER="root"
 SERVER_HOST="47.109.159.232"
-PROJECT_PATH="/opt/TradingJournalAnalyzer"
+PROJECT_PATH="/opt/TradeDoctor"
 # ================================
 
 G='\033[0;32m'; Y='\033[0;33m'; R='\033[0;31m'; B='\033[0;34m'; N='\033[0m'

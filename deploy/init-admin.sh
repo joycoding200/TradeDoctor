@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# TradingJournalAnalyzer — 管理员账户初始化（shell 包装）
+# TradeDoctor — 管理员账户初始化（shell 包装）
 # ============================================================
 # 用法：
 #   bash deploy/init-admin.sh --email admin@example.com --password YourPass123

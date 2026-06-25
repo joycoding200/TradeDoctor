@@ -53,7 +53,7 @@ def create_token(user_id: str, scope: str | None = None) -> str:
         "exp": expire,
         "iat": datetime.now(timezone.utc).timestamp(),
         "jti": str(__import__("uuid").uuid4()),  # unique token ID for revocation
-        "aud": settings.jwt_audience,            # audience binding: this token is only valid for TJA API
+        "aud": settings.jwt_audience,            # audience binding: this token is only valid for TradeDoctor API
     }
     if scope:
         payload["scope"] = scope

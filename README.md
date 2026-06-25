@@ -1,4 +1,4 @@
-# TradingJournalAnalyzer — 交易日志分析器
+# TradeDoctor — 交易诊断助手
 
 上传交割单，系统自动重建持仓、识别交易行为、分析盈亏来源。面向 A 股散户的交易行为诊断工具。
 
@@ -123,7 +123,7 @@ cd backend && pytest tests/ -q
 ## 项目结构
 
 ```
-TradingJournalAnalyzer/
+TradeDoctor/
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # REST 端点 (auth, upload, analysis, report)

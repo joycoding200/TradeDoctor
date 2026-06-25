@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://localhost:5432/tradelens"
     secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_audience: str = "tja-api"
+    jwt_audience: str = "tradedoc-api"
     jwt_expire_minutes: int = 480  # 8 hours — avoids silent expiration during use
     ai_provider: str = "openai"  # openai | claude | deepseek | openrouter
     openai_api_key: str = ""

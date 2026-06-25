@@ -1,4 +1,4 @@
-# 开发验证清单 — TradingJournalAnalyzer
+# 开发验证清单 — TradeDoctor
 
 > 新功能或修改涉及分析计算时，在 E2E 测试通过后逐项检查。
 

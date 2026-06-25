@@ -1,4 +1,4 @@
-"""Alembic migration environment for TradingJournalAnalyzer.
+"""Alembic migration environment for TradeDoctor.
 
 Reads the database URL from the project's Settings (app.config.settings)
 so all configuration stays in one place (.env file).

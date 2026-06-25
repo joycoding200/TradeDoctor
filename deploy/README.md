@@ -1,4 +1,4 @@
-# TradingJournalAnalyzer 部署指南
+# TradeDoctor 部署指南
 
 ## 你的环境
 
@@ -36,8 +36,8 @@ ssh root@你的服务器IP
 
 # 克隆项目（首次需要一次 git clone）
 cd /opt
-git clone https://github.com/joycoding200/TradingJournalAnalyzer.git
-cd TradingJournalAnalyzer
+git clone https://github.com/joycoding200/TradeDoctor.git
+cd TradeDoctor
 
 # 执行首次安装脚本
 bash deploy/server-setup.sh
@@ -58,7 +58,7 @@ bash deploy/server-setup.sh
 ### 步骤 2：配置 .env
 
 ```bash
-vim /opt/TradingJournalAnalyzer/backend/.env
+vim /opt/TradeDoctor/backend/.env
 ```
 
 确认以下配置（脚本已自动生成，你只需补填 API Key）：
@@ -74,7 +74,7 @@ vim /opt/TradingJournalAnalyzer/backend/.env
 ### 步骤 3：创建管理员账户
 
 ```bash
-cd /opt/TradingJournalAnalyzer
+cd /opt/TradeDoctor
 ADMIN_PASSWORD=你的密码123 bash deploy/init-admin.sh --email admin@你的邮箱.com
 ```
 
@@ -82,7 +82,7 @@ ADMIN_PASSWORD=你的密码123 bash deploy/init-admin.sh --email admin@你的邮
 
 宝塔面板 → 网站 → 添加站点
 - 域名填：你的服务器 IP（或域名）
-- 根目录设为：`/opt/TradingJournalAnalyzer/frontend/dist`
+- 根目录设为：`/opt/TradeDoctor/frontend/dist`
 - 设置 → 反向代理 → 添加：
   - 代理名称：tja-api
   - 目标URL：`http://127.0.0.1:8000`

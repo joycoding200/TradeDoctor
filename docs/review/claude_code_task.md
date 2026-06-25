@@ -1,6 +1,6 @@
 # Implementation Task: 短期优先级冲刺（3个P0任务）
 
-你是 TradingJournalAnalyzer 项目的开发者。请先阅读 CLAUDE.md 了解项目背景，然后实现以下 3 个任务。
+你是 TradeDoctor 项目的开发者。请先阅读 CLAUDE.md 了解项目背景，然后实现以下 3 个任务。
 
 参考文档: docs/review/PRD_短期冲刺_2026-06-23.md
 

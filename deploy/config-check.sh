@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# TradingJournalAnalyzer — 生产环境配置校验
+# TradeDoctor — 生产环境配置校验
 # ============================================================
 # 在服务器上运行，检查所有生产环境必需的配置是否就位
 #   bash deploy/config-check.sh
@@ -18,7 +18,7 @@ ok()   { echo -e "  ${G}[OK]${N} $1"; PASS=$((PASS+1)); }
 warn() { echo -e "  ${Y}[WARN]${N} $1"; WARN=$((WARN+1)); }
 fail() { echo -e "  ${R}[FAIL]${N} $1"; FAIL=$((FAIL+1)); }
 
-echo "=== TradingJournalAnalyzer 生产配置校验 ==="
+echo "=== TradeDoctor 生产配置校验 ==="
 echo ""
 
 # ---- 1. .env 文件 ----

@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================================
-# TradingJournalAnalyzer — 首次服务器环境安装脚本
+# TradeDoctor — 首次服务器环境安装脚本
 # ============================================================
 # 在一台全新的阿里云轻量服务器上执行（已有宝塔面板即可）
 # 用法：
 #   ssh root@你的服务器IP
 #   cd /opt
-#   git clone https://github.com/joycoding200/TradingJournalAnalyzer.git
-#   cd TradingJournalAnalyzer
+#   git clone https://github.com/joycoding200/TradeDoctor.git
+#   cd TradeDoctor
 #   bash deploy/server-setup.sh
 #
 # 执行前请确认：
@@ -24,7 +24,7 @@ err()  { echo -e "${R}[error]${N} $1"; }
 step() { echo -e "${B}[${1}]${N} $2"; }
 
 # ============ 配置区 ============
-PROJECT_DIR="/opt/TradingJournalAnalyzer"
+PROJECT_DIR="/opt/TradeDoctor"
 DB_NAME="tradelens"
 DB_USER="tradelens"
 PG_VERSION="17"
@@ -36,7 +36,7 @@ cd "$PROJECT_DIR"
 
 echo ""
 echo "============================================"
-echo "  TradingJournalAnalyzer 首次环境安装"
+echo "  TradeDoctor 首次环境安装"
 echo "  目标目录: $PROJECT_DIR"
 echo "============================================"
 echo ""
@@ -168,7 +168,7 @@ if [ -f "$SERVICE_FILE" ]; then
 else
     cat > "$SERVICE_FILE" << SVCEOF
 [Unit]
-Description=TradingJournalAnalyzer Backend
+Description=TradeDoctor Backend
 After=network.target postgresql.service
 
 [Service]
