@@ -50,8 +50,14 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
+    if (mode === "email" && !email.trim()) {
+      setError("请输入邮箱地址"); return;
+    }
     if (mode === "email" && !email.includes("@")) {
       setError("请输入正确的邮箱地址"); return;
+    }
+    if (mode === "phone" && !phone.trim()) {
+      setError("请输入手机号"); return;
     }
     if (mode === "phone" && !/^1[3-9]\d{9}$/.test(phone)) {
       setError("请输入正确的11位手机号"); return;
@@ -85,9 +91,17 @@ export default function Register() {
     <div className="flex min-h-[80vh] items-center justify-center px-4">
       <Card className="w-full max-w-sm p-8">
         <h1 className="mb-6 text-center text-xl font-semibold">注册</h1>
+        <p className="mb-4 rounded-lg bg-amber-50 p-2 text-center text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+          内测阶段暂无验证码功能，若忘记密码直接新注册一个账号即可
+        </p>
         {error && (
           <div className="mb-4 rounded-lg bg-danger/10 p-3 text-sm text-danger">
-            {error}
+            <p className="mb-1">{error}</p>
+            {error.includes("已被注册") && (
+              <p className="text-text-secondary">
+                已有账号？<Link to="/login" className="text-accent underline">直接登录</Link>
+              </p>
+            )}
           </div>
         )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

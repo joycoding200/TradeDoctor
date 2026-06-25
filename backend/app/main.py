@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
@@ -89,6 +91,39 @@ app = FastAPI(title="TradeDoctor API", version="0.1.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Convert Pydantic validation errors to user-friendly Chinese messages."""
+    messages: list[str] = []
+    for err in exc.errors():
+        loc = err.get("loc", [])
+        field = str(loc[-1]) if loc else ""
+        msg = err.get("msg", "")
+
+        # Translate common validation errors to plain Chinese
+        if "value is not a valid email address" in msg:
+            messages.append("邮箱格式不正确")
+        elif "手机号格式不正确" in msg:
+            messages.append("手机号格式不正确，请输入11位中国大陆手机号")
+        elif "field required" in msg:
+            messages.append(f"请填写{f'「{field}」' if field else '必填项'}")
+        elif "string_too_short" in msg or "string_too_long" in msg:
+            messages.append(f"{f'「{field}」' if field else '输入'}长度不符合要求")
+        elif "ensure this value has at least" in msg:
+            messages.append("密码至少需要 8 个字符")
+        elif "Value error" in msg:
+            # Our own field validators — extract the actual message
+            clean = msg.split(", ", 1)[-1] if ", " in msg else msg
+            messages.append(clean)
+        else:
+            messages.append("输入信息有误，请检查后重试")
+
+    detail = "；".join(messages) if messages else "输入信息有误，请检查后重试"
+    return JSONResponse(status_code=422, content={"detail": detail})
+
+
+app.add_exception_handler(RequestValidationError, _validation_exception_handler)
 
 app.add_middleware(
     CORSMiddleware,

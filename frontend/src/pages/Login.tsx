@@ -25,6 +25,11 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Client-side validation
+    if (!account.trim()) { setError("请输入邮箱或手机号"); return; }
+    if (!password) { setError("请输入密码"); return; }
+
     setLoading(true);
     try {
       const token = await loginApi(account, password);
@@ -32,8 +37,9 @@ export default function Login() {
       toast.addToast("success", "登录成功");
       navigate("/upload");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登录失败");
-      toast.addToast("error", err instanceof Error ? err.message : "登录失败");
+      const msg = err instanceof Error ? err.message : "登录失败";
+      setError(msg);
+      toast.addToast("error", msg);
     } finally {
       setLoading(false);
     }
@@ -43,9 +49,22 @@ export default function Login() {
     <div className="flex min-h-[80vh] items-center justify-center px-4">
       <Card className="w-full max-w-sm p-8">
         <h1 className="mb-6 text-center text-xl font-semibold">登录</h1>
+        <p className="mb-4 rounded-lg bg-amber-50 p-2 text-center text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+          内测阶段暂无验证码功能，若忘记密码直接新注册一个账号即可
+        </p>
         {error && (
           <div className="mb-4 rounded-lg bg-danger/10 p-3 text-sm text-danger">
-            {error}
+            <p className="mb-1">{error}</p>
+            {(error.includes("账号或密码") || error.includes("账号不存在")) && (
+              <p className="text-text-secondary">
+                还没有账号？<Link to="/register" className="text-accent underline">立即注册</Link>
+              </p>
+            )}
+            {error.includes("密码") && !error.includes("账号") && (
+              <p className="text-text-secondary">
+                忘记密码？内测阶段直接 <Link to="/register" className="text-accent underline">重新注册</Link> 即可
+              </p>
+            )}
           </div>
         )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -78,6 +97,9 @@ export default function Login() {
             {loading ? "登录中..." : "登录"}
           </Button>
         </form>
+        <p className="mt-3 text-center text-xs text-text-secondary">
+          忘记密码？内测阶段直接重新注册即可
+        </p>
         <p className="mt-4 text-center text-sm text-text-secondary">
           没有账号？{" "}
           <Link to="/register" className="text-accent hover:underline">

@@ -20,6 +20,23 @@ function onAuthExpired() {
   }
 }
 
+function parseError(resp: Response): Promise<Error> {
+  return resp.json().then(
+    (body) => {
+      let msg = "请求失败，请稍后重试";
+      if (typeof body.detail === "string") {
+        msg = body.detail;
+      } else if (Array.isArray(body.detail) && body.detail.length > 0 && body.detail[0].msg) {
+        msg = body.detail[0].msg; // Pydantic validation error fallback
+      } else if (body.message) {
+        msg = body.message;
+      }
+      return new Error(msg);
+    },
+    () => new Error("请求失败，请稍后重试")
+  );
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -33,7 +50,10 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     headers["Content-Type"] = "application/json";
   }
   const resp = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  if (resp.status === 401) {
+  // Login/register endpoints return 401 for bad credentials, not expired token.
+  // Don't treat those as auth-expired — let the caller handle the error detail.
+  const isAuthEndpoint = path.startsWith("/api/auth/login") || path.startsWith("/api/auth/register");
+  if (resp.status === 401 && !isAuthEndpoint) {
     onAuthExpired();
     throw new AuthExpiredError();
   }
@@ -45,19 +65,13 @@ export async function apiPost(path: string, body?: unknown): Promise<any> {
     method: "POST",
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new Error(err.detail || "Request failed");
-  }
+  if (!resp.ok) throw await parseError(resp);
   return resp.json();
 }
 
 export async function apiGet(path: string): Promise<any> {
   const resp = await apiFetch(path);
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new Error(err.detail || "Request failed");
-  }
+  if (!resp.ok) throw await parseError(resp);
   return resp.json();
 }
 
@@ -81,18 +95,12 @@ export async function apiPut(path: string, body?: unknown): Promise<any> {
     method: "PUT",
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new Error(err.detail || "Request failed");
-  }
+  if (!resp.ok) throw await parseError(resp);
   return resp.json();
 }
 
 export async function apiDelete(path: string): Promise<any> {
   const resp = await apiFetch(path, { method: "DELETE" });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new Error(err.detail || "Request failed");
-  }
+  if (!resp.ok) throw await parseError(resp);
   return resp.json();
 }
