@@ -45,3 +45,4 @@ class ImportRequest(BaseModel):
 
 class ImportResponse(BaseModel):
     imported_count: int
+    skipped_count: int = 0
