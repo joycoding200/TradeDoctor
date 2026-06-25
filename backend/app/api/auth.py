@@ -3,9 +3,12 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Request
 from sqlalchemy.orm import Session
-from app.auth.jwt import create_token, get_current_user, hash_password, set_auth_cookie, verify_password
+from datetime import datetime, timezone
+
+from app.auth.jwt import create_token, get_current_user, get_token_payload, hash_password, set_auth_cookie, verify_password
 from app.database import get_db
 from app.ratelimit import limiter
+from app.models.token_blacklist import TokenBlacklist
 from app.models.user import User, generate_nickname
 from app.schemas.auth import (
     LoginRequest,
@@ -131,6 +134,34 @@ def update_profile(
         phone=current_user.phone or "",
         nickname=current_user.nickname or "",
     )
+
+
+@router.post("/logout")
+def logout(
+    current_user: User = Depends(get_current_user),
+    payload: dict = Depends(get_token_payload),
+    db: Session = Depends(get_db),
+):
+    """Revoke the current JWT token by adding its jti to the blacklist.
+
+    After this call the token is invalid for all subsequent requests.
+    Expired entries are cleaned up on each logout.
+    """
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if jti and exp:
+        expire_dt = datetime.fromtimestamp(float(exp), tz=timezone.utc)
+        # Skip if already blacklisted (idempotent)
+        existing = db.query(TokenBlacklist).filter(TokenBlacklist.jti == jti).first()
+        if not existing:
+            db.add(TokenBlacklist(jti=jti, expires_at=expire_dt))
+            db.commit()
+        # Clean up expired entries
+        db.query(TokenBlacklist).filter(
+            TokenBlacklist.expires_at < datetime.now(timezone.utc)
+        ).delete()
+        db.commit()
+    return {"detail": "已登出"}
 
 
 @router.post("/password-strength")

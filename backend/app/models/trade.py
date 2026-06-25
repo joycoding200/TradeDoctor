@@ -12,10 +12,10 @@ class Trade(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     raw_file_id = Column(
-        String(36), ForeignKey("raw_files.id"), nullable=False
+        String(36), ForeignKey("raw_files.id", ondelete="CASCADE"), nullable=False
     )
     user_id = Column(
-        String(36), ForeignKey("users.id"), nullable=False
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     asset_type = Column(String(10), nullable=False)
     datetime = Column(DateTime, nullable=False)

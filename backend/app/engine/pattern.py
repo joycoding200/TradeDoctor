@@ -443,6 +443,8 @@ class PatternEngine:
         if not entry_data:
             return tags
 
+        if entry_str not in symbol_data:
+            return tags
         dates = sorted(symbol_data.keys())
         entry_idx = dates.index(entry_str)
         entry_close = entry_data["close"]

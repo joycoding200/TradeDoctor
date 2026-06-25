@@ -40,26 +40,23 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh] px-4">
+    <div className="flex min-h-[80vh] items-center justify-center px-4">
       <Card className="w-full max-w-sm p-8">
-        <h1 className="text-xl font-semibold mb-6 text-center">登录</h1>
+        <h1 className="mb-6 text-center text-xl font-semibold">登录</h1>
         {error && (
-          <div
-            className="text-sm mb-4 p-3 rounded-lg"
-            style={{ backgroundColor: "rgba(248,113,113,0.1)", color: "var(--danger)" }}
-          >
+          <div className="mb-4 rounded-lg bg-danger/10 p-3 text-sm text-danger">
             {error}
           </div>
         )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
-            type="email"
+            type="text"
             placeholder="邮箱或手机号"
             value={account}
             onChange={(e) => setAccount(e.target.value)}
             required
           />
-          <div style={{ position: "relative" }}>
+          <div className="relative">
             <Input
               type={showPw ? "text" : "password"}
               placeholder="密码"
@@ -72,11 +69,7 @@ export default function Login() {
               type="button"
               onClick={() => setShowPw(!showPw)}
               aria-label={showPw ? "隐藏密码" : "显示密码"}
-              style={{
-                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                background: "none", border: "none", cursor: "pointer",
-                color: "var(--text-secondary)", fontSize: 16, padding: 4, lineHeight: 1,
-              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-1 text-base leading-none text-text-secondary focus-ring"
             >
               {showPw ? "🙈" : "👁"}
             </button>
@@ -85,9 +78,9 @@ export default function Login() {
             {loading ? "登录中..." : "登录"}
           </Button>
         </form>
-        <p className="text-sm mt-4 text-center" style={{ color: "var(--text-secondary)" }}>
+        <p className="mt-4 text-center text-sm text-text-secondary">
           没有账号？{" "}
-          <Link to="/register" style={{ color: "var(--accent)" }}>
+          <Link to="/register" className="text-accent hover:underline">
             注册
           </Link>
         </p>

@@ -8,6 +8,7 @@ from app.models.analysis import Analysis, AnalysisFile
 from app.models.report import Report
 from app.models.daily_bar import DailyBar
 from app.models.case_library import CaseLibrary
+from app.models.token_blacklist import TokenBlacklist
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "Report",
     "DailyBar",
     "CaseLibrary",
+    "TokenBlacklist",
 ]

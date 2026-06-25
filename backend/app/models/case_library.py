@@ -12,10 +12,10 @@ class CaseLibrary(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id = Column(
-        String(36), ForeignKey("users.id"), nullable=False, index=True
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     analysis_id = Column(
-        String(36), ForeignKey("analyses.id"), nullable=False, unique=True
+        String(36), ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     trades_json = Column(Text, nullable=False)
     positions_json = Column(Text, nullable=False)

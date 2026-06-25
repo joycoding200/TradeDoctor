@@ -1,5 +1,12 @@
 const BASE_URL = import.meta.env.VITE_API_BASE || "";
 
+class AuthExpiredError extends Error {
+  constructor() {
+    super("Auth expired");
+    this.name = "AuthExpiredError";
+  }
+}
+
 function getToken(): string | null {
   return localStorage.getItem("token");
 }
@@ -28,6 +35,7 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   const resp = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   if (resp.status === 401) {
     onAuthExpired();
+    throw new AuthExpiredError();
   }
   return resp;
 }

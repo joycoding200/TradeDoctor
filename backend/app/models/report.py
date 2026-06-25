@@ -12,15 +12,15 @@ class Report(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id = Column(
-        String(36), ForeignKey("users.id"), nullable=False, index=True
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     analysis_id = Column(
-        String(36), ForeignKey("analyses.id"), nullable=True, index=True
+        String(36), ForeignKey("analyses.id", ondelete="SET NULL"), nullable=True, index=True
     )
     analysis_input = Column(JSON, nullable=False)
     ai_provider = Column(String(20), nullable=False)
     report_content = Column(Text, nullable=False)
-    validation_passed = Column(Boolean, default=True)
+    validation_passed = Column(Boolean, default=True, nullable=False)
     created_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

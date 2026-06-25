@@ -11,7 +11,7 @@ class Pattern(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     position_id = Column(
-        String(36), ForeignKey("positions.id"), nullable=False, index=True
+        String(36), ForeignKey("positions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     pattern_name = Column(String(30), nullable=False)
     confidence = Column(Float, default=1.0)

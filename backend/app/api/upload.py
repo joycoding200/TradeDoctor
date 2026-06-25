@@ -28,7 +28,7 @@ from app.schemas.upload import (
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 100  # 10MB
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10MB
 ALLOWED_EXTENSIONS = (".csv", ".xls", ".xlsx")
 
 # ── File storage ────────────────────────────────────────────────────────────

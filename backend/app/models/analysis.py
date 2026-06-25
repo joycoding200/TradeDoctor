@@ -12,10 +12,10 @@ class Analysis(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id = Column(
-        String(36), ForeignKey("users.id"), nullable=False, index=True
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     raw_file_id = Column(
-        String(36), ForeignKey("raw_files.id"), nullable=True, index=True
+        String(36), ForeignKey("raw_files.id", ondelete="SET NULL"), nullable=True, index=True
     )
     date_start = Column(Date, nullable=False)
     date_end = Column(Date, nullable=False)

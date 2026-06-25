@@ -12,7 +12,7 @@ class RawFile(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id = Column(
-        String(36), ForeignKey("users.id"), nullable=False, index=True
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     filename = Column(String(500), nullable=False)
     source_type = Column(String(50), nullable=True)

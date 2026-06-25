@@ -11,7 +11,7 @@ class Position(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id = Column(
-        String(36), ForeignKey("users.id"), nullable=False
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     symbol = Column(String(20), nullable=False)
     asset_type = Column(String(10), nullable=False)

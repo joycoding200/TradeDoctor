@@ -48,7 +48,12 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_token(user_id: str, scope: str | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": user_id, "exp": expire, "iat": datetime.now(timezone.utc).timestamp()}
+    payload = {
+        "sub": user_id,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc).timestamp(),
+        "jti": str(__import__("uuid").uuid4()),  # unique token ID for revocation
+    }
     if scope:
         payload["scope"] = scope
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
@@ -59,6 +64,7 @@ def set_auth_cookie(response, token: str) -> None:
 
     Call this from login/register endpoints after creating a token.
     The cookie is httpOnly (inaccessible to JS) to prevent XSS token theft.
+    secure flag is derived from ENV: True in production, False in development.
     """
     response.set_cookie(
         key="access_token",
@@ -66,7 +72,7 @@ def set_auth_cookie(response, token: str) -> None:
         httponly=True,
         samesite="lax",
         max_age=settings.jwt_expire_minutes * 60,
-        secure=False,  # set True when deploying behind HTTPS
+        secure=settings.cookie_secure,
         path="/",
     )
 
@@ -90,6 +96,15 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
+    # Check if token has been revoked (logout)
+    jti = payload.get("jti")
+    if jti:
+        from app.models.token_blacklist import TokenBlacklist
+        blacklisted = db.query(TokenBlacklist).filter(TokenBlacklist.jti == jti).first()
+        if blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
+            )
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(

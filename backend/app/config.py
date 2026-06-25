@@ -19,6 +19,16 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     ai_base_url: str = Field(default="", alias="BASE_URL")
     ai_model: str = Field(default="", alias="MODEL")
+    env: str = Field(default="development", alias="ENV")
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.lower() in ("prod", "production")
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Derive cookie secure flag from ENV. True in production, False otherwise."""
+        return self.is_production
 
     model_config = {
         "env_file": str(Path(__file__).resolve().parent.parent / ".env"),
