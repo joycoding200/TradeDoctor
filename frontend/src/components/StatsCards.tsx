@@ -191,12 +191,6 @@ export default function StatsCards({ stats }: StatsCardsProps) {
     : expectancy > 0 ? { text: "正期望", color: "success" }
     : { text: "负期望", color: "danger" };
 
-  const ddRating: Rating = ddPct > 0.3
-    ? { text: "严重 — 需要立即止损", color: "danger" }
-    : ddPct > 0.15
-    ? { text: "偏高 — 注意控风险", color: "accent" }
-    : { text: "健康", color: "success" };
-
   const maeRating: Rating = mae < -0.1 ? { text: "风险较高", color: "danger" }
     : mae < -0.05 ? { text: "风险可控", color: "accent" }
     : { text: "回撤较小", color: "success" };

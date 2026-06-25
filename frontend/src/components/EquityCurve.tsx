@@ -44,9 +44,6 @@ export default function EquityCurve({ data }: EquityCurveProps) {
   const lastPoint = data[data.length - 1];
   const isPositive = (lastPoint?.cum_pnl ?? 0) >= 0;
   const strokeColor = isPositive ? "var(--success, #22c55e)" : "var(--danger, #ef4444)";
-  const fillColor = isPositive
-    ? "rgba(34,197,94,0.15)"
-    : "rgba(239,68,68,0.15)";
 
   return (
     <div className="mb-6">
@@ -92,11 +89,11 @@ export default function EquityCurve({ data }: EquityCurveProps) {
                 fontSize: "0.8125rem",
                 color: "var(--text-primary)",
               }}
-              formatter={(value: number, name: string) => {
-                if (name === "cum_pnl") return [formatMoney(value), "累计盈亏"];
-                return [value, name];
+              formatter={(value, name) => {
+                if (name === "cum_pnl") return [formatMoney(Number(value)), "累计盈亏"];
+                return [String(value), String(name)];
               }}
-              labelFormatter={(label: string) => `日期: ${label}`}
+              labelFormatter={(label) => `日期: ${label}`}
             />
             <ReferenceLine
               y={0}
