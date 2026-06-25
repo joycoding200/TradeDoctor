@@ -228,6 +228,8 @@ def import_trades(
         )
         .filter(
             Trade.user_id == current_user.id,
+            # 仅对比有效交易（is_deleted=False）；软删除交易不参与去重，
+            # 如果用户删除了某些交易后再次导入相同记录，它们会被重新创建。
             Trade.is_deleted.is_(False),
         )
         .all()

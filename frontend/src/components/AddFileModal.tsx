@@ -79,10 +79,14 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
       const { imported_count, skipped_count } = importResult;
 
       if (skipped_count > 0) {
-        toast.addToast(
-          "info",
-          `已导入 ${imported_count} 笔交易，跳过 ${skipped_count} 笔重复记录`
-        );
+        if (imported_count === 0) {
+          toast.addToast("info", "所有交易记录已存在，无需重复导入");
+        } else {
+          toast.addToast(
+            "info",
+            `已导入 ${imported_count} 笔交易，跳过 ${skipped_count} 笔重复记录`
+          );
+        }
       }
 
       setStatus("正在添加到分析...");
