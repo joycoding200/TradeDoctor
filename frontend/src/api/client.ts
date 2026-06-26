@@ -76,17 +76,11 @@ export async function apiGet(path: string): Promise<any> {
 }
 
 export async function apiUpload(path: string, formData: FormData): Promise<any> {
-  const token = getToken();
-  const resp = await fetch(`${BASE_URL}${path}`, {
+  const resp = await apiFetch(path, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
-  if (resp.status === 401) {
-    onAuthExpired();
-    throw new Error("登录已过期，请重新登录");
-  }
-  if (!resp.ok) throw new Error("Upload failed");
+  if (!resp.ok) throw await parseError(resp);
   return resp.json();
 }
 

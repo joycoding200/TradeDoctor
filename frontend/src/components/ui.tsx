@@ -165,11 +165,11 @@ export function Collapsible({
 
 // ─── EmptyState ─────────────────────────────────────────────────────────────
 export function EmptyState({
-  icon = "📭",
+  icon,
   message,
   action,
 }: {
-  icon?: string;
+  icon?: ReactNode;
   message: string;
   action?: ReactNode;
 }) {

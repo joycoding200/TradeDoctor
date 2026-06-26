@@ -107,6 +107,16 @@ body {
   50% { opacity: 0.5; }
 }
 
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 /* ─── Reusable Animation Utilities ────────────────────────────────────────── */
 .animate-fade-in {
   animation: fadeIn 0.15s ease-out;
@@ -122,6 +132,15 @@ body {
 }
 .animate-scale-in {
   animation: scaleIn 0.15s ease-out;
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out both;
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
 /* ─── Collapsible: true auto-height via CSS grid ─────────────────────────────

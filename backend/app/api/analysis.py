@@ -1,6 +1,7 @@
 """Analysis API routes: run analysis, fetch stats / insight / what-if."""
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -127,6 +128,23 @@ def run_analysis(
 
     db.commit()
     db.refresh(analysis)
+
+    # Pre-compute all analysis data and store as snapshots so subsequent
+    # GET /stats, /insight, /whatif return instantly from JSONB columns.
+    from app.engine.compute import compute_all  # lazy import to avoid circular deps
+    try:
+        trades = load_trades(analysis, current_user.id, db)
+        stats, insight, whatif = compute_all(analysis, trades, db)
+        analysis.stats_snapshot = stats.model_dump(mode="json")
+        analysis.insight_snapshot = insight.model_dump(mode="json")
+        analysis.whatif_snapshot = whatif.model_dump(mode="json")
+        analysis.computed_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception:
+        logger.exception("compute_all failed for analysis %s", analysis.id)
+        # Don't block — user can still view analysis; data will be computed
+        # on-demand by the GET endpoints (fallback path).
+
     return AnalysisRunResponse(analysis_id=analysis.id, filename=body.filename or "")
 
 
@@ -169,9 +187,11 @@ def link_files_to_analysis(
             db.add(AnalysisFile(analysis_id=analysis.id, raw_file_id=fid))
             added += 1
 
-    # Invalidate snapshot since data has changed
+    # Invalidate and recompute snapshots since data has changed
     if added > 0:
         analysis.stats_snapshot = None
+        analysis.insight_snapshot = None
+        analysis.whatif_snapshot = None
 
         # Recalculate date range to cover all linked files
         all_file_ids = get_raw_file_ids(analysis.id, db)
@@ -189,7 +209,16 @@ def link_files_to_analysis(
             analysis.date_start = trade_dates[0][0].date()
             analysis.date_end = trade_dates[-1][0].date()
 
-    db.commit()
+        db.commit()
+
+        # Invalidate snapshots so GET endpoints re-compute on next access.
+        # Market data for existing symbols is already cached in daily_bars;
+        # re-computation is fast.  Pre-computing here would block the request
+        # on mootdx TCP fetches for any new symbols.
+        analysis.stats_snapshot = None
+        analysis.insight_snapshot = None
+        analysis.whatif_snapshot = None
+        db.commit()
     return {"detail": f"已添加 {added} 个文件到分析", "raw_file_ids": body.raw_file_ids}
 
 
@@ -226,6 +255,12 @@ def get_stats(
 ):
     """Compute KPI stats and positions for the analysis."""
     analysis = _load_analysis(analysis_id, current_user.id, db)
+
+    # Fast path: return pre-computed snapshot
+    if analysis.stats_snapshot:
+        return StatsResponse(**analysis.stats_snapshot)
+
+    # Slow path: compute on-demand (legacy analyses without snapshots)
     trades = _load_trades(analysis, current_user.id, db)
 
     # Look up filenames from linked RawFiles (multi-file support)
@@ -532,6 +567,12 @@ def get_insight(
 ):
     """Run the full pipeline and return pattern analysis."""
     analysis = _load_analysis(analysis_id, current_user.id, db)
+
+    # Fast path: return pre-computed snapshot
+    if analysis.insight_snapshot:
+        return InsightResponse(**analysis.insight_snapshot)
+
+    # Slow path: compute on-demand (legacy analyses without snapshots)
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
 
@@ -640,6 +681,12 @@ def get_whatif(
 ):
     """Run what-if analysis: factor contribution + stop-loss rule simulation."""
     analysis = _load_analysis(analysis_id, current_user.id, db)
+
+    # Fast path: return pre-computed snapshot
+    if analysis.whatif_snapshot:
+        return WhatIfResponse(**analysis.whatif_snapshot)
+
+    # Slow path: compute on-demand (legacy analyses without snapshots)
     trades = _load_trades(analysis, current_user.id, db)
     positions = PositionBuilder.build(trades)
     valid_positions = [p for p in positions if getattr(p, "cost_known", True)]

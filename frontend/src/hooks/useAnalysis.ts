@@ -7,6 +7,8 @@ export function useStats(id: string | undefined) {
     queryKey: ["stats", id],
     queryFn: () => getStats(id!),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000,     // 5 min — analysis data doesn't change frequently
+    gcTime: 30 * 60 * 1000,        // 30 min garbage collection
   });
 }
 
@@ -15,6 +17,8 @@ export function useInsight(id: string | undefined, enabled = true) {
     queryKey: ["insight", id],
     queryFn: () => getInsight(id!),
     enabled: !!id && enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 
@@ -23,6 +27,8 @@ export function useWhatIf(id: string | undefined, enabled = true) {
     queryKey: ["whatif", id],
     queryFn: () => getWhatIf(id!),
     enabled: !!id && enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 

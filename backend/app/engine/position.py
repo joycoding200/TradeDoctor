@@ -77,12 +77,13 @@ class PositionBuilder:
 
         for trade in trades:
             trade_comm = getattr(trade, 'commission', 0) or 0
+            qty = abs(trade.quantity)  # Some brokers export sell qty as negative
             if trade.side == "BUY":
                 long_queue.append(
-                    (trade.quantity, trade.price, trade.id, trade.datetime, trade_comm)
+                    (qty, trade.price, trade.id, trade.datetime, trade_comm)
                 )
             else:
-                remaining = trade.quantity
+                remaining = qty
                 sell_trade_ids = [trade.id]
                 total_cost = 0.0
                 total_qty = 0.0
@@ -139,8 +140,8 @@ class PositionBuilder:
                     avg_entry = total_cost / total_qty
                     # PnL = sell proceeds - buy cost - all fees
                     # Pro-rate sell commission if we only matched part of the sell
-                    if trade.quantity > 0:
-                        sell_comm = trade_comm * (total_qty / trade.quantity)
+                    if qty > 0:
+                        sell_comm = trade_comm * (total_qty / qty)
                     else:
                         sell_comm = 0.0
                     pnl = (trade.price - avg_entry) * total_qty - total_buy_comm - sell_comm

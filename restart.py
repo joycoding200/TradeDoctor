@@ -15,11 +15,11 @@ import os
 import sys
 import time
 import signal
-import socket
+import shutil
 import platform
 import subprocess
-import urllib.request
 from pathlib import Path
+import urllib.request
 
 ROOT = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT / "backend"
@@ -30,11 +30,6 @@ BACKEND_PORT = 8000
 FRONTEND_PORT = 5173
 
 IS_WINDOWS = platform.system() == "Windows"
-PYTHON = (
-    BACKEND_DIR / ".venv" / "Scripts" / "python.exe"
-    if IS_WINDOWS
-    else BACKEND_DIR / ".venv" / "bin" / "python"
-)
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -47,18 +42,36 @@ def fail(msg: str) -> None:
     print(f"  [fail] {msg}")
 
 
-# ── Step 1: Free ports ──────────────────────────────────────────────
+# ── Step 0: Clean pycache ───────────────────────────────────────────────
+
+def clean_pycache() -> None:
+    """Remove all __pycache__ dirs so stale .pyc never shadows new .py code."""
+    removed = 0
+    for d in BACKEND_DIR.rglob("__pycache__"):
+        try:
+            shutil.rmtree(d, ignore_errors=True)
+            removed += 1
+        except OSError:
+            pass
+    if removed:
+        ok(f"Cleared {removed} __pycache__ dir(s)")
+
+
+# ── Step 1: Free ports ──────────────────────────────────────────────────
 
 def _pid_listening(port: int) -> str | None:
     """Return PID (as string) of process listening on `port`, or None."""
     if IS_WINDOWS:
         try:
+            # Only query the specific port, not ALL connections
             out = subprocess.check_output(
-                ["netstat", "-ano"], text=True, timeout=5
+                f'netstat -ano | findstr ":{port} " | findstr "LISTENING"',
+                shell=True, text=True, timeout=5,
             )
-            for line in out.splitlines():
-                if f":{port} " in line and "LISTENING" in line:
-                    return line.strip().split()[-1]
+            line = out.strip().splitlines()[0] if out.strip() else ""
+            if line:
+                parts = line.strip().split()
+                return parts[-1]  # PID is last column
         except Exception:
             pass
     else:
@@ -88,16 +101,22 @@ def _kill_pid(pid: str) -> bool:
 
 
 def free_ports() -> None:
-    print(f"[1/3] Freeing ports {BACKEND_PORT} {FRONTEND_PORT} ...")
+    print(f"[1/4] Freeing ports {BACKEND_PORT} {FRONTEND_PORT} ...")
     for port in (BACKEND_PORT, FRONTEND_PORT):
         pid = _pid_listening(port)
-        if pid and _kill_pid(pid):
-            print(f"  :{port} PID={pid} killed")
-    print("  done")
-    time.sleep(0.5)
+        if pid:
+            _kill_pid(pid)
+            time.sleep(0.3)
+            # Double-check
+            if not _pid_listening(port):
+                ok(f":{port} freed (was PID={pid})")
+            else:
+                fail(f":{port} could not free PID={pid}")
+        else:
+            ok(f":{port} already free")
 
 
-# ── Step 2 & 3: Start servers ────────────────────────────────────────
+# ── Step 2 & 3: Start servers ───────────────────────────────────────────
 
 def _detach_popen(cmd: list[str], log_path: Path, cwd: Path) -> subprocess.Popen:
     """Start a process detached from the terminal, output → log file."""
@@ -106,23 +125,22 @@ def _detach_popen(cmd: list[str], log_path: Path, cwd: Path) -> subprocess.Popen
         stdout=log_fh,
         stderr=subprocess.STDOUT,
         cwd=str(cwd),
-        close_fds=True,
     )
     if IS_WINDOWS:
-        # CREATE_NEW_PROCESS_GROUP + no console window
-        kwargs["creationflags"] = (
-            subprocess.CREATE_NEW_PROCESS_GROUP | 0x08000000  # CREATE_NO_WINDOW
-        )
+        # CREATE_NO_WINDOW only — no CREATE_NEW_PROCESS_GROUP which
+        # can cause the parent PowerShell window to hang.
+        kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
     else:
         kwargs["start_new_session"] = True
     return subprocess.Popen(cmd, **kwargs)
 
 
 def start_backend() -> int:
-    print(f"[2/3] Starting backend :{BACKEND_PORT} ...")
+    print(f"[2/4] Starting backend :{BACKEND_PORT} ...")
     cmd = [
-        str(PYTHON), "-m", "uvicorn", "app.main:app",
+        "uvicorn", "app.main:app",
         "--host", "0.0.0.0", "--port", str(BACKEND_PORT),
+        "--reload",
     ]
     proc = _detach_popen(cmd, LOG_DIR / "backend.log", BACKEND_DIR)
     ok(f"PID={proc.pid}  log: {LOG_DIR / 'backend.log'}")
@@ -130,7 +148,7 @@ def start_backend() -> int:
 
 
 def start_frontend() -> int:
-    print(f"[3/3] Starting frontend :{FRONTEND_PORT} ...")
+    print(f"[3/4] Starting frontend :{FRONTEND_PORT} ...")
     if IS_WINDOWS:
         cmd = ["cmd.exe", "/c", "npx", "vite", "--port", str(FRONTEND_PORT)]
     else:
@@ -140,7 +158,7 @@ def start_frontend() -> int:
     return proc.pid
 
 
-# ── Step 4: Health check ─────────────────────────────────────────────
+# ── Step 4: Health check ─────────────────────────────────────────────────
 
 def wait_backend(timeout: float = 15.0) -> bool:
     print()
@@ -165,11 +183,12 @@ def wait_backend(timeout: float = 15.0) -> bool:
     return False
 
 
-# ── Main ─────────────────────────────────────────────────────────────
+# ── Main ─────────────────────────────────────────────────────────────────
 
 def main() -> None:
     print("=== Restarting TradeDoctor (dev) ===")
 
+    clean_pycache()
     free_ports()
     start_backend()
     start_frontend()

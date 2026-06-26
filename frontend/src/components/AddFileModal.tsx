@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import FileDropzone from "./FileDropzone";
+import UploadProgress, { deriveStep } from "./UploadProgress";
 import { uploadFile, confirmFormat, importTrades } from "../api/upload";
 import { linkFilesToAnalysis } from "../api/analysis";
 import { useToast } from "../context/ToastContext";
@@ -114,8 +115,7 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
         role="dialog"
         aria-modal="true"
         aria-label="添加交割单"
-        className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[440px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
-        style={{ transform: "translate(-50%, -50%)" }}
+        className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[440px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)] -translate-x-1/2 -translate-y-1/2"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-text-primary">添加交割单</h2>
@@ -133,10 +133,7 @@ export default function AddFileModal({ analysisId, onClose, onSuccess }: Props) 
         {!loading ? (
           <FileDropzone onFile={processFile} loading={false} />
         ) : (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-8">
-            <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-            <span className="text-sm text-text-secondary">{status}</span>
-          </div>
+          <UploadProgress currentStep={deriveStep(status)} statusText={status} />
         )}
 
         <p className="mt-3 text-xs text-text-secondary">

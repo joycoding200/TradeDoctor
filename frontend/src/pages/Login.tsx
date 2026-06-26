@@ -1,49 +1,9 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { useToast } from "../context/ToastContext";
-import { login as loginApi } from "../api/auth";
-import { Card, Input, Button } from "../components/ui";
+import { useNavigate, Link } from "react-router-dom";
+import { Card } from "../components/ui";
+import LoginForm from "../components/auth/LoginForm";
 
 export default function Login() {
-  const [account, setAccount] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
   const navigate = useNavigate();
-  const toast = useToast();
-  const [searchParams] = useSearchParams();
-
-  useEffect(() => {
-    if (searchParams.get("expired") === "1") {
-      setError("登录已过期，请重新登录");
-    }
-  }, [searchParams]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    // Client-side validation
-    if (!account.trim()) { setError("请输入邮箱或手机号"); return; }
-    if (!password) { setError("请输入密码"); return; }
-
-    setLoading(true);
-    try {
-      const token = await loginApi(account, password);
-      login(token);
-      toast.addToast("success", "登录成功");
-      navigate("/upload");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "登录失败";
-      setError(msg);
-      toast.addToast("error", msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-4">
@@ -52,51 +12,7 @@ export default function Login() {
         <p className="mb-4 rounded-lg bg-amber-50 p-2 text-center text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
           内测阶段暂无验证码功能，若忘记密码直接新注册一个账号即可
         </p>
-        {error && (
-          <div className="mb-4 rounded-lg bg-danger/10 p-3 text-sm text-danger">
-            <p className="mb-1">{error}</p>
-            {(error.includes("账号或密码") || error.includes("账号不存在")) && (
-              <p className="text-text-secondary">
-                还没有账号？<Link to="/register" className="text-accent underline">立即注册</Link>
-              </p>
-            )}
-            {error.includes("密码") && !error.includes("账号") && (
-              <p className="text-text-secondary">
-                忘记密码？内测阶段直接 <Link to="/register" className="text-accent underline">重新注册</Link> 即可
-              </p>
-            )}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input
-            type="text"
-            placeholder="邮箱或手机号"
-            value={account}
-            onChange={(e) => setAccount(e.target.value)}
-            required
-          />
-          <div className="relative">
-            <Input
-              type={showPw ? "text" : "password"}
-              placeholder="密码"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPw(!showPw)}
-              aria-label={showPw ? "隐藏密码" : "显示密码"}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-1 text-base leading-none text-text-secondary focus-ring"
-            >
-              {showPw ? "🙈" : "👁"}
-            </button>
-          </div>
-          <Button type="submit" disabled={loading}>
-            {loading ? "登录中..." : "登录"}
-          </Button>
-        </form>
+        <LoginForm onSuccess={() => navigate("/upload")} />
         <p className="mt-3 text-center text-xs text-text-secondary">
           忘记密码？内测阶段直接重新注册即可
         </p>

@@ -21,6 +21,9 @@ class Analysis(Base):
     date_start = Column(Date, nullable=False)
     date_end = Column(Date, nullable=False)
     stats_snapshot = Column(JSON, nullable=True)
+    insight_snapshot = Column(JSON, nullable=True)
+    whatif_snapshot = Column(JSON, nullable=True)
+    computed_at = Column(DateTime, nullable=True)
     created_at = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc),
         server_default=sa.func.now()
