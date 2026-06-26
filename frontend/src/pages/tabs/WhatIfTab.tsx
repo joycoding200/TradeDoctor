@@ -60,16 +60,15 @@ export default function WhatIfTab({ whatIf }: WhatIfTabProps) {
             <div className="flex justify-between text-sm mt-2 text-text-secondary">
               <span>当前收益: {(data.stop_loss.original_return * 100).toFixed(1)}%</span>
               <span>止损后: {(data.stop_loss.what_if_return * 100).toFixed(1)}%</span>
-              <span style={{ color: data.stop_loss.delta >= 0 ? "var(--success)" : "var(--danger)" }}>
+              <span className={data.stop_loss.delta >= 0 ? "text-success" : "text-danger"}>
                 变化 {data.stop_loss.delta >= 0 ? "+" : ""}{(data.stop_loss.delta * 100).toFixed(1)}%
               </span>
             </div>
-            <div className="mt-3 pt-3 text-xs font-medium" style={{
-              borderTop: "1px solid var(--border)",
-              color: data.stop_loss.delta > 0 ? "var(--success)"
-                : data.stop_loss.delta < -0.03 ? "var(--danger)"
-                : "var(--accent)",
-            }}>
+            <div className={`mt-3 border-t border-border pt-3 text-xs font-medium ${
+              data.stop_loss.delta > 0 ? "text-success"
+                : data.stop_loss.delta < -0.03 ? "text-danger"
+                : "text-accent"
+            }`}>
               {data.stop_loss.delta > 0
                 ? "✅ 设止损能帮你减少亏损，建议严格执行"
                 : data.stop_loss.delta < -0.03
@@ -144,7 +143,7 @@ export default function WhatIfTab({ whatIf }: WhatIfTabProps) {
               <Card key={item.removed_pattern} className="p-3 mb-2">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-sm font-medium">{patternLabel(item.removed_pattern)}</span>
-                  <span className="text-sm" style={{ color: item.absolute_impact >= 0 ? "var(--success)" : "var(--danger)" }}>
+                  <span className={`text-sm ${item.absolute_impact >= 0 ? "text-success" : "text-danger"}`}>
                     {fmtYuan(item.absolute_impact)}
                   </span>
                 </div>

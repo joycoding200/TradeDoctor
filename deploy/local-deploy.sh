@@ -44,12 +44,11 @@ done
 if [ "$SKIP_BUILD" = false ]; then
     step "1/3" "本地构建前端..."
     cd "$PROJECT_DIR/frontend"
-    if [ ! -d node_modules ]; then
-        log "安装 npm 依赖..."
-        npm install
+    if [ ! -d dist ]; then
+        err "frontend/dist/ 不存在！请先在 Windows 上执行: cd frontend && npm run build"
+        exit 1
     fi
-    log "VITE_API_BASE 不设置，前端走相对路径，依赖 nginx /api 反代"
-    npm run build
+    log "使用已有 dist/（请在 Windows 上构建，勿在 WSL 中构建前端）"
     cd "$PROJECT_DIR"
     log "前端构建完成: frontend/dist/"
 else

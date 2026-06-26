@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth.jwt import get_current_user
 from app.database import get_db
 from app.models.analysis import Analysis, AnalysisFile
+from app.models.consent_log import ConsentLog
 from app.models.raw_file import RawFile
 from app.models.report import Report
 from app.models.trade import Trade
@@ -287,7 +288,7 @@ def clear_trades(
     """Permanently delete all trading data for the current user.
 
     Deletes in FK-safe order: reports → analyses (join table + rows) →
-    trades → raw files. This is irreversible.
+    trades → consent_log → raw files. This is irreversible.
     """
     user_id = current_user.id
 
@@ -309,7 +310,10 @@ def clear_trades(
     # 4. Trades
     db.query(Trade).filter(Trade.user_id == user_id).delete(synchronize_session=False)
 
-    # 5. RawFiles — delete files from disk first, then rows
+    # 5. ConsentLog — audit trail (must delete before RawFiles due to FK cascade)
+    db.query(ConsentLog).filter(ConsentLog.user_id == user_id).delete(synchronize_session=False)
+
+    # 6. RawFiles — delete files from disk first, then rows
     raw_files = db.query(RawFile).filter(RawFile.user_id == user_id).all()
     for rf in raw_files:
         _delete_raw_file(rf)

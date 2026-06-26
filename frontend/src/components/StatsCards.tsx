@@ -76,7 +76,7 @@ function heroCard(
   rating?: Rating
 ) {
   return (
-    <Card className="p-5">
+    <Card key={label} className="p-5">
       <div className="mb-1 text-xs text-text-secondary">{label}</div>
       <div className={`text-2xl font-bold ${COLOR_CLASS[cls] ?? "text-text-primary"}`}>
         {value}
@@ -101,7 +101,7 @@ function detailCard(
   summary?: string,
 ) {
   return (
-    <Card className="p-4">
+    <Card key={label} className="p-4">
       <div className="mb-1 text-xs text-text-secondary">{label}</div>
       <div className={`text-lg font-semibold ${COLOR_CLASS[cls] ?? "text-text-primary"}`}>
         {value}

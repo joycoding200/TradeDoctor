@@ -8,6 +8,7 @@ from app.models.analysis import Analysis, AnalysisFile
 from app.models.report import Report
 from app.models.daily_bar import DailyBar
 from app.models.case_library import CaseLibrary
+from app.models.consent_log import ConsentLog
 from app.models.token_blacklist import TokenBlacklist
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "Report",
     "DailyBar",
     "CaseLibrary",
+    "ConsentLog",
     "TokenBlacklist",
 ]

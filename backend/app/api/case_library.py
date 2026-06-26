@@ -13,6 +13,7 @@ from app.api.analysis import _build_category_map
 from app.api.common import load_analysis, load_trades, get_raw_file_ids, get_raw_file_filenames
 from app.database import get_db
 from app.models.case_library import CaseLibrary
+from app.models.consent_log import ConsentLog
 from app.models.raw_file import RawFile
 from app.models.report import Report
 from app.models.user import User
@@ -110,12 +111,22 @@ def contribute(
     db: Session = Depends(get_db),
 ):
     """Anonymous case contribution: contribute analysis data to the library."""
-    # Consent = false: skip, record nothing
+    analysis_id = body.analysis_id.strip() if body.analysis_id else ""
+
+    # Record consent decision as immutable audit trail
+    consent_log = ConsentLog(
+        user_id=current_user.id,
+        analysis_id=analysis_id or None,
+        consented=body.consent,
+    )
+    db.add(consent_log)
+
+    # Consent = false: only record the decision, nothing else
     if not body.consent:
+        db.commit()
         return {"detail": "已跳过"}
 
     # Consent = true: require analysis_id
-    analysis_id = body.analysis_id.strip() if body.analysis_id else ""
     if not analysis_id:
         raise HTTPException(status_code=400, detail="analysis_id is required when consent=true")
 
@@ -223,10 +234,10 @@ def get_contribute_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Check whether the current user has ever contributed a case."""
-    has_consented = (
-        db.query(CaseLibrary)
-        .filter(CaseLibrary.user_id == current_user.id)
+    """Check whether the current user has already made a consent decision."""
+    has_decided = (
+        db.query(ConsentLog)
+        .filter(ConsentLog.user_id == current_user.id)
         .first()
     ) is not None
-    return {"has_consented": has_consented}
+    return {"has_consented": has_decided}

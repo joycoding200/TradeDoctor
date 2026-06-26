@@ -42,7 +42,6 @@ export default function UploadProgress({ currentStep, statusText }: UploadProgre
         {STEPS.map(({ step, label }, i) => {
           const isCompleted = step < currentStep;
           const isActive = step === currentStep;
-          const isPending = step > currentStep;
 
           return (
             <div key={step} className="flex flex-col items-center sm:flex-row">

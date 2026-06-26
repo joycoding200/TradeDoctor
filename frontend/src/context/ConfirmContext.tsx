@@ -109,8 +109,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             aria-modal="true"
             aria-labelledby="confirm-title"
             aria-describedby="confirm-desc"
-            className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[380px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
-            style={{ transform: "translate(-50%, -50%)" }}
+            className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[380px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)] -translate-x-1/2 -translate-y-1/2"
           >
             <h2
               id="confirm-title"

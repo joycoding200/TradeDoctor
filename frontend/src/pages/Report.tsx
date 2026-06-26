@@ -166,8 +166,7 @@ export default function Report() {
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[420px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)] md:p-8"
-            style={{ transform: "translate(-50%, -50%)" }}
+            className="fixed left-1/2 top-1/2 z-[201] w-[90%] max-w-[420px] animate-scale-in rounded-2xl border border-border bg-bg-secondary p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)] -translate-x-1/2 -translate-y-1/2 md:p-8"
           >
             <div className="mb-4 text-center text-2xl">📊</div>
             <h2 className="mb-2 text-center text-base font-semibold text-text-primary">

@@ -134,21 +134,23 @@ export default function Landing() {
       {/* ═══ Feature Cards (always visible) ══════════════════════════════════ */}
       <div className="mx-auto mt-20 grid w-full max-w-[780px] grid-cols-1 gap-5 sm:grid-cols-3">
         {FEATURES.map(({ title, desc, Icon }, i) => (
-          <Card
+          <div
             key={title}
-            className="group animate-fade-in-up border-border/60 p-6 text-left transition-all duration-300 hover:-translate-y-1.5 hover:border-accent/40 hover:shadow-xl hover:shadow-accent/5"
+            className="animate-fade-in-up"
             style={{ animationDelay: `${isLoggedIn ? 300 : 600 + i * 150}ms` }}
           >
-            <div className="mb-4 inline-flex rounded-xl bg-accent/10 p-2.5 text-accent transition-colors duration-300 group-hover:bg-accent/15">
-              <Icon />
-            </div>
-            <h3 className="mb-2 text-[15px] font-semibold text-text-primary">
-              {title}
-            </h3>
-            <p className="text-sm leading-relaxed text-text-secondary">
-              {desc}
-            </p>
-          </Card>
+            <Card className="group border-border/60 p-6 text-left transition-all duration-300 hover:-translate-y-1.5 hover:border-accent/40 hover:shadow-xl hover:shadow-accent/5">
+              <div className="mb-4 inline-flex rounded-xl bg-accent/10 p-2.5 text-accent transition-colors duration-300 group-hover:bg-accent/15">
+                <Icon />
+              </div>
+              <h3 className="mb-2 text-[15px] font-semibold text-text-primary">
+                {title}
+              </h3>
+              <p className="text-sm leading-relaxed text-text-secondary">
+                {desc}
+              </p>
+            </Card>
+          </div>
         ))}
       </div>
 
