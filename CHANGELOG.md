@@ -6,6 +6,54 @@
 
 ---
 
+## [V1.1.1] — 2026-06-28
+
+### 概述
+
+本版本是 V1.1.0 的**代码审查收尾**：对 V1.1.0 提交做深度审查后，修复了 1 个发版阻断项、3 个合规/质量问题、2 个性能项，并根治了 1 个既有 flaky 测试。新增 5 个回归测试，全量 404 passed / 0 failed。审查过程覆盖金融定义口径、DB 事务边界、用户隐私合规、性能热路径。
+
+### 修复的 Bug
+
+#### 1. 存量脏快照永久 422（发版阻断项）
+
+**现象**：V1.1.0 修复了"新写入快照完整"的问题，但**部署前已存在的 12 字段不完整快照**（truthy dict）无任何处理——快路径 `if analysis.stats_snapshot:` 为真 → `StatsResponse(**不完整dict)` 缺必填字段 → ValidationError → 422 永久卡死，存量分析无自然恢复路径。
+
+**根因**：`get_stats` 快路径只处理 `None`（跳过），不处理"truthy 但不完整"的存量脏快照。
+
+**修复**：快路径加 `try/except`，捕获 `ValidationError` 后置 `stats_snapshot=None` → fall through 到慢路径 → 慢路径重算并写回完整快照，**自愈**存量分析。新增红测试 `test_stale_partial_snapshot_self_heals`（TDD：旧实现 `4 validation errors` → 修复后 200）。
+
+#### 2. clear_trades 删除 consent_log 审计记录
+
+**现象**：`clear_trades`（清空用户数据）物理删除 `ConsentLog` 行，但 `consent_log` 是"immutable compliance audit trail"（不可变合规审计留痕）。
+
+**根因**：用户同意贡献案例后，案例数据已复制进 `case_library` 表独立留存；用户清空的是自己账户的原始交割单/分析，**不应也不需**删掉已贡献案例的副本。但 consent_log 被一并删除，导致"案例在库、同意证据没了"的不一致——同意证据销毁，无法事后举证授权。
+
+**修复**：`clear_trades` 不再删除 `ConsentLog`，保留全部同意/拒绝记录作为合规证据（与用户讨论确认方案 A）。新增红测试 `test_clear_trades_preserves_consent_log`（旧实现 `0 = len([])` 删光 → 修复后保留 2 条）。`ConsentLog.user_id` 的 `ondelete=CASCADE` 暂不动（当前无账户注销，不会触发）。
+
+#### 3. report 与 /insight 端点的行情竞态 flaky（根治）
+
+**现象**：`test_report_insight_matches_insight_endpoint` 是既有 flaky 测试，连跑原代码 8 次中 4 pass / 4 fail（50%）。
+
+**根因**：report 端点每次用**当前行情** `compute_insight` 重算 `insight_items`，而 `/insight` 端点命中快路径读 `run_analysis` 时生成的 `insight_snapshot`（历史行情）。mootdx 行情抖动时两端 market_env 标签（SIDEWAYS 等）偶发不一致 → patterns 集合差异 → 断言 flake。
+
+**修复**：report 的 `insight_items` 优先读 `analysis.insight_snapshot`（与 `/insight` 端点**同源**），无快照才回退 `compute_insight`（legacy 分析）。从源头消除重算竞态，附带省掉一次 PatternEngine 打标。连跑 10 次全绿，flaky 根治。新增 `test_report_recomputes_insight_when_no_snapshot` 锁定回退分支。
+
+### 性能优化
+
+#### 4. report.py 复用打标结果（PatternEngine 成本减半）
+
+**根因**：report.py 打标一次供 WhatIf 的 `patterns_map`，`_build_category_map` 内部又完整重算一次 `tag_position`/`tag_market_patterns`/心理学检测，PatternEngine 成本翻倍。
+
+**修复**：`_build_category_map` 新增 `precomputed` 参数，传入已打标的 PatternResult 列表时跳过重复打标，只跑 `resolve_per_category`。report.py 打标一次复用。新增 `test_build_category_map.py` 锁定 precomputed 路径与非 precomputed 路径输出**恒等**（相同输入下，防止 report 与 /insight 数据源漂移）。
+
+#### 5. run_analysis 省 redundant SELECT
+
+`run_analysis` 的 `except` 块 `db.rollback()` 后，return 处改用预捕获的 `aid` 替代 `analysis.id`，省一次 refresh SELECT（rollback 后访问 `analysis.id` 会触发额外查询）。
+
+### 测试加固
+
+- drift 等价性测试补 `LARGE_CSV` 大样本夹具（5 position / 全 SWING / 3 盈 2 亏），让 `best_pattern`（count≥5）与 `stop_loss`（亏损持仓 pnl_pct<-5%）非空，Insight/WhatIf 等价性断言不再退化为 `None==None` 平凡通过。覆盖 V4.0 的 `equity_curve` 逐点值、`pnl_distribution`、MAE/MFE 字段。
+
 ## [V1.1.0] — 2026-06-27
 
 ### 概述
