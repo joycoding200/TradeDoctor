@@ -152,12 +152,3 @@ class BaseParser(ABC):
                 # text file with a .xls extension. Fall back to delimited text.
                 return BaseParser._strip_formula_strings(BaseParser._read_delimited(content))
         raise ValueError(f"Unsupported file format: {filename}")
-
-    @staticmethod
-    def _column_match_score(df_columns: list[str], expected: list[str]) -> float:
-        actual_lower = {c.strip().lower(): c for c in df_columns}
-        matched = 0
-        for exp in expected:
-            if exp.lower() in actual_lower:
-                matched += 1
-        return matched / len(expected) if expected else 0.0

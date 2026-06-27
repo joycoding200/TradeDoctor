@@ -24,20 +24,3 @@ def test_parse_unknown_raises():
         assert False, "Should have raised ValueError"
     except ValueError:
         pass
-
-
-def test_column_match_score():
-    from app.parsers.base import BaseParser
-
-    score = BaseParser._column_match_score(
-        ["委托时间", "证券代码", "成交价格"], ["委托时间", "证券代码", "成交价格"]
-    )
-    assert score == 1.0
-
-    score = BaseParser._column_match_score(["a", "b"], ["委托时间", "证券代码", "成交价格"])
-    assert score == 0.0
-
-    score = BaseParser._column_match_score(
-        ["委托时间", "其他"], ["委托时间", "证券代码"]
-    )
-    assert score == 0.5

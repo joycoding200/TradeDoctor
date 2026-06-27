@@ -240,3 +240,104 @@ class TestReportsList:
         data = resp.json()
         assert data["total"] == 1
         assert len(data["reports"]) == 1
+
+
+class TestReportInsightConsistency:
+    """The AI report must reason over the SAME insight data the /insight panel
+    shows. Previously report.py used InsightEngine.analyze (single primary-pattern
+    bucketing) while the panel used compute_insight/analyze_by_category
+    (multi-bucket, log-weighted, count>=5 filter), so the AI could cite a
+    "best pattern" the panel excluded. These tests lock the unified data source.
+    """
+
+    def test_report_insight_matches_insight_endpoint(self, client):
+        headers = get_auth_header(client, "insight_consistency@test.com")
+        raw_file_id = import_trades(client, headers)
+        analysis_id = run_analysis(client, headers, raw_file_id)
+
+        with patch("app.api.report.get_llm") as mock_get_llm:
+            mock_provider = AsyncMock()
+            mock_provider.generate = AsyncMock(return_value=MOCK_REPORT)
+            mock_get_llm.return_value = mock_provider
+            gen = client.post(
+                "/api/report/generate",
+                headers=headers,
+                json={"analysis_id": analysis_id},
+            )
+            assert gen.status_code == 201, gen.text
+            report_id = gen.json()["report_id"]
+
+        # The report's stored analysis_input.patterns must match the /insight
+        # endpoint's patterns (same source: compute_insight).
+        report = client.get(f"/api/report/{report_id}", headers=headers).json()
+        report_patterns = {
+            p["pattern_name"]: p for p in report["analysis_input"]["patterns"]
+        }
+
+        insight = client.get(
+            f"/api/analysis/{analysis_id}/insight", headers=headers
+        ).json()
+        # /insight returns patterns flattened across all dimensions
+        insight_patterns = {p["pattern_name"]: p for p in insight["patterns"]}
+
+        # Every pattern the AI report sees must exist in the insight panel
+        assert set(report_patterns) == set(insight_patterns), (
+            f"report patterns != insight patterns: "
+            f"report_only={set(report_patterns) - set(insight_patterns)} "
+            f"insight_only={set(insight_patterns) - set(report_patterns)}"
+        )
+        # And their counts / total_pnl must agree (same computation)
+        for name, rp in report_patterns.items():
+            ip = insight_patterns[name]
+            assert rp["count"] == ip["count"], (
+                f"pattern '{name}' count drift: report={rp['count']} "
+                f"insight={ip['count']}"
+            )
+            assert rp["total_pnl"] == ip["total_pnl"], (
+                f"pattern '{name}' total_pnl drift: report={rp['total_pnl']} "
+                f"insight={ip['total_pnl']}"
+            )
+
+    def test_report_uses_compute_insight_not_analyze(self, client, monkeypatch):
+        """The report pipeline must call compute_insight (the shared engine),
+        not the divergent InsightEngine.analyze. Spy on both to enforce the
+        unified data source at the call-graph level."""
+        from app.engine import compute as compute_mod
+        from app.engine import insight as insight_mod
+
+        headers = get_auth_header(client, "compute_insight@test.com")
+        raw_file_id = import_trades(client, headers)
+        analysis_id = run_analysis(client, headers, raw_file_id)
+
+        compute_calls = {"compute_insight": 0, "analyze": 0}
+        orig_compute_insight = compute_mod.compute_insight
+        orig_analyze = insight_mod.InsightEngine.analyze
+
+        def spy_compute_insight(*args, **kwargs):
+            compute_calls["compute_insight"] += 1
+            return orig_compute_insight(*args, **kwargs)
+
+        def spy_analyze(*args, **kwargs):
+            compute_calls["analyze"] += 1
+            return orig_analyze(*args, **kwargs)
+
+        monkeypatch.setattr(compute_mod, "compute_insight", spy_compute_insight)
+        monkeypatch.setattr(insight_mod.InsightEngine, "analyze", spy_analyze)
+
+        with patch("app.api.report.get_llm") as mock_get_llm:
+            mock_provider = AsyncMock()
+            mock_provider.generate = AsyncMock(return_value=MOCK_REPORT)
+            mock_get_llm.return_value = mock_provider
+            gen = client.post(
+                "/api/report/generate",
+                headers=headers,
+                json={"analysis_id": analysis_id},
+            )
+            assert gen.status_code == 201, gen.text
+
+        assert compute_calls["compute_insight"] >= 1, (
+            "report generation must call compute_insight (shared engine)"
+        )
+        assert compute_calls["analyze"] == 0, (
+            "report generation must NOT call the divergent InsightEngine.analyze"
+        )

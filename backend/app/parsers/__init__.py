@@ -1,34 +1,6 @@
 """Parser helpers."""
 
 
-def _get_multiplier(symbol: str) -> int:
-    """Get contract multiplier for futures symbols."""
-    symbol_upper = symbol.upper()
-    if symbol_upper.startswith("IF"):
-        return 300
-    if symbol_upper.startswith("IC"):
-        return 200
-    if symbol_upper.startswith("IH"):
-        return 300
-    if symbol_upper.startswith("IM"):
-        return 200
-    if symbol_upper.startswith("TS"):
-        return 20000
-    if symbol_upper.startswith("T"):
-        return 10000
-    if symbol_upper.startswith("TF"):
-        return 10000
-    if any(symbol_upper.startswith(p) for p in ("RB", "HC", "BU", "RU", "SP", "FU")):
-        return 10
-    if any(symbol_upper.startswith(p) for p in ("CU", "AL", "ZN", "PB", "NI", "SN", "AO")):
-        return 5
-    if symbol_upper.startswith("AU"):
-        return 1000
-    if symbol_upper.startswith("AG"):
-        return 15
-    return 10
-
-
 def _get_exchange(symbol: str) -> str:
     """Get exchange code from stock/futures symbol."""
     sym = symbol.zfill(6)

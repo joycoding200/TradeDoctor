@@ -508,36 +508,6 @@ class TestAverageDownEdgeCases:
         assert isinstance(tags, set)
 
 
-class TestCashTag:
-    def test_first_position_in_period(self):
-        pos = make_pos()
-        results = PatternEngine.detect_cooldowns(pos, [pos])
-        names = {r.pattern_name for r in results}
-        assert "CASH" in names
-
-    def test_gap_over_30_days(self):
-        p1 = make_pos(holding_days=5, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7))
-        p2 = make_pos(holding_days=5, entry_date=date(2024, 2, 10), exit_date=date(2024, 2, 15))
-        # gap = (2024-02-10) - (2024-01-07) = 34 days > 30
-        results = PatternEngine.detect_cooldowns(p2, [p1, p2])
-        names = {r.pattern_name for r in results}
-        assert "CASH" in names
-
-    def test_no_gap_no_cash(self):
-        p1 = make_pos(holding_days=5, entry_date=date(2024, 1, 2), exit_date=date(2024, 1, 7))
-        p2 = make_pos(holding_days=5, entry_date=date(2024, 1, 10), exit_date=date(2024, 1, 15))
-        # gap = (2024-01-10) - (2024-01-07) = 3 days <= 30
-        results = PatternEngine.detect_cooldowns(p2, [p1, p2])
-        names = {r.pattern_name for r in results}
-        assert "CASH" not in names
-
-    def test_not_emitted_from_tag_position(self):
-        """CASH should NOT appear in tag_position() output."""
-        pos = make_pos()
-        tags = PatternEngine.tag_position(pos, [pos])
-        assert "CASH" not in {t.pattern_name for t in tags}
-
-
 # ============================================================================
 # Module 1 -- Market-dependent entry/exit patterns
 # ============================================================================
@@ -931,6 +901,14 @@ class TestTagCoexistence:
         # avg_entry 9.4 < 10.0 * 0.95 = 9.5 -> AVERAGE_DOWN
         tags = tag_names(p2, all_positions=[p1, p2])
         assert "AVERAGE_DOWN" in tags
+
+    def test_cash_not_emitted_from_tag_position(self):
+        """CASH is a cooldown concept, not a trade behavior — tag_position must
+        never emit it. (Guards against re-introducing the removed detect_cooldowns
+        path leaking CASH into production tags.)"""
+        pos = make_pos()
+        tags = PatternEngine.tag_position(pos, [pos])
+        assert "CASH" not in {t.pattern_name for t in tags}
 
 
 # ============================================================================

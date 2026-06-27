@@ -2,6 +2,8 @@
 
 import pytest
 
+from app.models.analysis import Analysis
+
 QMT_CSV = (
     "委托时间,证券代码,证券名称,买卖方向,成交价格,成交数量,手续费\n"
     "2024-01-05 09:30:00,000001,平安银行,买入,10.50,1000,5.00\n"
@@ -518,3 +520,114 @@ class TestSymbolSummary(_BaseAnalysisTest):
             assert item["win_count"] == 1
             assert item["win_rate"] == 1.0
             assert item["total_pnl"] > 0
+
+
+# Required fields that the old incomplete snapshot (12 fields) was missing,
+# causing `StatsResponse(**snapshot)` to raise ValidationError → 422.
+_REQUIRED_SNAPSHOT_FIELDS = (
+    "positions",
+    "max_win",
+    "max_loss",
+    "consecutive_losses",
+    "pnl_distribution",
+    "equity_curve",
+    "symbol_summary",
+    "expectancy",
+    "avg_mae",
+    "avg_mfe",
+    "total_return_pct",
+    "max_drawdown_pct",
+)
+
+
+class TestSnapshotRoundTrip:
+    """Regression: the get_stats slow path must cache a FIELD-COMPLETE snapshot.
+
+    Root cause (fixed): when run_analysis's compute_all failed on the server
+    (e.g. mootdx TCP errors), stats_snapshot stayed None. The first GET /stats
+    then took the slow path, returned correct data, BUT saved a 12-field
+    "summary" dict into stats_snapshot. The second GET /stats hit the fast path
+    `StatsResponse(**snapshot)`, which raised ValidationError (missing
+    positions/max_win/max_loss/consecutive_losses) → 422 → 分析面板 permanently
+    showed "加载失败". This is the exact scenario the user hit: upload → view
+    panel (OK) → generate AI report → return to panel (broken) → history →
+    panel (still broken).
+
+    These tests force the slow path by nulling the snapshot, then verify the
+    snapshot written back is complete enough to round-trip through the fast
+    path on the next request.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self, client):
+        self.headers = get_auth_header(client)
+        self.raw_file_id = import_trades(client, self.headers)
+        self.analysis_id = run_analysis(
+            client, self.headers, raw_file_id=self.raw_file_id
+        )
+
+    def _null_snapshot(self, db_session):
+        """Simulate compute_all failing on the server: drop the precomputed snapshot."""
+        analysis = (
+            db_session.query(Analysis)
+            .filter(Analysis.id == self.analysis_id)
+            .first()
+        )
+        assert analysis is not None, "analysis not found in test db"
+        analysis.stats_snapshot = None
+        analysis.insight_snapshot = None
+        analysis.whatif_snapshot = None
+        db_session.commit()
+
+    def test_slow_path_caches_field_complete_snapshot(self, client, db_session):
+        """First GET after snapshot loss must return 200 AND persist a complete snapshot."""
+        self._null_snapshot(db_session)
+
+        resp = client.get(
+            f"/api/analysis/{self.analysis_id}/stats", headers=self.headers
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        # First call returns computed data with required fields present.
+        assert len(data["positions"]) == 2
+        assert data["max_win"] is not None
+        assert data["max_loss"] is not None
+
+        # The snapshot now stored must carry every required field.
+        db_session.expire_all()
+        analysis = (
+            db_session.query(Analysis)
+            .filter(Analysis.id == self.analysis_id)
+            .first()
+        )
+        snapshot = analysis.stats_snapshot
+        assert snapshot is not None, "slow path did not cache a snapshot"
+        for field in _REQUIRED_SNAPSHOT_FIELDS:
+            assert field in snapshot, (
+                f"cached snapshot missing required field '{field}' "
+                f"(this is the 422 bug: fast path StatsResponse(**snapshot) would raise)"
+            )
+        assert len(snapshot["positions"]) == 2
+
+    def test_second_get_uses_fast_path_without_error(self, client, db_session):
+        """The exact user scenario: view → return later → must NOT 422.
+
+        Before the fix, the second request raised ValidationError because the
+        slow path had cached a 12-field dict lacking `positions` etc.
+        """
+        self._null_snapshot(db_session)
+
+        first = client.get(
+            f"/api/analysis/{self.analysis_id}/stats", headers=self.headers
+        )
+        assert first.status_code == 200
+
+        second = client.get(
+            f"/api/analysis/{self.analysis_id}/stats", headers=self.headers
+        )
+        # Regression: this was 422 (ValidationError) before the fix.
+        assert second.status_code == 200, (
+            f"second GET /stats failed ({second.status_code}): {second.text}"
+        )
+        assert second.json()["positions"] == first.json()["positions"]
+        assert second.json()["total_pnl"] == first.json()["total_pnl"]

@@ -101,9 +101,24 @@ def upload_file(
         .first()
     )
     if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"此文件已上传过（文件名：{existing.filename}），请勿重复上传。",
+        # 幂等重传：返回已存在的 raw_file_id，而非 409 拒绝。
+        # 用户误传同一交割单是常见操作（如改名重传），拒绝会中断整个流程。
+        # import_trades 本身已按 (user, symbol, datetime, ...) 去重，不会双倍计数；
+        # _load_trades 按 raw_file_id 过滤，同一文件分析两次各自独立。
+        logger.info(
+            "idempotent re-upload: user=%s returning existing raw_file=%s (filename=%s)",
+            current_user.id,
+            existing.id,
+            existing.filename,
+        )
+        detected = ParserRegistry.detect_format(content, filename or "unknown.csv")
+        detected_formats = [
+            DetectResult(source_type=st, asset_type=at, score=s)
+            for st, at, s in detected
+        ]
+        return UploadResponse(
+            raw_file_id=existing.id,
+            detected_formats=detected_formats,
         )
 
     raw_file = RawFile(

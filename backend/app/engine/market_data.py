@@ -109,35 +109,43 @@ class MarketDataCache:
             db.commit()
             return result.rowcount if result.rowcount else 0
 
-        # SQLite / other: batch-insert, skipping existing dates
-        symbol = bars[0]["symbol"]
-        dates = [b["date"] for b in bars]
-        existing = set(
-            db.query(DailyBar.date)
-            .filter(DailyBar.symbol == symbol, DailyBar.date.in_(dates))
+        # SQLite / other: batch-insert, skipping existing (symbol, date) pairs.
+        # The UNIQUE constraint is on (symbol, date), so we must dedup by the
+        # pair — not by date alone — to support a single store_bars() call that
+        # spans multiple symbols (which is how ensure_market_data feeds it).
+        existing_pairs = set(
+            db.query(DailyBar.symbol, DailyBar.date)
+            .filter(DailyBar.date.in_({b["date"] for b in bars}))
             .all()
         )
-        existing_dates = {d[0] for d in existing}
 
         count = 0
         for b in bars:
-            if b["date"] not in existing_dates:
-                db.add(
-                    DailyBar(
-                        symbol=b["symbol"],
-                        date=b["date"],
-                        open=b["open"],
-                        high=b["high"],
-                        low=b["low"],
-                        close=b["close"],
-                        volume=b.get("volume", 0.0),
-                        ma5=b.get("ma5"),
-                        ma10=b.get("ma10"),
-                        ma20=b.get("ma20"),
-                        ma60=b.get("ma60"),
-                        avg_volume_20d=b.get("avg_volume_20d"),
-                    )
+            key = (b["symbol"], b["date"])
+            if key in existing_pairs:
+                continue
+            db.add(
+                DailyBar(
+                    symbol=b["symbol"],
+                    date=b["date"],
+                    open=b["open"],
+                    high=b["high"],
+                    low=b["low"],
+                    close=b["close"],
+                    volume=b.get("volume", 0.0),
+                    ma5=b.get("ma5"),
+                    ma10=b.get("ma10"),
+                    ma20=b.get("ma20"),
+                    ma60=b.get("ma60"),
+                    avg_volume_20d=b.get("avg_volume_20d"),
                 )
-                count += 1
+            )
+            # Track within-batch duplicates too: mootdx pagination can return
+            # overlapping date ranges, and without this the second occurrence of
+            # a (symbol, date) pair in `bars` would be re-added and trigger a
+            # UNIQUE-constraint IntegrityError on commit. PostgreSQL uses
+            # ON CONFLICT DO NOTHING; this mirrors that for SQLite.
+            existing_pairs.add(key)
+            count += 1
         db.commit()
         return count

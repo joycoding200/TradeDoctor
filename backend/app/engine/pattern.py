@@ -362,49 +362,10 @@ class PatternEngine:
         return tags
 
     # ------------------------------------------------------------------
-    # Cooldown detection (separate from tag_position -- CASH is not a trade behavior)
+    # NOTE: detect_cooldowns() (CASH tag) was removed — it had no production
+    # consumer. tag_position() deliberately never emits CASH; see
+    # TestTagCoexistence.test_cash_not_emitted_from_tag_position.
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def detect_cooldowns(
-        pos, all_positions: list
-    ) -> list[PatternResult]:
-        """Detect cooldown periods between positions.
-
-        A 'CASH' tag is emitted when the gap since the last position
-        exceeds 30 calendar days, or when this is the first position
-        in the analysis period.
-
-        Args:
-            pos: A position-like object with entry_date.
-            all_positions: All positions in the analysis period.
-
-        Returns:
-            List of PatternResult instances (may include CASH).
-        """
-        results: list[PatternResult] = []
-        earlier = [p for p in all_positions if p.exit_date < pos.entry_date]
-        if not earlier:
-            results.append(
-                PatternResult(
-                    "CASH", 0.5, {"reason": "first position in period"}
-                )
-            )
-        else:
-            last_exit = max(p.exit_date for p in earlier)
-            gap = (pos.entry_date - last_exit).days
-            if gap > 30:
-                results.append(
-                    PatternResult(
-                        "CASH",
-                        0.5,
-                        {
-                            "gap_days": gap,
-                            "last_exit": str(last_exit),
-                        },
-                    )
-                )
-        return results
 
     # ------------------------------------------------------------------
     # Module 1 -- requires market-data dictionary

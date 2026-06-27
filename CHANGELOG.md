@@ -6,6 +6,144 @@
 
 ---
 
+## [V1.1.0] — 2026-06-27
+
+### 概述
+
+本版本是一次**深度代码审查与质量加固**，起因是用户报告的「生成 AI 报告后返回分析面板数据丢失」故障。围绕该故障定位根因后，顺藤摸瓜展开全量审查，按用户操作路径（认证→上传→分析→查看→AI 报告→案例库→管理）补全了所有缺失测试，清理了死代码，并追查修复了 3 个此前潜伏的 bug。新增 63 个测试，全量 398 passed / 0 failed。
+
+### 修复的 Bug
+
+#### 1. 分析面板数据丢失（422 ValidationError）—— 本次审查的起点
+
+**现象**：用户在服务器上上传交割单 → 看分析面板正常 → 生成 AI 报告 → 返回分析面板 → 页面报错看不到数据 → 点历史报告再进仍看不到。
+
+**根因**：`get_stats` 端点的两个路径写入的快照不一致：
+- 快路径 `StatsResponse(**analysis.stats_snapshot)` 要求 40 个字段（含必填 `positions`/`max_win`/`max_loss`/`consecutive_losses`）
+- 慢路径（`analysis.py` 旧 line 449-463）只保存 **12 个字段**的 dict
+
+当 `run_analysis` 的 `compute_all` 在服务器上因 mootdx TCP 异常失败时，快照保持 `None`；首次 `get_stats` 走慢路径返回完整数据（用户看到正常）**+ 用 12 字段不完整快照覆盖**；第二次走快路径 → `StatsResponse(**12字段)` 缺必填字段 → ValidationError → 422 → 前端显示"加载失败"，快照被永久污染。
+
+**修复**：
+- `get_stats` 慢路径改为存完整的 `response.model_dump()`（而非手写 12 字段 dict）
+- `run_analysis` 的 `except` 块新增 `db.rollback()`（失败后 session 污染是 pre-existing 缺陷，导致后续查询全部 `PendingRollbackError`），且 `aid` 在 try 前捕获（避免在 poisoned session 上访问 `analysis.id` 再次崩溃）
+- `link_files_to_analysis` 删除冗余的第二次清空+commit（双重清空无意义）
+- `MarketDataCache.store_bars` 的 SQLite 路径原本假设所有 bars 同一 symbol（`symbol = bars[0]["symbol"]`），且不处理 within-batch 重复 → 多 symbol 场景漏存 + mootdx 分页重复触发 UNIQUE 冲突。改为按 `(symbol, date)` 元组去重，与 PostgreSQL 的 `ON CONFLICT DO NOTHING` 语义一致
+
+#### 2. 追加交割单后 date 范围未更新
+
+**根因**：`link_files_to_analysis` 在 `db.add(AnalysisFile(...))` 后调用 `get_raw_file_ids` 查询，但测试环境 `autoflush=False`，查不到未提交的新行 → `date_start/end` 不扩展到新文件的交易日期。
+
+**修复**：查询前显式 `db.flush()`。被新测试 `test_link_files_adds_files_and_invalidates_snapshot` 抓出。
+
+#### 3. 上传去重拒绝重传（409 Conflict）
+
+**现象**：两个测试（`test_reimporting_same_statement_does_not_double_count`、`test_multiple_contributions_add_rows`）长期失败，经 stash 对比确认在干净 master 上也失败。
+
+**根因**：`upload_file` 检测到相同 sha256 内容时返回 **409 拒绝**，而非幂等返回已有文件。用户误传同一交割单（改名重传）会被拒绝，无法继续。
+
+**修复**：检测到重复 hash 时**幂等返回已有 RawFile 的 id**。`import_trades` 本身已做交易去重，`_load_trades` 按 `raw_file_id` 过滤，不会双倍计数。
+
+#### 4. AI 报告与 Insight 面板数据源不一致
+
+**根因**：`report.py` 用 `InsightEngine.analyze`（单主模式：每笔交易只归一个主模式，按 `total_pnl` 原始值排序，无样本量门槛），而 `/insight` 面板用 `analyze_by_category`（多桶：每笔交易归入所有匹配模式，按 `total_pnl * log(count)/log(5)` 加权排序，`best_pattern` 还要 `count>=5` 过滤）。
+
+**用户可见影响**：AI 报告可能把 `count=1` 的高盈利模式列为"最佳"，而面板因 `count<5` 过滤掉它，显示另一个模式。
+
+**修复**：`report.py` 改用 `compute_insight`（与面板/`compute_all` 同一数据源），AI 报告与 `/insight` 面板用完全相同的 insight 数据。删除未使用的 `InsightEngine` import。
+
+### 测试补全（新增 63 个测试，6 个文件）
+
+按用户操作路径补全所有零覆盖端点：
+
+| 用户路径 | 测试文件 | 覆盖端点 | 测试数 |
+|---|---|---|---|
+| 认证 | `test_auth_extra.py` | logout / PUT /me / password-strength | 12 |
+| 上传清理 | `test_upload_lifecycle.py` | DELETE /trades（FK-safe 删除） | 4 |
+| 分析列表+追加 | `test_analysis_list_and_link.py` | GET /analysis / link-files | 8 |
+| 报告查询下载 | `test_report_download.py` | check by-analysis / download .md | 7 |
+| 管理 | `test_admin.py` | 全 7 个 admin 端点 | 23 |
+| drift 防护 | `test_compute_equivalence.py` | 慢路径 == compute_all | 3 |
+| 报告一致性 | `test_report.py`（追加） | report insight == /insight | 2 |
+| 快照回归 | `test_analysis.py`（追加） | TestSnapshotRoundTrip | 4 |
+
+**drift 防护网**（`test_compute_equivalence.py`）：清空快照 → GET /stats/insight/whatif（慢路径）→ 与 `compute_all` 直接计算结果比较。这是防止再次出现 422 那类 drift 的核心防护。
+
+> 注：whatif 等价性测试初版用了错误 JSON key（`attribution`/`rule_simulation`，schema 实际是 `items`/`stop_loss`），导致断言恒为空通过——已修复为正确字段名 + 实际值比较。shapley 因蒙特卡洛采样（`random.shuffle` 无种子）有算法随机性，改为容差比较（5% 或 1.0 绝对值）。
+
+### 代码清理（删除死代码）
+
+| 死代码 | 位置 | 处理 |
+|---|---|---|
+| `pattern_config.py` 整模块（70 行） | `engine/pattern_config.py` | 删除（零引用 + 引用不存在的 `pattern_definition.yaml`，一旦触发 FileNotFoundError） |
+| `PatternEngine.detect_cooldowns` | `pattern.py:368-407` | 删除 + 删除 3 个独占测试；不变量测试迁移到 `TestTagCoexistence` |
+| `_get_multiplier` | `parsers/__init__.py` | 删除 + 删除独占测试（SmartParser 用自己的 `_get_futures_multiplier_smart`） |
+| `BaseParser._column_match_score` | `parsers/base.py:157` | 删除 + 删除独占测试（SmartParser 用自己的 `_classify_column`） |
+
+> `PositionBuilder.build_grouped`（~130 行）仅 golden_runner + 测试用，自身注释承认是"参考实现"——保留（golden_runner 依赖）。
+
+### 记录但未改动的隐患（供未来审查参考）
+
+以下隐患经调查确认，本次未改动（风险/范围考量），已用测试锁住或记录归档：
+
+#### A. get_stats/get_insight/get_whatif 慢路径与 compute.py 重复（~280 行）
+
+`analysis.py` 的三个 GET 慢路径是 `compute.py`（`compute_stats`/`compute_insight`/`compute_whatif`）的手工副本。`get_stats` 副本**已导致过 422 bug**（本次已修）。
+
+- **现状**：当前副本与 engine 行为一致，由 `test_compute_equivalence.py` 锁住。
+- **未重构原因**：`compute_all` 用并行 fetcher（`ensure_market_data_parallel` + ThreadPoolExecutor），慢路径用串行 `ensure_market_data`；上轮尝试用 `compute_all` 替换触发 `PendingRollbackError`（daily_bars 重复插入），并发模型变更风险较高。
+- **建议**：未来若要消除重复，需先评估并行 fetcher 的 session 安全性，并在 GET 端点包裹 `try/except db.rollback()`（镜像 `run_analysis` 的模式）。
+
+#### B. get_insight / get_whatif 慢路径不写快照
+
+与 `get_stats`（写快照）和 `run_analysis`（写全部三个快照）不同，`get_insight`/`get_whatif` 的慢路径**不持久化快照** → 每次请求重复全量计算。这是性能问题，非正确性问题。
+
+#### C. get_whatif 的 rule_type guard 是死代码
+
+`get_whatif` 用 `if rule_type == "stop_loss":` guard 止损模拟（`analysis.py`），而 `compute_whatif` 无此 guard。但前端**从不传非默认值**，且即使传了，`analyze_rule` 也只处理 `stop_loss`。当前行为一致，guard 无害，保留以防前端未来扩展。
+
+#### D. MAE/MFE 的 lookback 范围差异（理论性）
+
+慢路径的 `ensure_market_data` 返回 120 天 lookback 扩展的 market_data，`compute_all` 的 `get_market_data` 用原始窗口。但 `compute_mae_mfe` 的 position 窗口过滤（`entry_date <= bar_date <= exit_date`）恰好掩盖了差异——当前不触发。若未来 position 的 `entry_date` 早于 `analysis.date_start`，两边会 diverge。
+
+#### E. report.py 的内联 stats 计算（B2，未处理）
+
+`report.py` 的 `_build_analysis_data` + `generate_report` 内联重算了 profit_factor/max_drawdown/consecutive_losses/MAE/MFE/expectancy 等（~200 行），与 `compute.py` 重复。本次仅统一了 insight 数据源（问题 4），stats 计算仍重复。建议未来复用 `compute_all` 的 stats 结果。
+
+#### F. 三个近似的 raw-file 读取器
+
+`upload.py:_read_raw_content`、`admin.py:_read_raw_file_bytes`、`case_library.py:_read_and_decode_raw_file` 三个读取器逻辑近似，建议未来合并到 `common.py`。
+
+### 变更文件清单
+
+```
+修改:
+  backend/app/api/analysis.py        # get_stats 完整快照 + run_analysis rollback + link_files flush
+  backend/app/api/report.py          # analyze → compute_insight 统一数据源
+  backend/app/api/upload.py          # 去重 409 → 幂等返回
+  backend/app/engine/market_data.py  # store_bars (symbol,date) 去重
+  backend/app/engine/pattern.py     # 删除 detect_cooldowns
+  backend/app/parsers/__init__.py   # 删除 _get_multiplier
+  backend/app/parsers/base.py       # 删除 _column_match_score
+  backend/tests/test_api/test_analysis.py       # +TestSnapshotRoundTrip
+  backend/tests/test_api/test_report.py         # +TestReportInsightConsistency
+  backend/tests/test_api/test_upload.py         # 更新去重测试断言
+  backend/tests/test_engine/test_pattern.py     # 迁移 detect_cooldowns 测试
+  backend/tests/test_parsers/test_helpers.py    # 删除 _get_multiplier 测试
+  backend/tests/test_parsers/test_registry.py  # 删除 _column_match_score 测试
+删除:
+  backend/app/engine/pattern_config.py
+新增:
+  backend/tests/test_api/test_auth_extra.py
+  backend/tests/test_api/test_upload_lifecycle.py
+  backend/tests/test_api/test_analysis_list_and_link.py
+  backend/tests/test_api/test_report_download.py
+  backend/tests/test_api/test_admin.py
+  backend/tests/test_engine/test_compute_equivalence.py
+```
+
+---
+
 ## [V1.0.0] — 2026-06-26
 
 ### 首个正式版本

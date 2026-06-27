@@ -132,6 +132,10 @@ def run_analysis(
     # Pre-compute all analysis data and store as snapshots so subsequent
     # GET /stats, /insight, /whatif return instantly from JSONB columns.
     from app.engine.compute import compute_all  # lazy import to avoid circular deps
+    # Capture the id up front: if compute_all fails the session is poisoned
+    # (PendingRollbackError), and touching any analysis attribute in the
+    # except handler would re-trigger a flush and raise again.
+    aid = analysis.id
     try:
         trades = load_trades(analysis, current_user.id, db)
         stats, insight, whatif = compute_all(analysis, trades, db)
@@ -141,7 +145,13 @@ def run_analysis(
         analysis.computed_at = datetime.now(timezone.utc)
         db.commit()
     except Exception:
-        logger.exception("compute_all failed for analysis %s", analysis.id)
+        # Roll back the poisoned session so the Analysis row (already committed
+        # above) stays usable and subsequent requests start from a clean state.
+        # Without this, a flush error (e.g. duplicate daily_bars from mootdx)
+        # leaves the session in PendingRollbackError, which then breaks every
+        # later query — including get_stats's fallback path.
+        db.rollback()
+        logger.exception("compute_all failed for analysis %s", aid)
         # Don't block — user can still view analysis; data will be computed
         # on-demand by the GET endpoints (fallback path).
 
@@ -187,11 +197,18 @@ def link_files_to_analysis(
             db.add(AnalysisFile(analysis_id=analysis.id, raw_file_id=fid))
             added += 1
 
-    # Invalidate and recompute snapshots since data has changed
+    # Invalidate snapshots so GET endpoints re-compute on next access.
+    # Market data for existing symbols is already cached in daily_bars;
+    # re-computation is fast.  Pre-computing here would block the request
+    # on mootdx TCP fetches for any new symbols.
     if added > 0:
         analysis.stats_snapshot = None
         analysis.insight_snapshot = None
         analysis.whatif_snapshot = None
+
+        # Flush the newly added AnalysisFile rows so the date-range query
+        # below sees them even when the session has autoflush disabled.
+        db.flush()
 
         # Recalculate date range to cover all linked files
         all_file_ids = get_raw_file_ids(analysis.id, db)
@@ -209,15 +226,6 @@ def link_files_to_analysis(
             analysis.date_start = trade_dates[0][0].date()
             analysis.date_end = trade_dates[-1][0].date()
 
-        db.commit()
-
-        # Invalidate snapshots so GET endpoints re-compute on next access.
-        # Market data for existing symbols is already cached in daily_bars;
-        # re-computation is fast.  Pre-computing here would block the request
-        # on mootdx TCP fetches for any new symbols.
-        analysis.stats_snapshot = None
-        analysis.insight_snapshot = None
-        analysis.whatif_snapshot = None
         db.commit()
     return {"detail": f"已添加 {added} 个文件到分析", "raw_file_ids": body.raw_file_ids}
 
@@ -260,7 +268,12 @@ def get_stats(
     if analysis.stats_snapshot:
         return StatsResponse(**analysis.stats_snapshot)
 
-    # Slow path: compute on-demand (legacy analyses without snapshots)
+    # Slow path: compute on-demand (legacy analyses without snapshots, or when
+    # run_analysis's compute_all failed at creation time — e.g. mootdx TCP errors
+    # on the server). Mirrors compute_stats/compute_all logic but computed
+    # inline so this endpoint never depends on the unified engine's parallel
+    # market-data fetcher (which can leave the session in a rolled-back state
+    # when daily_bars inserts collide).
     trades = _load_trades(analysis, current_user.id, db)
 
     # Look up filenames from linked RawFiles (multi-file support)
@@ -434,37 +447,7 @@ def get_stats(
     if valid_count > 0:
         total_expectancy = InsightItem.compute(valid_positions)
 
-    # --- PnL distribution ---
-
-    # Auto-save snapshot on first view or when raw_file_ids change (multi-file aware)
-    snapshot_needs_update = False
-    if not analysis.stats_snapshot:
-        snapshot_needs_update = True
-    else:
-        cached_ids = sorted(analysis.stats_snapshot.get("snapshot_raw_file_ids", []) or [])
-        current_ids = sorted(file_ids)
-        if cached_ids != current_ids:
-            snapshot_needs_update = True
-
-    if snapshot_needs_update:
-        analysis.stats_snapshot = {
-            "total_trades": total_trades,
-            "total_positions": total_positions,
-            "win_count": win_count,
-            "loss_count": loss_count,
-            "win_rate": round(win_rate, 2),
-            "total_pnl": round(total_pnl, 2),
-            "total_return_pct": round(total_return_pct, 4),
-            "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
-            "max_drawdown_pct": round(max_drawdown_pct, 4),
-            "avg_holding_days": round(avg_holding_days, 1),
-            "snapshot_raw_file_id": analysis.raw_file_id,  # legacy compat
-            "snapshot_raw_file_ids": file_ids,  # multi-file
-        }
-        db.commit()
-
-    # --- Return ---
-    return StatsResponse(
+    response = StatsResponse(
         filename=analysis_filename,
         filenames=filenames,
         raw_file_ids=file_ids,
@@ -510,6 +493,25 @@ def get_stats(
         equity_curve=[EquityPoint(**pt) for pt in equity_curve_data],
         symbol_summary=[SymbolSummaryItem(**s) for s in symbol_summary_data],
     )
+
+    # Cache the FULL StatsResponse snapshot so the fast path
+    # (StatsResponse(**snapshot)) works on the next request. The previous
+    # implementation stored a 12-field "summary" dict here, which lacked
+    # required fields (positions, max_win, max_loss, consecutive_losses, …)
+    # and caused the next request to raise ValidationError → 422, making the
+    # analysis panel permanently show "加载失败". Storing the complete
+    # model_dump() guarantees the round-trip. See test_snapshot_round_trip.
+    snapshot = response.model_dump(mode="json")
+    snapshot["snapshot_raw_file_id"] = analysis.raw_file_id  # legacy compat
+    snapshot["snapshot_raw_file_ids"] = file_ids  # multi-file provenance
+    analysis.stats_snapshot = snapshot
+    try:
+        db.commit()
+    except Exception:
+        logger.exception("failed to cache stats snapshot for analysis %s", analysis.id)
+        db.rollback()
+
+    return response
 
 
 def _build_category_map(

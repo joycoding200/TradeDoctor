@@ -191,8 +191,12 @@ class TestUploadErrors:
     # Dedup tests
     # ------------------------------------------------------------------
 
-    def test_upload_duplicate_file_returns_409(self, client):
-        """上传内容完全相同的文件应返回 409"""
+    def test_upload_duplicate_file_is_idempotent(self, client):
+        """重复上传内容完全相同的文件应幂等返回已有 raw_file_id（不拒绝）。
+
+        用户误传同一交割单（如改名重传）是常见操作；拒绝会中断整个流程。
+        import_trades 本身已按交易键去重，不会双倍计数。
+        """
         headers = get_auth_header(client)
 
         # 第一次上传
@@ -202,15 +206,16 @@ class TestUploadErrors:
             files={"file": ("dup.csv", QMT_CSV, "text/csv")},
         )
         assert r1.status_code == 200
+        first_id = r1.json()["raw_file_id"]
 
-        # 第二次上传相同内容（文件名不同）
+        # 第二次上传相同内容（文件名不同）→ 幂等返回同一个 raw_file_id
         r2 = client.post(
             "/api/upload",
             headers=headers,
             files={"file": ("dup_renamed.csv", QMT_CSV, "text/csv")},
         )
-        assert r2.status_code == 409
-        assert "已上传过" in r2.json()["detail"]
+        assert r2.status_code == 200
+        assert r2.json()["raw_file_id"] == first_id
 
     def test_import_skips_duplicate_trades(self, client):
         """导入与已有交易重复的数据时，应跳过并返回正确计数"""

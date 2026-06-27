@@ -21,7 +21,6 @@ from app.models.analysis import Analysis
 from app.models.report import Report
 from app.models.trade import Trade
 from app.models.user import User
-from app.engine.insight import InsightEngine
 from app.engine.pattern import PatternEngine
 from app.engine.position import PositionBuilder
 from app.engine.whatif import ProfitAttribution
@@ -199,14 +198,23 @@ async def generate_report(
             results.extend(psyche_by_pos[i])
         patterns_map[i] = [(r.pattern_name, r.confidence) for r in results]
 
-    # Resolve primary pattern per position for insight PnL attribution
-    primary_map = InsightEngine._resolve_primary(patterns_map)
-    patterns_map_flat: dict[int, list[str]] = {
-        i: [p] for i, p in primary_map.items()
-    }
+    # Build the insight data from the SAME engine the /insight endpoint uses
+    # (compute_insight → analyze_by_category). Previously this called
+    # InsightEngine.analyze (single primary-pattern bucketing), which produced
+    # a DIFFERENT pattern breakdown than the insight panel — the AI report
+    # could name a "best pattern" the panel excluded (count < 5) or attribute
+    # PnL differently (single-bucket vs multi-bucket). Reusing compute_insight
+    # guarantees the AI reasons over the same patterns/counts/best_pattern the
+    # user sees. See TestReportInsightConsistency.
+    from app.engine.compute import _build_category_map, compute_insight
 
-    # Run insight and what-if engines
-    insight_items = InsightEngine.analyze(positions, patterns_map_flat)
+    category_map = _build_category_map(positions, trades, market_data)
+    insight_response = compute_insight(positions, trades, category_map)
+    # compute_insight returns InsightResponse; feed its flattened patterns list
+    # (all dimensions combined) to the prompt builder. best/worst/baseline are
+    # also available if future prompt enrichment needs them.
+    insight_items = insight_response.patterns
+
     # WhatIf uses all patterns (not just primary)
     patterns_map_names: dict[int, list[str]] = {
         i: [name for name, _ in pats] for i, pats in patterns_map.items()
