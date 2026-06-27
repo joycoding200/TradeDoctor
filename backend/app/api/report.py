@@ -188,6 +188,12 @@ async def generate_report(
     for idx, psy_result in psychology_results:
         psyche_by_pos.setdefault(idx, []).append(psy_result)
 
+    # Tag once; reuse the PatternResult lists for BOTH the WhatIf patterns_map
+    # and _build_category_map (which would otherwise re-tag the whole set a
+    # second time — PatternEngine cost doubled for large position sets).
+    # Output is identical to the previous double-tagging path: same results,
+    # same resolve_per_category. See test_build_category_map_precomputed_matches.
+    results_by_pos: dict[int, list] = {}
     patterns_map: dict[int, list[tuple[str, float]]] = {}
     for i, pos in enumerate(positions):
         results = PatternEngine.tag_position(pos, positions, trades=trades, all_trades=trades)
@@ -196,6 +202,7 @@ async def generate_report(
         results = PatternEngine.resolve_hierarchy(results)
         if i in psyche_by_pos:
             results.extend(psyche_by_pos[i])
+        results_by_pos[i] = results
         patterns_map[i] = [(r.pattern_name, r.confidence) for r in results]
 
     # Build the insight data from the SAME engine the /insight endpoint uses
@@ -208,7 +215,9 @@ async def generate_report(
     # user sees. See TestReportInsightConsistency.
     from app.engine.compute import _build_category_map, compute_insight
 
-    category_map = _build_category_map(positions, trades, market_data)
+    category_map = _build_category_map(
+        positions, trades, market_data, precomputed=results_by_pos
+    )
     insight_response = compute_insight(positions, trades, category_map)
     # compute_insight returns InsightResponse; feed its flattened patterns list
     # (all dimensions combined) to the prompt builder. best/worst/baseline are

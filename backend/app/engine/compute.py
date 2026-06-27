@@ -93,9 +93,28 @@ def _module_for_pattern(pattern_name: str) -> str:
 
 
 def _build_category_map(
-    positions, trades=None, market_data=None
+    positions, trades=None, market_data=None, precomputed=None
 ) -> dict[int, dict[str, str]]:
-    """Tag each position and return {index: {category: pattern_name}}."""
+    """Tag each position and return {index: {category: pattern_name}}.
+
+    If ``precomputed`` (a {index: list[PatternResult]} of already-tagged,
+    hierarchy-resolved results including psychology) is supplied, skip the
+    tagging/psychology work and only run ``resolve_per_category``. This lets
+    callers that already computed the PatternResult list (e.g. report.py,
+    which builds patterns_map for WhatIf) reuse it instead of re-tagging the
+    whole position set a second time. Output is identical to the non-precomputed
+    path on the same inputs (see test_build_category_map_precomputed_matches).
+    """
+    if precomputed is not None:
+        category_map: dict[int, dict[str, str]] = {}
+        for i in range(len(positions)):
+            results = precomputed.get(i, [])
+            resolved = PatternEngine.resolve_per_category(results)
+            category_map[i] = {
+                r.category: r.pattern_name for r in resolved if r.category
+            }
+        return category_map
+
     tag_kwargs = {}
     if trades:
         tag_kwargs["trades"] = trades
@@ -108,7 +127,7 @@ def _build_category_map(
     for idx, psy_result in psychology_results:
         psyche_by_pos.setdefault(idx, []).append(psy_result)
 
-    category_map: dict[int, dict[str, str]] = {}
+    category_map = {}
     for i, pos in enumerate(positions):
         results = PatternEngine.tag_position(pos, positions, **tag_kwargs)
         if market_data:

@@ -155,7 +155,10 @@ def run_analysis(
         # Don't block — user can still view analysis; data will be computed
         # on-demand by the GET endpoints (fallback path).
 
-    return AnalysisRunResponse(analysis_id=analysis.id, filename=body.filename or "")
+    # Use the pre-captured id (not analysis.id): after a rollback the session
+    # is clean but accessing analysis.id would still trigger a refresh SELECT;
+    # aid holds the same value and avoids the extra round-trip.
+    return AnalysisRunResponse(analysis_id=aid, filename=body.filename or "")
 
 
 @router.post("/{analysis_id}/link-files", status_code=status.HTTP_200_OK)
