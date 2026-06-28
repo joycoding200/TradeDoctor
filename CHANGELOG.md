@@ -6,6 +6,48 @@
 
 ---
 
+## [V1.1.2] — 2026-06-28
+
+### 概述
+
+本版本源自一次**线上实例端到端数据准确性验证**：投资研究员上传真实华西证券交割单（GBK / 伪 `.xls` / `="..."` 外壳），逐项核对分析面板，发现 2 处必改缺陷 + 1 处口径设计问题。三者共同特征是——**只在"账户整体亏损"场景下才暴露**，单文件盈利分析无法触发，属典型的"测试数据分布 ≠ 生产数据分布"盲区（见 `PROJECT_EXPERIENCE.md`）。全量 415 passed / 0 failed。
+
+### 修复的 Bug
+
+#### 1. 最大回撤百分比超过 100%（金融上不成立）
+
+**现象**：合并两份华西交割单后（86 笔完整交易，总盈亏 -8475.39），分析面板显示"最大回撤 147.5%"。净值从峰值约 +1.8万 跌穿零轴到 -8550，导致 `max_dd / peak > 100%`。
+
+**根因**：`compute.py:349`（`compute_stats` 主路径，写 `stats_snapshot`）与 `analysis.py:453`（`get_stats` 慢路径）两处 `max_drawdown_pct = max_dd / peak`。当 `cum_pnl` 从正峰值跌穿零轴变为负数时，`dd = peak - (负值) > peak`，于是百分比 >100%。原 fallback 仅处理 `peak==0`（从头亏到尾）场景，未覆盖"peak>0 但 trough 跌穿零轴"。
+
+> **副本教训**：研究员初轮只指认了 `analysis.py` 慢路径，漏报 `compute.py` 主路径。若只修 API 端点，`run_analysis` 仍写错误快照，`get_stats` 走快路径返回旧值——修复无效。两处必须同步改。
+
+**修复**：分母改用峰值账户净值 `total_invested + peak`（本金 + 峰值浮盈）。该口径在 trough 跌穿零轴时仍 ≤100%（除非亏损超本金即爆仓，此时 >100% 反而合理），且**完全吞并原 fallback**——`peak==0` 时分母退化为 `total_invested`，与原行为一致，不破坏"全程亏损"回归。`max_drawdown` 绝对值字段保持不变（仍反映真实跌幅金额）。新增红测试 `test_max_drawdown_pct_capped_at_100_when_trough_crosses_zero`（红 150.16% → 绿 ≤100%）。
+
+#### 2. 诊断结论把正贡献标签误判为"最大问题"
+
+**现象**：归因分析 tab 顶部"诊断结论"显示"最大问题是「害怕错过(心理)」，贡献 +2893元"——但该标签 57.1% 胜率、Expectancy +4.0%、PF 2.04，明明是**盈利**标签，正贡献金额却被定性为"最大问题"。
+
+**根因**：`compute.py:415`（`compute_insight`）与 `analysis.py:642`（`get_insight`）两处 `significant[0] / significant[-1]`，取的是**跨维度拼接后的首尾**而非贡献极值。`analyze_by_category` 只对单维度内排序，多维度 `extend` 后整体不再有序，于是 `PSY_FOMO`（+2893）恰好排在末尾被选为 `worst_pattern`。前端 `InsightTab.tsx` 仅渲染后端字段，无 bug。
+
+**修复**：提取模块级纯函数 `_select_best_worst_patterns`，显式按 `total_pnl` 排序——`best` 取正贡献最大、`worst` 取最负。全正时 `worst` 降级为"正贡献最小者"，全负时 `best` 降级为"负贡献最小者"，仅 1 个显著标签时 `worst=None`。两处调用点共用，消除重复。新增 `test_select_best_worst.py` 5 个单元测试（正负混合 / 全正 / 全负 / 单标签 / count<5 过滤）。
+
+### 口径修复
+
+#### 3. Shapley 归因百分比符号取反
+
+**现象**：What-If tab"赚钱来源分析"中，总收益为负时**正贡献标签显示负百分比**（震荡市 +3999.54 渲染为 -47.2%），**负贡献标签显示正百分比**（大亏离场 -5547.22 渲染为 +65.5%）。散户会误以为赚钱的模式在亏钱。
+
+**根因**：`compute.py:545`（主路径）与 `analysis.py:775`（慢路径）两处 `pct_of_total = shapley_value / total_pnl * 100`。`shapley_value` 带符号（正贡献为正），但 `total_pnl` 为负时除法反转符号。Shapley 值本身计算正确，问题在百分比口径。
+
+**修复**：分母改 `abs(total_pnl)`，使百分比符号跟随 `shapley_value`——正贡献恒显正%、负贡献恒显负%。带符号和 = ±100%（因 `sum(shapley) == total_pnl`），仍符合"总和=100%"的绝对占比语义。前端 `ShapleyPanel.tsx` 颜色本就按 `shapley_value` 判断（正确），无需改动。新增 `test_shapley_pct_sign.py` 3 个测试（负总收益下符号一致 / 正总收益下不破坏 / 带符号和=±100%）。
+
+### 验证方式
+
+线上实例（`http://47.109.159.232/`）上传华西 2025-10~12 + 2026-01~03 两份交割单复现全部三处问题，本地修复后回归确认。SmartParser 对真实券商格式（GBK 编码 / 伪 `.xls` TSV / `="..."` 外壳）解析稳健，核心 KPI（PF、Expectancy、净值曲线、止损回测）计算准确。
+
+---
+
 ## [V1.1.1] — 2026-06-28
 
 ### 概述

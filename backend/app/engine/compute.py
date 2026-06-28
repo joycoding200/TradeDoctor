@@ -92,6 +92,31 @@ def _module_for_pattern(pattern_name: str) -> str:
     return PATTERN_MODULES.get(pattern_name, "behavior")
 
 
+def _select_best_worst_patterns(all_items: list):
+    """Pick the best (max total_pnl) and worst (min total_pnl) significant
+    patterns. "Significant" = count >= 5.
+
+    The previous code took ``significant[0]`` and ``significant[-1]`` on the
+    flat ``all_items`` list, but that list is built by extending items from
+    multiple pattern dimensions in insertion order — it is NOT sorted across
+    dimensions. So ``significant[-1]`` could land on a positive-contribution
+    pattern, mislabelling it as "最大问题" in the diagnostic conclusion.
+
+    Fix: sort by total_pnl and pick the explicit max / min.
+    - best  = significant item with the largest  total_pnl (most positive)
+    - worst = significant item with the smallest total_pnl (most negative)
+    When fewer than two significant items exist, worst is None (best may still
+    be set with a single significant item). See 缺陷2.
+    """
+    significant = [p for p in all_items if p.count >= 5]
+    if not significant:
+        return None, None
+    significant_sorted = sorted(significant, key=lambda p: p.total_pnl, reverse=True)
+    best = significant_sorted[0]
+    worst = significant_sorted[-1] if len(significant_sorted) > 1 else None
+    return best, worst
+
+
 def _build_category_map(
     positions, trades=None, market_data=None, precomputed=None
 ) -> dict[int, dict[str, str]]:
@@ -321,7 +346,10 @@ def compute_stats(
             "cum_pnl": round(cum_pnl, 2),
             "cum_pnl_pct": round(cum_pnl / total_invested, 4) if total_invested > 0 else 0.0,
         })
-    dd_denom = peak if peak > 0 else (total_invested if total_invested > 0 else 0.0)
+    # Drawdown % denominator = peak account equity (principal + peak floating
+    # profit), NOT peak floating profit alone. See analysis.py:get_stats for
+    # the full rationale (P0b: trough crossing zero must not yield >100%).
+    dd_denom = (total_invested + peak) if (total_invested + peak) > 0 else 0.0
     max_drawdown_pct = (max_dd / dd_denom) if dd_denom > 0 else 0.0
 
     # Expectancy
@@ -412,9 +440,7 @@ def compute_insight(
     valid_indices = {i for i, p in enumerate(positions) if getattr(p, "cost_known", True)}
     baseline_expectancy = InsightItem.compute(valid_positions) if valid_positions else 0.0
 
-    significant = [p for p in all_items if p.count >= 5]
-    best = significant[0] if significant else None
-    worst = significant[-1] if len(significant) > 1 else None
+    best, worst = _select_best_worst_patterns(all_items)
 
     # Cross-dimension analysis
     cross_data: dict[tuple[str, str], dict] = {}
@@ -512,11 +538,17 @@ def compute_whatif(
     # Shapley attribution
     shapley_values = shapley_attribution(positions, patterns_map_names)
     total_pnl = sum(p.pnl for p in valid_positions)
+    # Denom is abs(total_pnl) so the percentage's SIGN follows shapley_value:
+    # a profit-contributing pattern (val>0) shows a positive pct even when the
+    # account is net negative. Dividing by a negative total_pnl flipped signs
+    # (e.g. +3999 on a -8475 account rendered as "-47.2%"), misleading users into
+    # thinking profitable patterns lost money.
+    denom = abs(total_pnl)
     shapley_items = [
         ShapleyItem(
             pattern_name=pat,
             shapley_value=val,
-            pct_of_total=round(val / total_pnl * 100, 1) if total_pnl != 0 else 0.0,
+            pct_of_total=round(val / denom * 100, 1) if denom > 0 else 0.0,
         )
         for pat, val in sorted(shapley_values.items(), key=lambda x: -x[1])
     ]

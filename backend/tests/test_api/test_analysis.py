@@ -249,6 +249,44 @@ class TestDegeneratePaths:
         )
         assert data["consecutive_losses"] == 0
 
+    # P0b: peak>0 but trough crosses below zero → max_dd > peak → naive
+    # max_dd/peak yields >100%, which is financially impossible (an account
+    # cannot draw down more than 100% of its peak net value). Investment
+    # researcher reproduced 147.5% on a merged Huaxi statement with cum_pnl
+    # peaking at +18k then plunging through zero to -8550.
+    # Sequence: cum 0 → +18000 (peak) → +3000 → -9000 (trough)
+    # max_dd = 18000 - (-9000) = 27000; naive pct = 27000/18000 = 150%.
+    CROSS_ZERO_CSV = (
+        "委托时间,证券代码,证券名称,买卖方向,成交价格,成交数量,手续费\n"
+        # pos1: buy 1000@18.00 sell 1000@36.00 → gross +18000, fees 8 → +17992
+        "2024-01-05 09:30:00,000001,盈利A,买入,18.00,1000,4.00\n"
+        "2024-01-08 14:00:00,000001,盈利A,卖出,36.00,1000,4.00\n"
+        # pos2: buy 1000@20.00 sell 1000@5.00 → gross -15000, fees 8 → -15008
+        "2024-02-01 09:30:00,600001,亏损B,买入,20.00,1000,4.00\n"
+        "2024-02-05 14:00:00,600001,亏损B,卖出,5.00,1000,4.00\n"
+        # pos3: buy 1000@15.00 sell 1000@3.00 → gross -12000, fees 8 → -12008
+        "2024-03-01 09:30:00,000002,亏损C,买入,15.00,1000,4.00\n"
+        "2024-03-05 14:00:00,000002,亏损C,卖出,3.00,1000,4.00\n"
+    )
+
+    def test_max_drawdown_pct_capped_at_100_when_trough_crosses_zero(self, client):
+        """P0b: cum_pnl 跌穿零轴时 max_drawdown_pct 必须 ≤ 1.0（100%）。"""
+        headers = get_auth_header(client, "cross_zero@test.com")
+        raw_file_id = _import_csv(client, headers, self.CROSS_ZERO_CSV)
+        aid = run_analysis(client, headers, raw_file_id=raw_file_id)
+        resp = client.get(f"/api/analysis/{aid}/stats", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # peak > 0 (pos1's +17992) and trough < 0 (cum after pos3 ≈ -9024).
+        # max_drawdown (absolute amount) must still reflect the full drop
+        # peak→trough, i.e. > peak. The fix must NOT cap the absolute amount.
+        assert data["max_drawdown"] > 0
+        assert data["max_drawdown_pct"] <= 1.0, (
+            "trough 跌穿零轴时最大回撤百分比不应超过 100%（金融上不成立）；"
+            f"实际值 = {data['max_drawdown_pct']}（P0b 回归）"
+        )
+
 
 class TestAnalysisInsight(_BaseAnalysisTest):
     """Test the insight endpoint."""

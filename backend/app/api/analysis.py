@@ -16,6 +16,7 @@ from app.models.trade import Trade
 from app.models.user import User
 from app.models.raw_file import RawFile
 from app.engine.attribution import shapley_attribution
+from app.engine.compute import _select_best_worst_patterns
 from app.engine.insight import InsightEngine, InsightItem
 from app.engine.mae import compute_mae_mfe_stats
 from app.engine.market_fetcher import ensure_market_data
@@ -450,7 +451,15 @@ def get_stats(
             "cum_pnl": round(cum_pnl, 2),
             "cum_pnl_pct": round(cum_pnl / total_invested, 4) if total_invested > 0 else 0.0,
         })
-    dd_denom = peak if peak > 0 else (total_invested if total_invested > 0 else 0.0)
+    # Drawdown % denominator = peak account equity (principal + peak floating
+    # profit), NOT peak floating profit alone. Using cum_pnl's peak as the
+    # denominator makes max_dd_pct exceed 100% when trough crosses below zero
+    # (cum_pnl is a profit stream, not account equity — it can go negative).
+    # Adding total_invested restores the true capital base so the ratio is
+    # bounded by 100% unless the account itself goes underwater. This also
+    # subsumes the "lost from trade one" fallback: when peak==0 the denom is
+    # just total_invested, identical to the prior behaviour. See P0b.
+    dd_denom = (total_invested + peak) if (total_invested + peak) > 0 else 0.0
     max_drawdown_pct = (max_dd / dd_denom) if dd_denom > 0 else 0.0
 
     # MAE/MFE computation (V1.2)
@@ -639,9 +648,7 @@ def get_insight(
     valid_indices = {i for i, p in enumerate(positions) if getattr(p, "cost_known", True)}
     baseline_expectancy = InsightItem.compute(valid_positions) if valid_positions else 0.0
 
-    significant = [p for p in all_items if p.count >= 5]
-    best = significant[0] if significant else None
-    worst = significant[-1] if len(significant) > 1 else None
+    best, worst = _select_best_worst_patterns(all_items)
 
     # Cross-dimension analysis: market_env × behavior
     cross_data: dict[tuple[str, str], dict] = {}
@@ -761,11 +768,13 @@ def get_whatif(
     # V2.0 Shapley attribution
     shapley_values = shapley_attribution(positions, patterns_map_names)
     total_pnl = sum(p.pnl for p in valid_positions)
+    # Denom is abs(total_pnl) so pct sign follows shapley_value (see compute.py).
+    denom = abs(total_pnl)
     shapley_items = [
         ShapleyItem(
             pattern_name=pat,
             shapley_value=val,
-            pct_of_total=round(val / total_pnl * 100, 1) if total_pnl != 0 else 0.0,
+            pct_of_total=round(val / denom * 100, 1) if denom > 0 else 0.0,
         )
         for pat, val in sorted(shapley_values.items(), key=lambda x: -x[1])
     ]
