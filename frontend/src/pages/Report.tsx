@@ -84,15 +84,27 @@ export default function Report() {
     );
   }
 
+  const handleCopy = async () => {
+    if (!data?.report_content) return;
+    try {
+      await navigator.clipboard.writeText(data.report_content);
+      toast.addToast("success", "报告已复制到剪贴板");
+    } catch {
+      toast.addToast("error", "复制失败，请手动选择文本");
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">交易行为诊断书</h1>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={handleDownload}>下载报告</Button>
-          <Link to={`/analysis/${data.analysis_id}`} className="text-sm no-underline text-accent hover:underline">
-            返回分析面板
+        <div className="flex items-center gap-2">
+          {/* C2.4: 返回 is primary (context switch), 下载/复制 are secondary */}
+          <Link to={`/analysis/${data.analysis_id}`} className="no-underline">
+            <Button variant="primary">返回分析面板</Button>
           </Link>
+          <Button variant="outline" onClick={handleCopy}>复制全文</Button>
+          <Button variant="outline" onClick={handleDownload}>下载报告</Button>
         </div>
       </div>
 
@@ -101,6 +113,38 @@ export default function Report() {
           ⚠️ 警告：数据量较少或质量较低，报告仅供参考
         </div>
       )}
+
+      {/* C2.1: chapter TOC — extract ## headings from the markdown */}
+      {(() => {
+        const headings = (data.report_content || "")
+          .split("\n")
+          .filter((l) => /^##\s+/.test(l))
+          .map((l) => l.replace(/^##\s+/, "").trim())
+          .filter(Boolean);
+        if (headings.length < 2) return null;
+        return (
+          <nav aria-label="报告目录" className="mb-4 rounded-lg border border-border bg-bg-secondary/60 p-3">
+            <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">目录</div>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1">
+              {headings.map((h) => (
+                <li key={h}>
+                  <a
+                    href={`#${encodeURIComponent(h)}`}
+                    className="text-xs text-accent hover:underline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const el = document.getElementById(encodeURIComponent(h));
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  >
+                    {h}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        );
+      })()}
 
       <Card className="p-6 md:p-8">
         <div className="prose prose-invert max-w-none">
@@ -111,11 +155,18 @@ export default function Report() {
                   {children}
                 </h1>
               ),
-              h2: ({ children, ...props }) => (
-                <h2 className="mt-5 mb-2 text-lg font-semibold text-text-primary" {...props}>
-                  {children}
-                </h2>
-              ),
+              h2: ({ children, ...props }) => {
+                const text = typeof children === "string" ? children : String(children ?? "");
+                return (
+                  <h2
+                    id={encodeURIComponent(text)}
+                    className="mt-5 mb-2 scroll-mt-20 text-lg font-semibold text-text-primary"
+                    {...props}
+                  >
+                    {children}
+                  </h2>
+                );
+              },
               h3: ({ children, ...props }) => (
                 <h3 className="mt-4 mb-2 text-base font-semibold text-text-primary" {...props}>
                   {children}
