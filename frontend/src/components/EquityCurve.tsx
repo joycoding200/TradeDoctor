@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { formatMoney } from "../utils/format";
 
 interface EquityPoint {
   date: string;
@@ -16,10 +17,6 @@ interface EquityPoint {
 
 interface EquityCurveProps {
   data: EquityPoint[];
-}
-
-function formatMoney(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
 export default function EquityCurve({ data }: EquityCurveProps) {
@@ -90,7 +87,7 @@ export default function EquityCurve({ data }: EquityCurveProps) {
                 color: "var(--text-primary)",
               }}
               formatter={(value, name) => {
-                if (name === "cum_pnl") return [formatMoney(Number(value)), "累计盈亏"];
+                if (name === "cum_pnl") return [formatMoney(Number(value), { compact: true }), "累计盈亏"];
                 return [String(value), String(name)];
               }}
               labelFormatter={(label) => `日期: ${label}`}

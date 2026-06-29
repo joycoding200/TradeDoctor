@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, Collapsible } from "./ui";
 import EquityCurve from "./EquityCurve";
 import SymbolSummaryTable from "./SymbolSummaryTable";
+import { formatMoney } from "../utils/format";
 
 interface StatsData {
   total_trades?: number;
@@ -52,15 +53,6 @@ interface StatsCardsProps {
 
 function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
-}
-
-function formatMoney(value: number): string {
-  const abs = Math.abs(value);
-  const wan = abs / 10000;
-  if (wan >= 1) {
-    return `${value >= 0 ? "+" : "-"}${wan.toFixed(1)}万`;
-  }
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
 interface Rating {
@@ -157,11 +149,13 @@ export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
     ? "回撤偏高，建议控制单笔亏损来降低波动"
     : "回撤控制得很好，亏的时候砍得快";
 
-  const countSummary = ((stats.win_count ?? 0) + (stats.loss_count ?? 0)) < 10
-    ? "交易次数偏少，统计结论仅供参考"
-    : `${stats.win_count ?? 0} 笔赚钱、${stats.loss_count ?? 0} 笔亏钱，样本量足够做分析`;
-
   // ── Core 4 hero cards ─────────────────────────────────────────
+  const totalPositions = stats.total_positions ?? 0;
+  const winCount = stats.win_count ?? 0;
+  const lossCount = stats.loss_count ?? 0;
+  const closedCount = winCount + lossCount; // 已平仓 = 赚钱 + 亏钱
+  const totalTrades = stats.total_trades ?? 0; // 总成交笔数
+
   const heroes = [
     heroCard(
       (stats.total_pnl ?? 0) >= 0 ? "success" : "danger",
@@ -174,7 +168,7 @@ export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
       (stats.win_rate ?? 0) >= 0.5 ? "success" : "danger",
       "胜率",
       formatPct(stats.win_rate ?? 0),
-      wrSummary,
+      `${winCount} 笔赚钱 / ${closedCount} 笔已平仓 — ${wrSummary}`,
     ),
     heroCard(
       ddPct > 0.2 ? "danger" : ddPct > 0.1 ? "accent" : "success",
@@ -184,9 +178,9 @@ export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
     ),
     heroCard(
       "primary",
-      "完整交易",
-      `${stats.total_positions ?? 0} 笔`,
-      countSummary,
+      "已平仓",
+      `${closedCount} 笔`,
+      `总成交 ${totalTrades} 笔｜完整建仓 ${totalPositions} 笔｜已平仓 ${closedCount} 笔（${winCount} 赚 / ${lossCount} 亏）`,
     ),
   ];
 
@@ -324,7 +318,7 @@ export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
 
       {/* ── Core 4 hero cards ─────────────────────────────── */}
       <div className="mb-2 text-xs font-medium text-text-secondary">核心概览</div>
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">{heroes}</div>
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">{heroes}</div>
 
       {/* V4.0: 股票维度盈亏 */}
       <div className="mb-2 text-xs font-medium text-text-secondary">股票维度盈亏</div>

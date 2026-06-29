@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatMoney } from "../utils/format";
 
 interface SymbolSummaryItem {
   symbol: string;
@@ -30,10 +31,6 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "total_pnl", label: "总盈亏" },
   { key: "avg_holding_days", label: "平均持仓天数" },
 ];
-
-function formatMoney(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
-}
 
 function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -167,7 +164,7 @@ export default function SymbolSummaryTable({ data }: SymbolSummaryTableProps) {
                             : "text-text-secondary",
                       ].join(" ")}
                     >
-                      {formatMoney(item.total_pnl)}
+                      {formatMoney(item.total_pnl, { compact: true })}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
@@ -231,7 +228,7 @@ export default function SymbolSummaryTable({ data }: SymbolSummaryTableProps) {
                               : "text-text-secondary",
                         ].join(" ")}
                       >
-                        {formatMoney(item.total_pnl)}
+                        {formatMoney(item.total_pnl, { compact: true })}
                       </td>
                       <td className="px-3 py-2 text-text-secondary">
                         {item.avg_holding_days.toFixed(1)}天
