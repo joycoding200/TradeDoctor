@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
@@ -60,12 +60,20 @@ export default function App() {
                         }
                       />
                       <Route
+                        path="/analysis"
+                        element={<Navigate to="/history" replace />}
+                      />
+                      <Route
                         path="/analysis/:id"
                         element={
                           <ProtectedRoute>
                             <Analysis />
                           </ProtectedRoute>
                         }
+                      />
+                      <Route
+                        path="/report"
+                        element={<Navigate to="/history" replace />}
                       />
                       <Route
                         path="/report/:id"

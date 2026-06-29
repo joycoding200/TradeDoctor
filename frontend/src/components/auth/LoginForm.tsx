@@ -39,7 +39,16 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       const token = await loginApi(account, password);
       login(token);
       toast.addToast("success", "登录成功");
-      if (onSuccess) {
+      // Honor ?redirect= if present and points to an internal path.
+      const params = new URLSearchParams(searchParams);
+      const redirect = params.get("redirect");
+      const safeRedirect =
+        redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+          ? decodeURIComponent(redirect)
+          : null;
+      if (safeRedirect) {
+        navigate(safeRedirect);
+      } else if (onSuccess) {
         onSuccess();
       } else {
         navigate("/upload");
