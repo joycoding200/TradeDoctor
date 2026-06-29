@@ -114,30 +114,35 @@ export default function Report() {
         </div>
       )}
 
-      {/* C2.1: chapter TOC — extract ## headings from the markdown */}
+      {/* C2.1: chapter TOC — extract ## and ### headings from the markdown */}
       {(() => {
         const headings = (data.report_content || "")
           .split("\n")
-          .filter((l) => /^##\s+/.test(l))
-          .map((l) => l.replace(/^##\s+/, "").trim())
-          .filter(Boolean);
+          .map((l) => {
+            const m = /^(#{2,3})\s+(.+)$/.exec(l);
+            if (!m) return null;
+            // strip bold markers for display, keep text for id
+            const text = m[2].replace(/\*\*/g, "").trim();
+            return { level: m[1].length, text };
+          })
+          .filter((h): h is { level: number; text: string } => !!h && !!h.text);
         if (headings.length < 2) return null;
         return (
           <nav aria-label="报告目录" className="mb-4 rounded-lg border border-border bg-bg-secondary/60 p-3">
             <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">目录</div>
             <ul className="flex flex-wrap gap-x-4 gap-y-1">
               {headings.map((h) => (
-                <li key={h}>
+                <li key={h.text}>
                   <a
-                    href={`#${encodeURIComponent(h)}`}
+                    href={`#${encodeURIComponent(h.text)}`}
                     className="text-xs text-accent hover:underline"
                     onClick={(e) => {
                       e.preventDefault();
-                      const el = document.getElementById(encodeURIComponent(h));
+                      const el = document.getElementById(encodeURIComponent(h.text));
                       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
                     }}
                   >
-                    {h}
+                    {h.text}
                   </a>
                 </li>
               ))}
@@ -156,10 +161,14 @@ export default function Report() {
                 </h1>
               ),
               h2: ({ children, ...props }) => {
-                const text = typeof children === "string" ? children : String(children ?? "");
+                const text = typeof children === "string"
+                  ? children
+                  : Array.isArray(children)
+                    ? children.map((c) => typeof c === "string" ? c : "").join("")
+                    : String(children ?? "");
                 return (
                   <h2
-                    id={encodeURIComponent(text)}
+                    id={encodeURIComponent(text.replace(/\*\*/g, ""))}
                     className="mt-5 mb-2 scroll-mt-20 text-lg font-semibold text-text-primary"
                     {...props}
                   >
@@ -167,11 +176,22 @@ export default function Report() {
                   </h2>
                 );
               },
-              h3: ({ children, ...props }) => (
-                <h3 className="mt-4 mb-2 text-base font-semibold text-text-primary" {...props}>
-                  {children}
-                </h3>
-              ),
+              h3: ({ children, ...props }) => {
+                const text = typeof children === "string"
+                  ? children
+                  : Array.isArray(children)
+                    ? children.map((c) => typeof c === "string" ? c : "").join("")
+                    : String(children ?? "");
+                return (
+                  <h3
+                    id={encodeURIComponent(text.replace(/\*\*/g, ""))}
+                    className="mt-4 mb-2 scroll-mt-20 text-base font-semibold text-text-primary"
+                    {...props}
+                  >
+                    {children}
+                  </h3>
+                );
+              },
               p: ({ children, ...props }) => (
                 <p className="mb-3 text-sm leading-relaxed text-text-primary" {...props}>
                   {children}
