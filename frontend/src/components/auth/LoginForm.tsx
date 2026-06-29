@@ -5,12 +5,15 @@ import { useToast } from "../../context/ToastContext";
 import { login as loginApi } from "../../api/auth";
 import { Input, Button } from "../ui";
 
+type LoginMode = "email" | "phone";
+
 interface LoginFormProps {
   /** Called after successful login. Default: navigate("/upload"). */
   onSuccess?: () => void;
 }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
+  const [mode, setMode] = useState<LoginMode>("email");
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -31,12 +34,27 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     e.preventDefault();
     setError("");
 
-    if (!account.trim()) { setError("请输入邮箱或手机号"); return; }
-    if (!password) { setError("请输入密码"); return; }
+    const v = account.trim();
+    if (!v) {
+      setError(mode === "email" ? "请输入邮箱" : "请输入手机号");
+      return;
+    }
+    if (mode === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      setError("请输入正确的邮箱地址");
+      return;
+    }
+    if (mode === "phone" && !/^1[3-9]\d{9}$/.test(v)) {
+      setError("请输入正确的 11 位手机号");
+      return;
+    }
+    if (!password) {
+      setError("请输入密码");
+      return;
+    }
 
     setLoading(true);
     try {
-      const token = await loginApi(account, password);
+      const token = await loginApi(v, password);
       login(token);
       toast.addToast("success", "登录成功");
       // Honor ?redirect= if present and points to an internal path.
@@ -54,7 +72,12 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         navigate("/upload");
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "登录失败";
+      // D1.4: do not surface backend wording that distinguishes "wrong
+      // password" from "no such account" — both leak account existence.
+      const raw = err instanceof Error ? err.message : "登录失败";
+      const msg = /账号|密码|用户|不存在|未注册/i.test(raw)
+        ? "账号或密码错误"
+        : raw;
       setError(msg);
       toast.addToast("error", msg);
     } finally {
@@ -67,32 +90,47 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       {error && (
         <div className="rounded-lg bg-danger/10 p-3 text-sm text-danger">
           <p className="mb-1">{error}</p>
-          {(error.includes("账号或密码") || error.includes("账号不存在")) && (
-            <p className="text-text-secondary">
-              还没有账号？<Link to="/register" className="text-accent underline">立即注册</Link>
-            </p>
-          )}
-          {error.includes("密码") && !error.includes("账号") && (
-            <p className="text-text-secondary">
-              忘记密码？内测阶段直接 <Link to="/register" className="text-accent underline">重新注册</Link> 即可
-            </p>
-          )}
+          <p className="text-text-secondary">
+            还没有账号？<Link to="/register" className="text-accent underline">立即注册</Link>
+          </p>
         </div>
       )}
+
+      {/* D1.2: email / phone mode toggle (mirrors the register form) */}
+      <div className="flex gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setMode("email")}
+          className={`cursor-pointer border-0 bg-transparent ${mode === "email" ? "font-semibold text-accent" : "font-normal text-text-secondary"}`}
+        >
+          邮箱登录
+        </button>
+        <span className="text-text-secondary">|</span>
+        <button
+          type="button"
+          onClick={() => setMode("phone")}
+          className={`cursor-pointer border-0 bg-transparent ${mode === "phone" ? "font-semibold text-accent" : "font-normal text-text-secondary"}`}
+        >
+          手机号登录
+        </button>
+      </div>
+
       <Input
-        type="text"
-        placeholder="邮箱或手机号"
+        type={mode === "email" ? "email" : "tel"}
+        placeholder={mode === "email" ? "邮箱" : "11位手机号"}
         value={account}
         onChange={(e) => setAccount(e.target.value)}
         required
+        maxLength={mode === "phone" ? 11 : undefined}
       />
       <div className="relative">
         <Input
           type={showPw ? "text" : "password"}
-          placeholder="密码"
+          placeholder="密码（至少8位）"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          minLength={8}
           className="pr-10"
         />
         <button

@@ -56,9 +56,9 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
     setError("");
 
     if (mode === "email" && !email.trim()) {
-      setError("请输入邮箱地址"); return;
+      setError("请输入邮箱"); return;
     }
-    if (mode === "email" && !email.includes("@")) {
+    if (mode === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("请输入正确的邮箱地址"); return;
     }
     if (mode === "phone" && !phone.trim()) {
@@ -129,15 +129,15 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
       </div>
 
       {mode === "email" ? (
-        <Input type="email" placeholder="请输入邮箱" value={email}
+        <Input type="email" placeholder="邮箱" value={email}
           onChange={(e) => setEmail(e.target.value)} required />
       ) : (
-        <Input type="tel" placeholder="请输入11位手机号" value={phone}
+        <Input type="tel" placeholder="11位手机号" value={phone}
           onChange={(e) => setPhone(e.target.value)} required maxLength={11} />
       )}
 
       <div className="relative">
-        <Input type={showPw ? "text" : "password"} placeholder="密码（至少8位，含字母+数字）" value={password}
+        <Input type={showPw ? "text" : "password"} placeholder="密码（至少8位）" value={password}
           onChange={(e) => setPassword(e.target.value)} required minLength={8} className="pr-10" />
         <button
           type="button"
