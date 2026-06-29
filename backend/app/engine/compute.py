@@ -219,6 +219,15 @@ def compute_stats(
 
     positions = PositionBuilder.build(trades)
 
+    # Build symbol -> Chinese-name lookup from the trade rows. Use the
+    # most recent non-empty name when multiple imports overlap. This is
+    # what gets surfaced in the SymbolSummaryTable.
+    symbol_name_map: dict[str, str] = {}
+    for t in sorted(trades, key=lambda x: getattr(x, "datetime", None) or "", reverse=True):
+        name = getattr(t, "symbol_name", None)
+        if name and t.symbol not in symbol_name_map:
+            symbol_name_map[t.symbol] = name
+
     total_trades = len(trades)
     total_positions = len(positions)
     unknown_cost_count = sum(1 for p in positions if not getattr(p, "cost_known", True))
@@ -272,6 +281,7 @@ def compute_stats(
         exit_dates = [p.exit_date for p in group]
         symbol_summary_data.append({
             "symbol": symbol,
+            "symbol_name": symbol_name_map.get(symbol),
             "trade_count": sym_trade_count,
             "win_count": sym_win_count,
             "win_rate": round(sym_win_count / sym_trade_count, 4) if sym_trade_count > 0 else 0.0,

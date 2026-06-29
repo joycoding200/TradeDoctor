@@ -277,6 +277,7 @@ def import_trades(
                 asset_type=raw_file.asset_type or parser_cls.asset_type(),
                 datetime=t.datetime,
                 symbol=t.symbol,
+                symbol_name=t.symbol_name,
                 exchange=t.exchange,
                 side=t.side,
                 quantity=t.quantity,

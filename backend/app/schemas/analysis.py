@@ -66,6 +66,10 @@ class EquityPoint(BaseModel):
 
 class SymbolSummaryItem(BaseModel):
     symbol: str
+    # Chinese security name (e.g. "北方华创") when the broker file carried
+    # a 证券名称 column. Optional for backward compatibility with older
+    # snapshots that pre-date the symbol_name field on Trade.
+    symbol_name: str | None = None
     trade_count: int
     win_count: int
     win_rate: float

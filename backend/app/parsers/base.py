@@ -49,6 +49,7 @@ class TradeData:
     multiplier: int | None = None
     id: str | None = None  # populated from DB record when available
     asset_type: str = "stock"  # "stock" or "future"
+    symbol_name: str | None = None  # Chinese name from 证券名称 / 股票名称 column
 
 
 class BaseParser(ABC):

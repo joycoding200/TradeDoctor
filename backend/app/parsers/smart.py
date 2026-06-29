@@ -62,7 +62,11 @@ def _classify_column(name: str, values: list) -> dict[str, float]:
     # ── Name-based bonuses (column header hints) ─────────
     _name_bonus = {
         "DATE": {"日期", "时间", "成交日期", "委托日期", "报单日期"},
-        "STOCK_SYMBOL": {"证券代码", "股票代码", "代码", "证券名称", "股票名称"},
+        # 证券名称/股票名称 is the Chinese display name, not the code.
+        # It must NOT be a code-classifier keyword, so we move it to
+        # SYMBOL_NAME below.
+        "STOCK_SYMBOL": {"证券代码", "股票代码", "代码"},
+        "SYMBOL_NAME": {"证券名称", "股票名称"},
         "DIRECTION": {"买卖", "方向", "操作", "业务名称", "业务类型", "交易类型"},
         "PRICE": {"成交价", "价格", "委托价", "成交价格", "委托价格", "均价"},
         "QUANTITY": {"成交数量", "数量", "成交量", "委托数量", "股数"},
@@ -123,6 +127,33 @@ def _classify_column(name: str, values: list) -> dict[str, float]:
     _fut_base = scores.get("FUTURES_SYMBOL", 0)
     _fut_val = future_score / len(str_values) if str_values else 0.0
     scores["FUTURES_SYMBOL"] = min(_fut_base + _fut_val, 1.0)
+
+    # ── SYMBOL_NAME (Chinese display name) ────────────────
+    # Heuristic: column whose values are predominantly 2-15 Han characters
+    # and contain NO 6-digit code. Brokers always pair a code column with
+    # the name, so we also give a small boost when at least one value
+    # in the column includes a known code from elsewhere in the file
+    # (cross-check handled in parse() instead, since column scope is local).
+    name_score = 0.0
+    cjk_re = re.compile(r"[\u4e00-\u9fff]")
+    for v in str_values:
+        s = v.strip().replace("'", "").replace('"', "")
+        if not s:
+            continue
+        if re.match(r"^\d{6}$", s):
+            # bare 6-digit value: this is a code column, not a name column
+            continue
+        cjk_chars = cjk_re.findall(s)
+        # Acceptable name: 2-15 CJK chars, optionally trailing letter/number
+        # (e.g. "ST华微" legacy, "京东方A")
+        if 2 <= len(cjk_chars) <= 15 and len(s) <= 20:
+            name_score += 1.0
+        elif 1 <= len(cjk_chars) <= 15 and any(c.isdigit() for c in s):
+            # mixed CJK + digits, e.g. "中证500ETF"
+            name_score += 0.6
+    _name_base = scores.get("SYMBOL_NAME", 0)
+    _name_val = name_score / len(str_values) if str_values else 0.0
+    scores["SYMBOL_NAME"] = min(_name_base + _name_val, 1.0)
 
     # ── DIRECTION ──────────────────────────────────────
     dir_score = 0.0
@@ -324,6 +355,17 @@ class SmartParser(BaseParser):
         price_col = best_col("PRICE", exclude=_exclude)
         qty_col = best_col("QUANTITY", exclude=_exclude)
 
+        # Symbol name: pick the column that scored best on SYMBOL_NAME.
+        # Exclude the code column (avoid grabbing it by mistake) and the
+        # direction column (业务名称 values like "证券买入" look like names
+        # but actually describe the trade action).
+        _name_exclude: set[str] = set()
+        if symbol_col:
+            _name_exclude.add(symbol_col)
+        if direction_col:
+            _name_exclude.add(direction_col)
+        name_col = best_col("SYMBOL_NAME", exclude=_name_exclude)
+
         # Asset type determined by which symbol column scored higher
         stock_score = column_scores.get(stock_col or "", {}).get("STOCK_SYMBOL", 0)
         future_score = column_scores.get(future_col or "", {}).get("FUTURES_SYMBOL", 0)
@@ -416,6 +458,17 @@ class SmartParser(BaseParser):
                 if margin_col and pd.notna(row.get(margin_col)):
                     margin = float(row[margin_col])
 
+                # Optional Chinese name from 证券名称 / 股票名称 column.
+                # Empty / NaN values become None; not every broker carries it.
+                symbol_name: str | None = None
+                if name_col is not None:
+                    raw_name = row.get(name_col)
+                    if pd.notna(raw_name):
+                        cleaned = str(raw_name).strip().replace('"', "").replace("'", "")
+                        # Trim to column width to avoid blowing up the DB column.
+                        if cleaned and len(cleaned) <= 50:
+                            symbol_name = cleaned
+
                 trades.append(TradeData(
                     datetime=_safe_parse_date(row[date_col]),
                     symbol=symbol,
@@ -427,6 +480,7 @@ class SmartParser(BaseParser):
                     margin=margin,
                     multiplier=multiplier,
                     asset_type="future" if is_future else "stock",
+                    symbol_name=symbol_name,
                 ))
             except (ValueError, KeyError, TypeError):
                 skipped += 1
