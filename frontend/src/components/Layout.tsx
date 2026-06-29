@@ -5,7 +5,8 @@ import { useToast } from "../context/ToastContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { clearTrades } from "../api/upload";
 import { getMe, updateNickname } from "../api/auth";
-import { Input, Button } from "./ui";
+import { Input } from "./ui";
+import BackToTop from "./BackToTop";
 
 /* ─── Inline SVG icons ───────────────────────────────────────────────────── */
 const UserIcon = () => (
@@ -185,6 +186,7 @@ export default function Layout() {
         <Link
           to="/"
           className="text-lg font-extrabold tracking-tight no-underline"
+          aria-label="TradeDoctor 首页"
         >
           <span className="bg-gradient-to-r from-blue-400 via-accent to-purple-400 bg-clip-text text-transparent">
             TradeDoctor
@@ -195,8 +197,26 @@ export default function Layout() {
         <div className="hidden items-center gap-1 md:flex">
           {isLoggedIn ? (
             <>
-              <Link to="/upload" className="no-underline">
-                <Button className="!px-3 !py-1.5 !text-xs !font-medium">新分析</Button>
+              {/* A2.1+A2.2: top-level nav links with active highlight */}
+              <Link
+                to="/upload"
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition-colors ${
+                  location.pathname.startsWith("/upload")
+                    ? "bg-accent/10 text-accent"
+                    : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"
+                }`}
+              >
+                新分析
+              </Link>
+              <Link
+                to="/history"
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition-colors ${
+                  location.pathname === "/history"
+                    ? "bg-accent/10 text-accent"
+                    : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"
+                }`}
+              >
+                历史
               </Link>
 
               {/* User avatar + dropdown */}
@@ -307,10 +327,14 @@ export default function Layout() {
           )}
         </div>
 
-        {/* Mobile hamburger */}
+        {/* Mobile hamburger — A2.3: visual feedback when open */}
         <button
           type="button"
-          className="cursor-pointer rounded-lg border-0 bg-transparent p-1.5 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary md:hidden focus-ring"
+          className={`cursor-pointer rounded-lg border-0 bg-transparent p-1.5 transition-colors hover:bg-bg-tertiary focus-ring md:hidden ${
+            mobileNavOpen
+              ? "text-accent"
+              : "text-text-secondary hover:text-text-primary"
+          }`}
           onClick={() => setMobileNavOpen(!mobileNavOpen)}
           aria-label="菜单"
           aria-expanded={mobileNavOpen}
@@ -332,14 +356,22 @@ export default function Layout() {
 
               <Link
                 to="/upload"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-accent no-underline transition-colors hover:bg-accent/10"
+                className={`rounded-lg px-3 py-2 text-sm font-medium no-underline transition-colors ${
+                  location.pathname.startsWith("/upload")
+                    ? "bg-accent/10 text-accent"
+                    : "text-accent hover:bg-accent/10"
+                }`}
               >
                 新分析
               </Link>
 
               <Link
                 to="/history"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-text-primary no-underline transition-colors hover:bg-bg-tertiary"
+                className={`rounded-lg px-3 py-2 text-sm font-medium no-underline transition-colors ${
+                  location.pathname === "/history"
+                    ? "bg-accent/10 text-accent"
+                    : "text-text-primary hover:bg-bg-tertiary"
+                }`}
               >
                 历史报告
               </Link>
@@ -383,6 +415,9 @@ export default function Layout() {
       <main className="flex-1">
         <Outlet />
       </main>
+
+      {/* A2.4: back-to-top button (appears after scrolling) */}
+      <BackToTop />
     </div>
   );
 }
