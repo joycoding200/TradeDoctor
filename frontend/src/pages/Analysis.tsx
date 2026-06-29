@@ -100,7 +100,13 @@ export default function Analysis() {
       </div>
 
       <div className="transition-opacity duration-200">
-        {activeTab === "stats" && <StatsTab stats={stats} analysisId={id} />}
+        {activeTab === "stats" && (
+          <StatsTab
+            stats={stats}
+            analysisId={id}
+            onAddFile={() => setShowAddFile(true)}
+          />
+        )}
         {activeTab === "insight" && <InsightTab insight={insight} />}
         {activeTab === "whatif" && <WhatIfTab whatIf={whatIf} />}
       </div>
@@ -110,6 +116,15 @@ export default function Analysis() {
           analysisId={id}
           onClose={() => setShowAddFile(false)}
           onSuccess={() => {
+            // Force-refetch (not just invalidate). The default invalidate
+            // refetches active queries, but the AddFileModal closes
+            // immediately after onSuccess — and with a 5-minute staleTime
+            // the user can be left looking at the pre-add stats (single
+            // filename) until the background refetch lands. removeQueries
+            // guarantees the next render re-requests from the backend.
+            queryClient.removeQueries({ queryKey: ["stats", id] });
+            queryClient.removeQueries({ queryKey: ["insight", id] });
+            queryClient.removeQueries({ queryKey: ["whatif", id] });
             queryClient.invalidateQueries({ queryKey: ["stats", id] });
             queryClient.invalidateQueries({ queryKey: ["insight", id] });
             queryClient.invalidateQueries({ queryKey: ["whatif", id] });

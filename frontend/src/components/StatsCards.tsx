@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { Card, Collapsible } from "./ui";
 import EquityCurve from "./EquityCurve";
 import SymbolSummaryTable from "./SymbolSummaryTable";
@@ -41,7 +40,15 @@ interface StatsData {
 
 interface StatsCardsProps {
   stats: StatsData;
-  /** When provided, the unknown-cost banner links to /upload?attach_to=... */
+  /**
+   * When provided, the unknown-cost banner's "add earlier statement"
+   * button calls this handler instead of navigating to /upload. This
+   * opens the in-page AddFileModal — the same path as the "+ 添加交割单"
+   * button in the Analysis header — so the user stays on the analysis
+   * page and React Query invalidation refreshes the data automatically.
+   */
+  onAddFile?: () => void;
+  /** Kept for backward compatibility; ignored when onAddFile is provided. */
   analysisId?: string;
 }
 
@@ -125,7 +132,7 @@ function detailCard(
   );
 }
 
-export default function StatsCards({ stats, analysisId }: StatsCardsProps) {
+export default function StatsCards({ stats, onAddFile, analysisId }: StatsCardsProps) {
   const unknown = stats.unknown_cost_count ?? 0;
   const [bannerOpen, setBannerOpen] = useState(false);
   const wlr = stats.win_loss_ratio ?? 0;
@@ -300,13 +307,14 @@ export default function StatsCards({ stats, analysisId }: StatsCardsProps) {
               <p className="mb-2 text-warning/90">
                 如需更准确的结果，可补传更早期的交割单。
               </p>
-              {analysisId && (
-                <Link
-                  to={`/upload?attach_to=${analysisId}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning no-underline transition-colors hover:bg-warning/20"
+              {onAddFile && (
+                <button
+                  type="button"
+                  onClick={onAddFile}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning transition-colors hover:bg-warning/20 focus-ring"
                 >
                   一键添加更早的交割单 →
-                </Link>
+                </button>
               )}
             </div>
           )}
