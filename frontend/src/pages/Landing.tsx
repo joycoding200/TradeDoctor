@@ -78,7 +78,7 @@ export default function Landing() {
         /* ── Logged in: centered CTA ─────────────────────────────────────── */
         <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
           <div className="animate-fade-in-up">
-            <h1 className="mb-3 text-4xl font-extrabold tracking-tight sm:text-5xl">
+            <h1 className="mb-3 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
               <span className="bg-gradient-to-r from-blue-400 via-accent to-purple-400 bg-clip-text text-transparent">
                 TradeDoctor
               </span>
@@ -101,7 +101,7 @@ export default function Landing() {
         <div className="mx-auto grid max-w-5xl items-start gap-8 md:grid-cols-[1fr_400px]">
           {/* Left: Branding */}
           <div className="animate-fade-in-up pt-2 text-center md:pt-8 md:text-left">
-            <h1 className="mb-3 text-4xl font-extrabold tracking-tight sm:text-5xl">
+            <h1 className="mb-3 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
               <span className="bg-gradient-to-r from-blue-400 via-accent to-purple-400 bg-clip-text text-transparent">
                 TradeDoctor
               </span>
@@ -132,7 +132,7 @@ export default function Landing() {
       )}
 
       {/* ═══ Feature Cards (always visible) ══════════════════════════════════ */}
-      <div className="mx-auto mt-20 grid w-full max-w-[780px] grid-cols-1 gap-5 sm:grid-cols-3">
+      <div className="mx-auto mt-10 grid w-full max-w-[780px] grid-cols-1 gap-5 sm:grid-cols-3 sm:mt-16">
         {FEATURES.map(({ title, desc, Icon }, i) => (
           <div
             key={title}

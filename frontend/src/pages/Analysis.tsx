@@ -59,8 +59,8 @@ export default function Analysis() {
             </div>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowAddFile(true)}>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="outline" onClick={() => setShowAddFile(true)} className="!px-2.5 !py-1.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm">
             + 添加交割单
           </Button>
           <Button
@@ -71,6 +71,7 @@ export default function Analysis() {
                 : handleGenerateReport
             }
             disabled={checkReport.isLoading || genReport.isPending}
+            className="!px-2.5 !py-1.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm"
           >
             {genReport.isPending ? (
               <><InlineSpinner /> 生成中...</>
