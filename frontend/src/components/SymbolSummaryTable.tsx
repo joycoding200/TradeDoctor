@@ -95,16 +95,40 @@ export default function SymbolSummaryTable({ data }: SymbolSummaryTableProps) {
 
   return (
     <div>
-      {/* B2.4 search box */}
-      <div className="mb-3">
+      {/* B2.4 search box with clear button */}
+      <div className="relative mb-3 sm:max-w-xs">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜索股票代码或名称"
           aria-label="搜索股票"
-          className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent sm:max-w-xs"
+          className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-1.5 pr-8 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            aria-label="清空搜索"
+            className="absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary focus-ring"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {sorted.length === 0 ? (

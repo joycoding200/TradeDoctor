@@ -301,6 +301,15 @@ def get_stats(
     filenames = [filename_map.get(fid, "") for fid in file_ids]
     analysis_filename = filenames[0] if filenames else ""
 
+    # Build symbol -> Chinese-name lookup from the trade rows (mirrors
+    # compute_stats). Prefer the most recent non-empty name so a later
+    # import that carries the name column overrides older NULL rows.
+    symbol_name_map: dict[str, str] = {}
+    for t in sorted(trades, key=lambda x: getattr(x, "datetime", None) or "", reverse=True):
+        name = getattr(t, "symbol_name", None)
+        if name and t.symbol not in symbol_name_map:
+            symbol_name_map[t.symbol] = name
+
     positions = PositionBuilder.build(trades)
 
     total_trades = len(trades)
@@ -358,6 +367,7 @@ def get_stats(
         exit_dates = [p.exit_date for p in group]
         symbol_summary_data.append({
             "symbol": symbol,
+            "symbol_name": symbol_name_map.get(symbol),
             "trade_count": sym_trade_count,
             "win_count": sym_win_count,
             "win_rate": round(sym_win_count / sym_trade_count, 4) if sym_trade_count > 0 else 0.0,
