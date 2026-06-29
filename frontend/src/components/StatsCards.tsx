@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, Collapsible } from "./ui";
 import EquityCurve from "./EquityCurve";
 import SymbolSummaryTable from "./SymbolSummaryTable";
@@ -34,11 +36,13 @@ interface StatsData {
   avg_win_pct?: number;
   avg_loss_pct?: number;
   equity_curve?: Array<{ date: string; cum_pnl: number; cum_pnl_pct: number }>;
-  symbol_summary?: Array<{ symbol: string; trade_count: number; win_count: number; win_rate: number; total_pnl: number; avg_holding_days: number; first_trade_date: string; last_trade_date: string }>;
+  symbol_summary?: Array<{ symbol: string; symbol_name?: string; trade_count: number; win_count: number; win_rate: number; total_pnl: number; avg_holding_days: number; first_trade_date: string; last_trade_date: string }>;
 }
 
 interface StatsCardsProps {
   stats: StatsData;
+  /** When provided, the unknown-cost banner links to /upload?attach_to=... */
+  analysisId?: string;
 }
 
 function formatPct(value: number): string {
@@ -121,8 +125,9 @@ function detailCard(
   );
 }
 
-export default function StatsCards({ stats }: StatsCardsProps) {
+export default function StatsCards({ stats, analysisId }: StatsCardsProps) {
   const unknown = stats.unknown_cost_count ?? 0;
+  const [bannerOpen, setBannerOpen] = useState(false);
   const wlr = stats.win_loss_ratio ?? 0;
   const pf = stats.profit_factor ?? 0;
   const expectancy = stats.expectancy ?? 0;
@@ -273,8 +278,38 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   return (
     <div>
       {unknown > 0 && (
-        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-          ⚠ 检测到 {unknown} 笔卖出对应的买入发生在交割单起始日期之前，持仓成本未知，已标记为盈亏=0。建议导入更早期的交割单以获得完整分析。
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 text-sm text-warning">
+          <button
+            type="button"
+            onClick={() => setBannerOpen(!bannerOpen)}
+            aria-expanded={bannerOpen}
+            className="flex w-full cursor-pointer items-center justify-between border-0 bg-transparent px-3 py-2 text-left text-warning focus-ring"
+          >
+            <span className="flex items-center gap-2">
+              <span aria-hidden>⚠</span>
+              <span>
+                {unknown} 笔持仓起始于交割单外，盈亏已标记为 0
+              </span>
+            </span>
+            <span className="text-xs opacity-70">
+              {bannerOpen ? "收起" : "详情"}
+            </span>
+          </button>
+          {bannerOpen && (
+            <div className="px-3 pb-3">
+              <p className="mb-2 text-warning/90">
+                如需更准确的结果，可补传更早期的交割单。
+              </p>
+              {analysisId && (
+                <Link
+                  to={`/upload?attach_to=${analysisId}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning no-underline transition-colors hover:bg-warning/20"
+                >
+                  一键添加更早的交割单 →
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       )}
 

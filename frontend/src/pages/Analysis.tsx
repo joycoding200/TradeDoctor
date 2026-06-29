@@ -100,7 +100,7 @@ export default function Analysis() {
       </div>
 
       <div className="transition-opacity duration-200">
-        {activeTab === "stats" && <StatsTab stats={stats} />}
+        {activeTab === "stats" && <StatsTab stats={stats} analysisId={id} />}
         {activeTab === "insight" && <InsightTab insight={insight} />}
         {activeTab === "whatif" && <WhatIfTab whatIf={whatIf} />}
       </div>
