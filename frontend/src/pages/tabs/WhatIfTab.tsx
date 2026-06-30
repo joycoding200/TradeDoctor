@@ -1,6 +1,6 @@
 import { LoadingSpinner, ErrorBox, Card, EmptyState, Collapsible } from "../../components/ui";
 import { ShapleyPanel } from "../../components/ShapleyPanel";
-import { patternLabel } from "../../constants/patterns";
+import { patternLabel, PATTERN_MODULES } from "../../constants/patterns";
 
 interface WhatIfTabProps {
   whatIf: {
@@ -19,6 +19,11 @@ function fmtYuan(v: number): string {
   return `${(v >= 0 ? "+" : "-")}${abs.toFixed(0)}元`;
 }
 
+/** Format a ratio (delta / return) as a signed percentage. */
+function fmtPct(v: number): string {
+  return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`;
+}
+
 export default function WhatIfTab({ whatIf }: WhatIfTabProps) {
   if (whatIf.isLoading) {
     return <LoadingSpinner text="加载回测数据..." />;
@@ -32,12 +37,18 @@ export default function WhatIfTab({ whatIf }: WhatIfTabProps) {
 
   const { data } = whatIf;
 
-  // ── 通俗版分析：找出赚最多和亏最多的 2 个标签 ──────────
-  const sorted = [...data.items].sort(
-    (a: any, b: any) => b.absolute_impact - a.absolute_impact
-  );
-  const topGainers = sorted.filter((i: any) => i.absolute_impact > 0).slice(0, 2);
-  const topLosers = sorted.filter((i: any) => i.absolute_impact < 0).slice(-2).reverse();
+  // ── 反事实归因：按 delta（移除后收益率变化）分组 ──────────────
+  // delta = what_if_return − original_return
+  // delta > 0：移除后收益率上升 → 该行为在拖累，少做能改善
+  // delta < 0：移除后收益率下降 → 该行为在扛收益，别乱砍
+  // 仅归因「交易行为」+「心理推测」——市场环境不可选、交易结果是事后分类
+  const actionable = data.items.filter((i: any) => {
+    const dim = PATTERN_MODULES[i.removed_pattern];
+    return dim === "behavior" || dim === "psychology";
+  });
+  const sortedByDelta = [...actionable].sort((a: any, b: any) => b.delta - a.delta);
+  const toCut = sortedByDelta.filter((i: any) => i.delta > 0).slice(0, 2);
+  const toKeep = sortedByDelta.filter((i: any) => i.delta < 0).slice(-2).reverse();
 
   return (
     <div className="space-y-6">
@@ -73,53 +84,95 @@ export default function WhatIfTab({ whatIf }: WhatIfTabProps) {
                 ? "✅ 设止损能帮你减少亏损，建议严格执行"
                 : data.stop_loss.delta < -0.03
                 ? "⚠️ 5%止损对你的交易风格太紧，建议放宽或改用移动止损"
-                : `建议：5%止损对你的收益影响很小（${(data.stop_loss.delta * 100).toFixed(1)}%），可作为兜底风控`}
+                : `5%止损对你的收益净影响很小（${(data.stop_loss.delta * 100).toFixed(1)}%）：盘中触发 ${data.stop_loss.affected_positions} 次，止损挽回的大亏与误杀的盈利基本抵消。可作兜底风控，但别指望它改善收益`}
             </div>
           </Card>
         </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════════
-          SECTION 2: 通俗版分析 — what made you money, what lost it
+          SECTION 1b: 大亏持仓止损模拟 — 只给大亏笔设止损会怎样
+          ═══════════════════════════════════════════════════════════ */}
+      {data.stop_loss_large_loss && (
+        <div>
+          <h2 className="text-sm font-medium mb-3">🩹 大亏止损模拟</h2>
+          <p className="text-xs mb-3 text-text-secondary">
+            假设只对最终大亏（亏损超 8%）的持仓设 5% 止损，盘中触发即卖出，其他持仓不变。这是针对「大亏离场」的真反事实——少亏多少才能翻盘。
+          </p>
+          <Card className="p-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-medium">仅大亏持仓设 5% 止损</span>
+              <span className="text-xs text-text-secondary">
+                触发 {data.stop_loss_large_loss.affected_positions} 笔大亏
+              </span>
+            </div>
+            <div className="flex justify-between text-sm mt-2 text-text-secondary">
+              <span>当前收益: {(data.stop_loss_large_loss.original_return * 100).toFixed(1)}%</span>
+              <span>止损后: {(data.stop_loss_large_loss.what_if_return * 100).toFixed(1)}%</span>
+              <span className={data.stop_loss_large_loss.delta >= 0 ? "text-success" : "text-danger"}>
+                变化 {data.stop_loss_large_loss.delta >= 0 ? "+" : ""}{(data.stop_loss_large_loss.delta * 100).toFixed(1)}%
+              </span>
+            </div>
+            <div className={`mt-3 border-t border-border pt-3 text-xs font-medium ${
+              data.stop_loss_large_loss.delta > 0.005 ? "text-success"
+                : data.stop_loss_large_loss.delta < 0 ? "text-danger"
+                : "text-accent"
+            }`}>
+              {data.stop_loss_large_loss.delta > 0.005
+                ? `✅ 仅给这 ${data.stop_loss_large_loss.affected_positions} 笔大亏设止损，收益率从 ${(data.stop_loss_large_loss.original_return * 100).toFixed(1)}% 改善到 ${(data.stop_loss_large_loss.what_if_return * 100).toFixed(1)}%——大亏是亏损主因，止损能切实挽回`
+                : data.stop_loss_large_loss.delta < 0
+                ? "⚠️ 止损反而让收益变差（可能大亏笔在止损位反弹后又下跌），建议结合趋势判断"
+                : `仅对大亏笔设止损影响很小（${(data.stop_loss_large_loss.delta * 100).toFixed(1)}%），大亏多由突发跳空导致，盘中止损难以触发`}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════
+          SECTION 2: 反事实归因 — 少做哪些能改善收益
           ═══════════════════════════════════════════════════════════ */}
       <div>
-        <h2 className="text-sm font-medium mb-3">📋 盈亏来源速览</h2>
+        <h2 className="text-sm font-medium mb-3">📋 少做哪些能改善收益</h2>
         <p className="text-xs mb-3 text-text-secondary">
-          你的交易行为如何影响最终收益。赚钱靠什么，亏钱因为什么，一目了然。
+          假设你没做过某种行为，整体收益率会变成多少。只看「交易行为」和「心理推测」——市场环境不可选、交易结果是事后分类，不作为归因。
         </p>
 
-        {topGainers.length > 0 && (
+        {toCut.length > 0 && (
           <div className="mb-3">
-            <div className="text-xs font-medium text-success mb-2">💰 赚钱靠这些</div>
-            {topGainers.map((item: any) => (
-              <Card key={item.removed_pattern} className="p-3 mb-2">
+            <div className="text-xs font-medium text-danger mb-2">⚠️ 少做这些能改善收益</div>
+            {toCut.map((item: any) => (
+              <Card key={item.removed_pattern} className="p-3 mb-2 border-l-2 border-l-danger">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">{patternLabel(item.removed_pattern)}</span>
-                  <span className="text-sm text-success font-medium">{fmtYuan(item.absolute_impact)}</span>
+                  <span className="text-sm text-danger font-medium">{fmtPct(item.delta)}</span>
                 </div>
                 <div className="mt-1 text-xs text-text-secondary">
-                  贡献了总收益的 {(item.contribution_pct * 100).toFixed(0)}%
+                  移除后收益率 {fmtPct(item.what_if_return)}（当前 {fmtPct(item.original_return)}）
                 </div>
               </Card>
             ))}
           </div>
         )}
 
-        {topLosers.length > 0 && (
+        {toKeep.length > 0 && (
           <div>
-            <div className="text-xs font-medium text-danger mb-2">📉 亏钱因为</div>
-            {topLosers.map((item: any) => (
-              <Card key={item.removed_pattern} className="p-3 mb-2 border-l-2 border-l-danger">
+            <div className="text-xs font-medium text-success mb-2">💪 这些在帮你扛收益，别乱砍</div>
+            {toKeep.map((item: any) => (
+              <Card key={item.removed_pattern} className="p-3 mb-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">{patternLabel(item.removed_pattern)}</span>
-                  <span className="text-sm text-danger font-medium">{fmtYuan(item.absolute_impact)}</span>
+                  <span className="text-sm text-success font-medium">{fmtPct(item.delta)}</span>
                 </div>
                 <div className="mt-1 text-xs text-text-secondary">
-                  贡献了总亏损的 {(Math.abs(item.contribution_pct) * 100).toFixed(0)}%
+                  移除后收益率 {fmtPct(item.what_if_return)}（当前 {fmtPct(item.original_return)}）
                 </div>
               </Card>
             ))}
           </div>
+        )}
+
+        {toCut.length === 0 && toKeep.length === 0 && (
+          <EmptyState icon="📊" message="暂无可归因的行为标签" />
         )}
       </div>
 
@@ -137,20 +190,23 @@ export default function WhatIfTab({ whatIf }: WhatIfTabProps) {
           <div>
             <h2 className="text-sm font-medium mb-2">因子贡献详情</h2>
             <p className="text-xs mb-3 text-text-secondary">
-              每种行为模式独立贡献了多少盈亏。数值为正说明该行为在赚钱，为负则在亏钱。
+              每种行为「移除后收益率变化」（delta）为主、「净盈亏」（absolute_impact）为辅。delta 为正=该行为在拖累收益，为负=在扛收益。仅列出「交易行为」和「心理推测」——市场环境不可选、交易结果（如大亏离场）是事后分类，对它们做"移除"无意义，大亏的对策请看上方「大亏止损模拟」。
             </p>
-            {data.items.map((item: any) => (
+            {data.items.filter((item: any) => {
+              const dim = PATTERN_MODULES[item.removed_pattern];
+              return dim === "behavior" || dim === "psychology";
+            }).map((item: any) => (
               <Card key={item.removed_pattern} className="p-3 mb-2">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-sm font-medium">{patternLabel(item.removed_pattern)}</span>
-                  <span className={`text-sm ${item.absolute_impact >= 0 ? "text-success" : "text-danger"}`}>
-                    {fmtYuan(item.absolute_impact)}
+                  <span className={`text-sm font-medium ${item.delta >= 0 ? "text-danger" : "text-success"}`}>
+                    移除后 {fmtPct(item.delta)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs text-text-secondary">
-                  <span>占比: {(item.contribution_pct * 100).toFixed(0)}%</span>
-                  <span>当前收益: {(item.original_return * 100).toFixed(1)}%</span>
-                  <span>剔除后: {(item.what_if_return * 100).toFixed(1)}%</span>
+                  <span>净盈亏: {fmtYuan(item.absolute_impact)}</span>
+                  <span>当前: {fmtPct(item.original_return)}</span>
+                  <span>剔除后: {fmtPct(item.what_if_return)}</span>
                 </div>
               </Card>
             ))}

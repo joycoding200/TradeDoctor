@@ -15,15 +15,17 @@ interface PatternChartProps {
 }
 
 export default function PatternChart({ data }: PatternChartProps) {
-  if (!data || data.length === 0) {
+  // 样本不足（<5笔）的标签胜率无统计意义，不绘制
+  const filtered = (data || []).filter((d) => d.count >= 5);
+  if (filtered.length === 0) {
     return (
       <div className="py-8 text-center text-text-secondary">
-        暂无行为标签数据
+        样本不足，暂无可绘制的行为标签（均不足5笔）
       </div>
     );
   }
 
-  const chartData = data.map((d) => ({
+  const chartData = filtered.map((d) => ({
     name: patternLabel(d.pattern_name),
     winRate: +(d.win_rate * 100).toFixed(1),
     count: d.count,

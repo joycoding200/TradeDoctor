@@ -216,4 +216,70 @@ class ProfitAttribution:
                 "affected_positions": affected,
             }
 
+        if rule_type == "stop_loss_large_loss":
+            # Counterfactual: apply a stop-loss ONLY to positions that ended
+            # as large losses (pnl_pct < -8%, same threshold as LARGE_LOSS_EXIT).
+            # Answers "if I had set a 5% stop on just the big losers, what
+            # would my return be?" — the question the outcome-tag attribution
+            # (which removes LARGE_LOSS_EXIT wholesale) cannot answer.
+            loss_cap = params.get("loss_pct", 0.05)
+            large_loss_threshold = params.get("large_loss_pct", -0.08)
+            simulated_pnl = 0.0
+            affected = 0
+
+            for p in positions:
+                pos_commission = getattr(p, "total_commission", 0.0) or 0.0
+
+                # Only replay positions that ended as a large loss; others
+                # keep their original PnL.
+                if p.pnl_pct >= large_loss_threshold:
+                    simulated_pnl += p.pnl
+                    continue
+
+                did_trigger = False
+                if market_data:
+                    symbol_data = market_data.get(p.symbol, {})
+                    entry_price = p.avg_entry_price
+                    stop_price = entry_price * (1 - loss_cap)
+
+                    for date_str in sorted(symbol_data):
+                        bar_date = date.fromisoformat(date_str)
+                        if p.entry_date <= bar_date <= p.exit_date:
+                            bar = symbol_data[date_str]
+                            bar_low = bar.get("low", entry_price)
+                            if bar_low <= stop_price:
+                                bar_open = bar.get("open", stop_price)
+                                fill_price = min(bar_open, stop_price)
+                                exit_qty = p.total_quantity
+                                exit_cost = fill_price * exit_qty
+                                entry_cost = entry_price * exit_qty
+                                simulated_pnl += exit_cost - entry_cost - pos_commission
+                                affected += 1
+                                did_trigger = True
+                                break
+
+                if not did_trigger:
+                    # Large-loss position but no intraday trigger (or no
+                    # market_data): fall back to PnL truncation at the cap.
+                    if p.pnl_pct < -loss_cap:
+                        capped_pnl = (
+                            -loss_cap * p.avg_entry_price * p.total_quantity
+                            - pos_commission
+                        )
+                        simulated_pnl += capped_pnl
+                        affected += 1
+                    else:
+                        simulated_pnl += p.pnl
+
+            what_if_return = (
+                simulated_pnl / total_invested if total_invested > 0 else 0.0
+            )
+            return {
+                "rule": f"stop_loss_large_loss_{loss_cap}",
+                "original_return": round(original_return, 4),
+                "what_if_return": round(what_if_return, 4),
+                "delta": round(what_if_return - original_return, 4),
+                "affected_positions": affected,
+            }
+
         return None

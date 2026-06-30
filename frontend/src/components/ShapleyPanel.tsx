@@ -11,7 +11,7 @@ export function ShapleyPanel({ data }: { data: ShapleyItem[] }) {
   if (!data || data.length === 0) return null;
 
   return (
-    <Collapsible title="赚钱来源分析（公平归因，点击展开）">
+    <Collapsible title="Shapley 归因（各标签对总收益的公平贡献，点击展开）">
       <p className="mb-3 text-xs text-text-secondary">
         各标签对总收益的贡献占比，总和=100%，消除重复计算。
       </p>

@@ -769,6 +769,25 @@ def get_whatif(
                 affected_positions=result["affected_positions"],
             )
 
+    # V2.1.1: stop-loss applied ONLY to large-loss positions (pnl_pct < -8%).
+    # Answers "if I had set a 5% stop on just the big losers" — the
+    # counterfactual that removing LARGE_LOSS_EXIT cannot provide.
+    stop_loss_large_loss_sim = None
+    large_loss_result = ProfitAttribution.analyze_rule(
+        valid_positions,
+        rule_type="stop_loss_large_loss",
+        params={"loss_pct": 0.05, "large_loss_pct": -0.08},
+        market_data=market_data,
+    )
+    if large_loss_result:
+        stop_loss_large_loss_sim = RuleSimulationItem(
+            rule=large_loss_result["rule"],
+            original_return=large_loss_result["original_return"],
+            what_if_return=large_loss_result["what_if_return"],
+            delta=large_loss_result["delta"],
+            affected_positions=large_loss_result["affected_positions"],
+        )
+
     # V2.0 Shapley attribution
     shapley_values = shapley_attribution(positions, patterns_map_names)
     total_pnl = sum(p.pnl for p in valid_positions)
@@ -783,7 +802,12 @@ def get_whatif(
         for pat, val in sorted(shapley_values.items(), key=lambda x: -x[1])
     ]
 
-    return WhatIfResponse(items=whatif_items, stop_loss=stop_loss_sim, shapley=shapley_items)
+    return WhatIfResponse(
+        items=whatif_items,
+        stop_loss=stop_loss_sim,
+        stop_loss_large_loss=stop_loss_large_loss_sim,
+        shapley=shapley_items,
+    )
 
 
 @router.get("", response_model=AnalysisListResponse)

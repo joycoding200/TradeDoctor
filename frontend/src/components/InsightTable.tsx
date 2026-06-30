@@ -1,4 +1,4 @@
-import { patternLabel } from "../constants/patterns";
+import { patternLabel, PATTERN_MODULES } from "../constants/patterns";
 
 interface PatternRow {
   pattern_name: string;
@@ -45,11 +45,22 @@ export function InsightTable({ patterns, baseline }: { patterns: PatternRow[]; b
               : (p.gross_profit ?? 0) > 0 ? Infinity : 0;
             const isSmallSample = p.count < 5;
 
+            const isMarketEnv = PATTERN_MODULES[p.pattern_name] === "market_env";
+
             let evalText: string;
             let evalColorClass: string;
             if (isSmallSample) {
               evalText = `样本不足（${p.count}笔），暂不评价`;
               evalColorClass = "text-text-secondary";
+            } else if (isMarketEnv) {
+              // 市场环境不可选，不给"建议减少"行动指令，只描述该环境下的表现
+              if (isPos) {
+                evalText = `在此环境下整体盈利，胜率 ${(p.win_rate * 100).toFixed(0)}%`;
+                evalColorClass = "text-success";
+              } else {
+                evalText = `在此环境下反而亏损（胜率仅 ${(p.win_rate * 100).toFixed(0)}%），可能追高被套`;
+                evalColorClass = "text-danger";
+              }
             } else if (isPos && pf > 2) {
               evalText = "优秀：正期望且显著优于均值，核心盈利模式";
               evalColorClass = "text-success";

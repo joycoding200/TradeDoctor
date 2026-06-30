@@ -105,11 +105,26 @@ export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
     ? "超过一半的交易在赚钱，选股或择时能力不错"
     : "多数交易在赔钱，需要重点关注入场时机";
 
-  const ddSummary = ddPct > 0.3
-    ? `回撤很大——你的账户一度亏掉 ${formatPct(ddPct)}，这说明扛了不该扛的亏损`
-    : ddPct > 0.15
-    ? "回撤偏高，建议控制单笔亏损来降低波动"
-    : "回撤控制得很好，亏的时候砍得快";
+  const ddAmount = stats.max_drawdown ?? 0;
+  const maxLoss = stats.max_loss ?? 0;
+  // 回撤金额是正数表示亏损量，不能套 formatMoney（会给正数加 + 误导成盈利）。
+  // 用无符号万级格式：56253 -> "5.63万"
+  const fmtDrawdown = (v: number) => {
+    const abs = Math.abs(v);
+    return abs >= 10000 ? `${(abs / 10000).toFixed(2)}万` : `${abs.toFixed(0)} 元`;
+  };
+  // 回撤摘要：用回撤金额 + 单笔最深亏损占比，避免纯按百分比误判
+  // （小百分比但大金额会被误读为"砍得快"，实际可能亏了很多）
+  const ddSummary = noLoss || ddAmount <= 0
+    ? "暂无回撤记录"
+    : (() => {
+        const lossShare = Math.abs(maxLoss) / ddAmount;
+        const base = `回撤 ${fmtDrawdown(ddAmount)}（${formatPct(ddPct)}），单笔最深 ${formatMoney(maxLoss)}`;
+        if (lossShare >= 0.5) {
+          return `${base}，占回撤 ${Math.round(lossShare * 100)}%——单笔大亏主导回撤，控住这笔就能大幅降低波动`;
+        }
+        return `${base}，占回撤仅 ${Math.round(lossShare * 100)}%，其余来自多笔累积——需整体减少亏损频次`;
+      })();
 
   // ── Core 4 hero cards ─────────────────────────────────────────
   const totalPositions = stats.total_positions ?? 0;
@@ -175,7 +190,7 @@ export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
     detailCard("danger", "单笔最大亏损", noLoss ? "--" : formatMoney(stats.max_loss ?? 0),
       noLoss ? "无亏损记录" : (stats.max_loss_symbol ? `${stats.max_loss_symbol} ${stats.max_loss_date}` : undefined),
       undefined,
-      stats.max_loss && stats.max_loss < 0 ? "这笔亏损贡献了最大回撤的大部分，值得复盘" : undefined),
+      stats.max_loss && stats.max_loss < 0 ? "最深的单笔亏损，重点复盘这笔的入场与持仓" : undefined),
     detailCard("primary", "平均持仓", `${(stats.avg_holding_days ?? 0).toFixed(1)}天`,
       `盈利${(stats.avg_win_holding_days ?? 0).toFixed(0)}天 / 亏损${(stats.avg_loss_holding_days ?? 0).toFixed(0)}天`,
       undefined,

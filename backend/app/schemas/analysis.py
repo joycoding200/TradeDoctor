@@ -196,6 +196,7 @@ class ShapleyItem(BaseModel):
 class WhatIfResponse(BaseModel):
     items: list[AttributionItem]  # factor contribution (original)
     stop_loss: Optional[RuleSimulationItem] = None
+    stop_loss_large_loss: Optional[RuleSimulationItem] = None  # V2.1.1: 仅针对大亏持仓的止损模拟
     shapley: list[ShapleyItem] = []  # V2.0 Shapley attribution
 
 

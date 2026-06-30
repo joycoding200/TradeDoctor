@@ -6,6 +6,84 @@
 
 ---
 
+## [V1.2.2] — 2026-06-30
+
+### 概述
+
+本版本是 V1.2.0「AI 报告反事实方向 bug」修复的**展示层收尾**。V1.2.0 修了 `prompt.py` 的 AI 层方向错误（PYRAMID/TURN 被说成拖累），但前端归因展示层仍是同一根因的另一种表现——用描述性字段 `absolute_impact` 分组却用反事实文案「赚钱靠什么」，与真反事实 `delta` 方向 11/12 相反。经华西三份交割单（224 笔成交 / 94 有效持仓）真实数据复算逐项核对后，重构 WhatIf/Insight 两个 tab 的归因语义，并新增「大亏止损模拟」补齐 outcome 维度的反事实缺口。
+
+### 修复的 Bug（展示语义）
+
+#### 1. 情景回测「赚钱靠这些/亏钱因为」方向说反（高危，与 V1.2.0 同源）
+
+**现象**：WhatIfTab 用 `absolute_impact`（描述性累计 PnL）分组，文案「赚钱靠什么」却暗示因果。华西数据 12 个标签中 11 个 `absolute_impact` 与真反事实 `delta` 方向相反——波段(SWING)被放「赚钱靠这些」(净赚 +1,212)，但真反事实显示移除后收益率从 −2.45% 暴跌到 −6.28%（波段是救命稻草，不是赚了 1,212）。
+
+**根因**：`absolute_impact = total_pnl − filtered_pnl`，数学上等价于该标签持仓净 PnL 之和（与 InsightTab 的 `total_pnl` 完全等价，12 标签 diff 全 = 0.00）。两个 tab 在算同一件事却展示成不同结论。真正的反事实是 `delta = what_if_return − original_return`。
+
+**修复**（方案 A）：WhatIfTab「盈亏来源速览」重构为「少做哪些能改善收益」——
+- 分组字段 `absolute_impact` → `delta`：`delta>0`（移除后收益率↑）=「⚠️ 少做这些能改善收益」；`delta<0`（移除后收益率↓）=「💪 这些在帮你扛收益，别乱砍」
+- 维度过滤：只归因 behavior + psychology，剔除 market_env（环境不可选）和 outcome（事后分类，对它们做"移除"无意义）
+- 显示 `delta`（收益率变化）取代 `absolute_impact`（绝对金额）；删除「贡献了总收益的 X%」文案（`contribution_pct` 是对 `abs(delta)` 的归一化，非"占总收益比"，在亏损账户上会显示荒谬的"贡献 100%"）
+
+#### 2. 「大亏离场」看不到 whatif（设计缺口，方案 B 彻底修复）
+
+**现象**：LARGE_LOSS_EXIT 是 outcome 结果标签，对它做"移除后重算"是同义反复（"亏钱因为大亏离场"等于没说）。用户真正想问的是「如果给这些大亏笔设了止损会怎样」，但引擎只有"整体止损"一种反事实。
+
+**修复**（方案 B，后端新增规则）：`whatif.py:analyze_rule` 增加 `stop_loss_large_loss` 规则类型——仅对 `pnl_pct < −8%`（与 LARGE_LOSS_EXIT 阈值一致）的大亏持仓做 5% 止损模拟，其余持仓保持原 PnL。
+- `WhatIfResponse` 新增 `stop_loss_large_loss: Optional[RuleSimulationItem]` 字段（schema 向后兼容，旧快照反序列化为 None）
+- 前端新增「🩹 大亏止损模拟」区块，与「💡 止损效果模拟」形成对照
+- 华西实测：整体 5% 止损 delta=−0.02%（59 次触发，挽回与误杀抵消，5% 线太紧）；仅大亏止损 delta=**+3.0%**（14 笔触发，收益率从 −2.45% → +0.59%，翻盘为正）——大亏是亏损主因，止损能切实挽回
+
+#### 3. 诊断结论「勉强打平」误导
+
+**现象**：`baseline_expectancy = +0.29%`（R-multiple 口径）落前端 else 分支，显示「期望接近零，扣除手续费后勉强打平」。但真实情况 PF=0.56、总亏 −3.5 万、连续亏 11 次，明显亏钱。
+
+**根因**：R-multiple 期望与金额口径在胜率≈50% 时冲突——胜率 52% 略高于 50% 让 R 期望翻正，但亏损笔金额更大，金额口径下严重亏损。
+
+**修复**：conclusion 在 baseline≈0 分支叠加净额判断——`netPnl<0` 时说「虽然按收益率算期望接近零，但亏损笔金额大于盈利笔，整体仍在亏钱」。
+
+#### 4. 最大回撤「+5.63万」误导 + 与大亏离场脱节
+
+**现象**：① 回撤金额显示 `+5.63万`，正号误导成盈利；② 4% 的回撤率太抽象，用户无法和「大亏离场亏 5.9 万」联系起来。
+
+**根因**：`formatMoney`（`utils/format.ts`）为盈亏设计（`value>0 → "+"`），但回撤金额是正数表示亏损量，套用被加误导性 +。
+
+**修复**：StatsCards 加局部 `fmtDrawdown`（无符号万级格式）；「最大回撤」card 副标题补回撤金额 + 单笔最深亏损 + 占比——「回撤 5.63万（4.0%），单笔最深 -1.05万，占回撤仅 19%，其余来自多笔累积——需整体减少亏损频次」。关联了「单笔不是主因、是 14 笔累积」的真实结构。
+
+#### 5. 柱状图不过滤样本不足
+
+**现象**：`PatternChart` 把 BEAR_TREND(2笔)/BREAKOUT(3笔)/TIME_EXIT(1笔) 等小样本也画进胜率柱状图，无统计意义。
+
+**修复**：过滤 `count<5`，全空时显示「样本不足，暂无可绘制的行为标签」。
+
+#### 6. 市场环境标签评价「建议减少」不当
+
+**现象**：BULL_TREND 评价显示「负期望：持续亏损，建议减少或改进」——但环境不可选，不能"减少牛市交易"。
+
+**修复**：InsightTable 评价逻辑加 market_env 分支——环境标签不给行动指令，改为描述性「在此环境下反而亏损（胜率仅 48%），可能追高被套」/「在此环境下整体盈利」。
+
+#### 7. 命名统一 + 止损区块缺解释 + InsightTab 撞名
+
+- **ShapleyPanel** 折叠标题「赚钱来源分析（公平归因）」→「Shapley 归因（各标签对总收益的公平贡献）」，与 WhatIfTab「Shapley 归因 + 因子贡献详情」统一
+- **WhatIfTab 止损** delta≈0 的 else 分支补解释「盘中触发 59 次，止损挽回的大亏与误杀的盈利基本抵消」
+- **InsightTab** 标题「赚钱靠这些/亏钱因为这些」→「赚钱的行为/亏钱的行为」，与 WhatIfTab 反事实语义分离；count<5 加「样本不足」标记
+- **WhatIfTab 因子贡献详情**（折叠区）按 behavior+psychology 过滤，补说明「市场环境不可选、交易结果是事后分类，对它们做移除无意义，大亏的对策请看上方大亏止损模拟」
+
+### 验证
+
+- 后端引擎：华西三份交割单离线复算，`stop_loss_large_loss` 返回 delta=+3.06% / 14 笔触发（与整体止损 delta=−0.02% 形成对照）
+- 前端 TypeScript：0 错误
+- 后端 import + schema：`WhatIfResponse.stop_loss_large_loss` 字段就绪，`RuleSimulationItem` 字段完整
+- uvicorn 重启加载新代码（按 PROJECT_EXPERIENCE「uvicorn --reload 僵尸 worker 陷阱」记录，`taskkill //F //T //PID` 树形杀 reloader+worker，openapi 确认新字段已加载）
+- 真实数据核对：最大回撤 5.63万（3.89%）/ 单笔最深 -1.05万占 19% / 14 笔大亏合计 -5.9万
+
+### 涉及文件
+
+- 后端：`backend/app/engine/whatif.py`（新增 `stop_loss_large_loss` 规则）、`backend/app/api/analysis.py`（调用新规则）、`backend/app/schemas/analysis.py`（新增字段）
+- 前端：`frontend/src/pages/tabs/WhatIfTab.tsx`（方案 A 重写 + 大亏止损区块）、`frontend/src/pages/tabs/InsightTab.tsx`（文案+conclusion+样本标记）、`frontend/src/components/StatsCards.tsx`（回撤文案+formatMoney +号修复）、`frontend/src/components/InsightTable.tsx`（市场环境评价）、`frontend/src/components/PatternChart.tsx`（样本过滤）、`frontend/src/components/ShapleyPanel.tsx`（命名统一）
+
+---
+
 ## [V1.2.1] — 2026-06-30
 
 ### 概述

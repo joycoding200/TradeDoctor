@@ -51,7 +51,13 @@ export default function InsightTab({ insight }: InsightTabProps) {
     } else if (baseline < 0) {
       parts.push("你的交易系统整体负期望——需要调整策略，否则长期必亏");
     } else {
-      parts.push("你的交易系统期望接近零，扣除手续费后勉强打平");
+      // R-multiple 期望接近零，但金额口径可能仍亏损（胜率≈50% 时两种口径会冲突）
+      const netPnl = (best?.total_pnl ?? 0) + (worst?.total_pnl ?? 0);
+      if (netPnl < 0) {
+        parts.push("虽然按收益率算期望接近零，但亏损笔金额大于盈利笔，整体仍在亏钱");
+      } else {
+        parts.push("你的交易系统期望接近零，扣除手续费后勉强打平");
+      }
     }
     conclusion = parts.join("。") + "。";
   }
@@ -82,7 +88,7 @@ export default function InsightTab({ insight }: InsightTabProps) {
           {/* 赚钱来源 */}
           {gainers.length > 0 && (
             <div>
-              <div className="mb-2 text-xs font-medium text-success">💰 赚钱靠这些</div>
+              <div className="mb-2 text-xs font-medium text-success">💰 赚钱的行为</div>
               <div className="space-y-2">
                 {gainers.map((p: any) => (
                   <Card key={p.pattern_name} className="p-3">
@@ -91,7 +97,7 @@ export default function InsightTab({ insight }: InsightTabProps) {
                       <span className="text-sm text-success font-medium">{fmtPnl(p.total_pnl)}</span>
                     </div>
                     <div className="mt-1 text-xs text-text-secondary">
-                      {p.count}次 · 胜率{(p.win_rate * 100).toFixed(0)}% · 预期{p.expectancy >= 0 ? "+" : ""}{(p.expectancy * 100).toFixed(1)}%
+                      {p.count < 5 && <span className="text-accent">样本不足 · </span>}{p.count}次 · 胜率{(p.win_rate * 100).toFixed(0)}% · 预期{p.expectancy >= 0 ? "+" : ""}{(p.expectancy * 100).toFixed(1)}%
                     </div>
                   </Card>
                 ))}
@@ -101,7 +107,7 @@ export default function InsightTab({ insight }: InsightTabProps) {
           {/* 亏钱来源 */}
           {losers.length > 0 && (
             <div>
-              <div className="mb-2 text-xs font-medium text-danger">📉 亏钱因为这些</div>
+              <div className="mb-2 text-xs font-medium text-danger">📉 亏钱的行为</div>
               <div className="space-y-2">
                 {losers.map((p: any) => (
                   <Card key={p.pattern_name} className="p-3 border-l-2 border-l-danger">
@@ -110,7 +116,7 @@ export default function InsightTab({ insight }: InsightTabProps) {
                       <span className="text-sm text-danger font-medium">{fmtPnl(p.total_pnl)}</span>
                     </div>
                     <div className="mt-1 text-xs text-text-secondary">
-                      {p.count}次 · 胜率{(p.win_rate * 100).toFixed(0)}% · 预期{(p.expectancy * 100).toFixed(1)}%
+                      {p.count < 5 && <span className="text-accent">样本不足 · </span>}{p.count}次 · 胜率{(p.win_rate * 100).toFixed(0)}% · 预期{(p.expectancy * 100).toFixed(1)}%
                     </div>
                   </Card>
                 ))}
