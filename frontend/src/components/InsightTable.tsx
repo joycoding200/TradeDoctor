@@ -7,6 +7,7 @@ interface PatternRow {
   expectancy: number;
   gross_profit?: number;
   gross_loss?: number;
+  total_pnl?: number;
 }
 
 export function InsightTable({ patterns, baseline }: { patterns: PatternRow[]; baseline: number }) {
@@ -18,6 +19,10 @@ export function InsightTable({ patterns, baseline }: { patterns: PatternRow[]; b
     );
   }
 
+  // B5.1: contribution ratio — |total_pnl| share within this dimension.
+  // Absolute value so losing patterns (negative pnl) still get a visible bar.
+  const totalAbsPnl = patterns.reduce((s, p) => s + Math.abs(p.total_pnl ?? 0), 0);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[600px] text-sm">
@@ -28,6 +33,7 @@ export function InsightTable({ patterns, baseline }: { patterns: PatternRow[]; b
             <th className="p-3 text-right">胜率</th>
             <th className="p-3 text-right">预期值</th>
             <th className="p-3 text-right">盈亏比(PF)</th>
+            <th className="p-3 text-right">贡献</th>
             <th className="max-w-[160px] p-3 text-left">评价</th>
           </tr>
         </thead>
@@ -86,6 +92,27 @@ export function InsightTable({ patterns, baseline }: { patterns: PatternRow[]; b
                 </td>
                 <td className={`p-3 text-right ${pfColor}`}>
                   {pf === Infinity ? "∞" : pf.toFixed(2)}
+                </td>
+                <td className="p-3">
+                  {(() => {
+                    const pct = totalAbsPnl > 0
+                      ? Math.abs(p.total_pnl ?? 0) / totalAbsPnl
+                      : 0;
+                    const barColor = isPos ? "bg-success" : "bg-danger";
+                    return (
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-bg-tertiary">
+                          <div
+                            className={`h-full rounded-full ${barColor}`}
+                            style={{ width: `${Math.max(pct * 100, 2)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-text-secondary">
+                          {(pct * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className={`max-w-[160px] p-3 text-xs ${evalColorClass}`}>
                   {p.expectancy > baseline && !isSmallSample ? "↑ " : p.expectancy < baseline && !isSmallSample ? "↓ " : ""}{evalText}

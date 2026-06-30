@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, Collapsible } from "./ui";
+import KpiCard from "./KpiCard";
 import EquityCurve from "./EquityCurve";
 import SymbolSummaryTable from "./SymbolSummaryTable";
 import { formatMoney } from "../utils/format";
@@ -60,14 +61,6 @@ interface Rating {
   color: string;
 }
 
-const COLOR_CLASS: Record<string, string> = {
-  success: "text-success",
-  danger: "text-danger",
-  accent: "text-accent",
-  primary: "text-text-primary",
-  secondary: "text-text-secondary",
-};
-
 /** Large hero-style card for the 4 core metrics. */
 function heroCard(
   cls: string,
@@ -76,20 +69,7 @@ function heroCard(
   summary: string,
   rating?: Rating
 ) {
-  return (
-    <Card key={label} className="p-5">
-      <div className="mb-1 text-xs text-text-secondary">{label}</div>
-      <div className={`text-2xl font-bold ${COLOR_CLASS[cls] ?? "text-text-primary"}`}>
-        {value}
-      </div>
-      {rating && (
-        <div className={`mt-1 text-xs font-medium ${COLOR_CLASS[rating.color] ?? ""}`}>
-          {rating.text}
-        </div>
-      )}
-      <div className="mt-1.5 text-xs text-text-secondary leading-relaxed">{summary}</div>
-    </Card>
-  );
+  return <KpiCard key={label} cls={cls} label={label} value={value} summary={summary} rating={rating} variant="hero" />;
 }
 
 /** Compact card for detailed metrics section. */
@@ -101,25 +81,7 @@ function detailCard(
   rating?: Rating,
   summary?: string,
 ) {
-  return (
-    <Card key={label} className="p-4">
-      <div className="mb-1 text-xs text-text-secondary">{label}</div>
-      <div className={`text-lg font-semibold ${COLOR_CLASS[cls] ?? "text-text-primary"}`}>
-        {value}
-      </div>
-      {rating && (
-        <div className={`mt-0.5 text-xs font-medium ${COLOR_CLASS[rating.color] ?? ""}`}>
-          {rating.text}
-        </div>
-      )}
-      {hint && (
-        <div className="mt-0.5 text-xs text-text-secondary opacity-70">{hint}</div>
-      )}
-      {summary && (
-        <div className="mt-1 text-xs text-text-secondary opacity-80">{summary}</div>
-      )}
-    </Card>
-  );
+  return <KpiCard key={label} cls={cls} label={label} value={value} hint={hint} rating={rating} summary={summary} variant="detail" />;
 }
 
 export default function StatsCards({ stats, onAddFile }: StatsCardsProps) {
