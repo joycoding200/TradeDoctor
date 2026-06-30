@@ -136,12 +136,14 @@ class TestScalpTag:
         pos = make_pos(holding_days=2)
         assert "SCALP" in tag_names(pos)
 
-    def test_confidence_is_one(self):
+    def test_confidence_is_demoted(self):
+        """SCALP/SWING/POSITION are holding-bucket tags demoted to 0.5 so active
+        behaviors (CHASE/FOMO/... at 0.7-1.0) outrank them. See BUG-1 audit fix."""
         pos = make_pos(holding_days=1)
         results = PatternEngine.tag_position(pos, [pos])
         for r in results:
             if r.pattern_name == "SCALP":
-                assert r.confidence == 1.0
+                assert r.confidence == 0.5
 
 
 class TestSwingTag:
@@ -155,12 +157,12 @@ class TestSwingTag:
         pos = make_pos(holding_days=30)
         assert "SWING" in tag_names(pos)
 
-    def test_confidence_is_one(self):
+    def test_confidence_is_demoted(self):
         pos = make_pos(holding_days=10)
         results = PatternEngine.tag_position(pos, [pos])
         for r in results:
             if r.pattern_name == "SWING":
-                assert r.confidence == 1.0
+                assert r.confidence == 0.5
 
 
 class TestPositionTag:
@@ -170,12 +172,12 @@ class TestPositionTag:
         assert "POSITION" in tags
         assert "SWING" not in tags
 
-    def test_confidence_is_one(self):
+    def test_confidence_is_demoted(self):
         pos = make_pos(holding_days=45)
         results = PatternEngine.tag_position(pos, [pos])
         for r in results:
             if r.pattern_name == "POSITION":
-                assert r.confidence == 1.0
+                assert r.confidence == 0.5
 
 
 # ============================================================================
@@ -1187,19 +1189,20 @@ class TestCategoryField:
         }
         assert set(PatternEngine.CATEGORY_MAP.keys()) == expected
 
-    def test_resolve_per_category_keeps_highest_confidence(self):
+    def test_resolve_per_category_active_behavior_wins_over_holding(self):
+        """Active behaviors (CHASE/FOMO) outrank holding classification (SWING),
+        per BUG-1 audit fix. SWING is a holding-duration bucket present on every
+        position; CHASE/FOMO are the actionable behaviors worth diagnosing."""
         tags = [
-            PatternResult("CHASE", 0.5, {}),
+            PatternResult("CHASE", 0.7, {}),
             PatternResult("FOMO", 0.7, {}),
-            PatternResult("SWING", 1.0, {}),
+            PatternResult("SWING", 0.5, {}),  # holding classification, demoted
         ]
         result = PatternEngine.resolve_per_category(tags)
         result_by_name = {r.pattern_name: r for r in result}
-        # CHASE, FOMO, SWING all in behavior -> SWING (1.0) wins
-        assert "SWING" in result_by_name
-        assert "CHASE" not in result_by_name
-        assert "FOMO" not in result_by_name
-        assert result_by_name["SWING"].category == "behavior"
+        # CHASE and FOMO tie at 0.7 -> first one (CHASE) wins; SWING dropped.
+        assert "SWING" not in result_by_name
+        assert result_by_name["CHASE"].category == "behavior" or result_by_name["FOMO"].category == "behavior"
 
     def test_resolve_per_category_different_categories_all_kept(self):
         tags = [
@@ -1418,3 +1421,92 @@ class TestPanicExitTag:
         for r in results:
             if r.pattern_name == "LARGE_LOSS_EXIT":
                 assert r.confidence == 0.9
+
+
+# ============================================================================
+# BUG-1 (审计 2026-06-30): 主动行为标签不应被持仓分类标签覆盖
+#
+# SCALP/SWING/POSITION 是"持仓时长分类"——每个仓位必然命中其一，且 holding_days
+# 字段已单独保存时长信息。CHASE/FOMO/PYRAMID/AVERAGE_DOWN/TURN/BOTTOM 是"交易者
+# 主动行为"——这才是 behavior 维度要诊断的东西。原实现给持仓分类 conf=1.0、主动
+# 行为 conf≤1.0，导致 resolve_per_category 永远用持仓分类覆盖主动行为，系统对真实
+# 交割单产出 CHASE=0/FOMO=0（独立复算应有 CHASE=23/FOMO=22）。
+# 修复：把持仓分类降到 conf=0.5，主动行为 0.7-1.0 自然胜出；纯持仓分类间仍互斥。
+# ============================================================================
+
+
+class TestActiveBehaviorBeatsHoldingClassification:
+    """Active behavior tags (CHASE/FOMO/...) must survive resolve_per_category
+    even when a holding-period tag (SCALP/SWING/POSITION) is also present."""
+
+    def test_chase_survives_when_swing_also_present(self):
+        """CHASE (active behavior, 0.7) should win over SWING (holding, 0.5)."""
+        tags = [
+            PatternResult("SWING", 0.5, {}),  # holding classification (demoted)
+            PatternResult("CHASE", 0.7, {}),   # active behavior
+        ]
+        result = PatternEngine.resolve_per_category(tags)
+        result_by_name = {r.pattern_name: r for r in result}
+        assert "CHASE" in result_by_name
+        assert "SWING" not in result_by_name
+
+    def test_fomo_survives_when_scalp_also_present(self):
+        """FOMO (active, 0.7) should win over SCALP (holding, 0.5)."""
+        tags = [
+            PatternResult("SCALP", 0.5, {}),
+            PatternResult("FOMO", 0.7, {}),
+        ]
+        result = PatternEngine.resolve_per_category(tags)
+        result_by_name = {r.pattern_name: r for r in result}
+        assert "FOMO" in result_by_name
+        assert "SCALP" not in result_by_name
+
+    def test_holding_classification_only_one_survives(self):
+        """When NO active behavior tag is present, the holding classification
+        still resolves to a single tag (mutual exclusion among SCALP/SWING/POSITION)."""
+        tags = [
+            PatternResult("SCALP", 0.5, {}),
+            PatternResult("SWING", 0.8, {}),
+        ]
+        result = PatternEngine.resolve_per_category(tags)
+        assert len(result) == 1
+        # Higher-confidence holding tag wins.
+        assert result[0].pattern_name == "SWING"
+
+    def test_position_survives_when_no_active_behavior(self):
+        """POSITION (long hold, no active behavior) still gets tagged."""
+        tags = [PatternResult("POSITION", 0.5, {})]
+        result = PatternEngine.resolve_per_category(tags)
+        assert len(result) == 1
+        assert result[0].pattern_name == "POSITION"
+
+
+class TestChaseSurvivesEndToEnd:
+    """End-to-end: a position that is BOTH a CHASE and a SWING must keep CHASE
+    after the full _build_category_map pipeline (this is the user-facing path)."""
+
+    def test_chase_kept_when_swing_also_matches(self):
+        from app.api.analysis import _build_category_map
+
+        # Position held 8 days (SWING) AND entry after +16% 5-day rally (CHASE).
+        # Construct CHASE-only (not BREAKOUT): entry_close must be >= 0.97*max_high
+        # but NOT > max_high (else resolve_hierarchy merges CHASE into BREAKOUT,
+        # leaving behavior empty). Set entry close == max prev-20d high.
+        dates = [f"2024-01-{d:02d}" for d in range(2, 27)]  # 25 bars
+        closes = [10.0] * 24 + [11.6]  # entry close 11.6 = +16% over 5d
+        # Override highs so the prev-20-day max high == entry close (11.6):
+        # CHASE's proximity test (entry >= 0.97*max_high) holds,
+        # BREAKOUT's (entry > max_high) does not (entry == max_high, not >).
+        highs = [11.6] * 24 + [11.6]
+        pos = make_pos(
+            entry_date=date(2024, 1, 26),
+            exit_date=date(2024, 2, 3),  # 8-day hold -> SWING
+            holding_days=8,
+        )
+        md = _make_market_data(dates, closes, highs=highs, ma20=10.0)  # 11.6 > 10*1.10
+
+        cat_map = _build_category_map([pos], trades=None, market_data=md)
+        behavior_tag = cat_map[0].get("behavior")
+        assert behavior_tag == "CHASE", (
+            f"CHASE should survive over SWING, got behavior={behavior_tag!r}"
+        )

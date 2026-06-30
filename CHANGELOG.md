@@ -6,6 +6,61 @@
 
 ---
 
+## [V1.2.4] — 2026-07-01
+
+### 概述
+
+针对《中信交割单独立复算审计报告_20260630》列出的 6 个疑似 bug，本轮以**完全独立于项目代码**的复算（pandas + psycopg2 从 `trades_raw.json` + `daily_bars` 表出发，自实现 FIFO/标签/WhatIf）逐项核实。结论：**6 个里只有 2 个属实**——审计员上轮已误判过"313 vs 307 漏 6 笔"，本轮再次出现多处误判，独立复算是唯一可靠的核实手段。
+
+### 核实结论（独立复算 vs 审计员 vs 系统 三方对比）
+
+| Bug | 审计员判定 | 独立复算判定 | 根因 |
+|-----|-----------|-------------|------|
+| BUG-1 CHASE/FOMO 缺失 | 属实(高) | **✅ 属实** | `resolve_per_category` 中 CHASE/FOMO(conf=0.7) 被 SCALP/SWING/POSITION(conf=1.0) 覆盖。独立按 FINANCE_DOMAIN.md 三条件复算 CHASE=23/FOMO=22，系统=0 |
+| BUG-2 HOLD/CUT 过标 | 属实(高) | ❌ 不属实 | 代码逐仓位实现合理（独立复算 HOLD=21/CUT=30 ≈ 系统 27/26）。审计员误以为应"整体标1次" |
+| BUG-3 快照 null | 属实(P0) | ⚠️ 属实但非P0 | `get_insight`/`get_whatif` 慢路径不写快照，慢路径能成功返回，是性能问题非阻断 |
+| BUG-4 止损 delta 反转 | 属实(高) | ❌ 不属实 | 含双边 commission 独立复算 delta 与系统一致（-0.0003/-0.0008）。审计员漏扣 commission 导致 delta 偏正 |
+| BUG-5 移动止盈偏小 | 属实(高) | ❌ 不属实 | 含 commission 独立复算 +0.0073 ≈ 系统 +0.0083。审计员漏 commission 导致 +0.0404 偏大5倍 |
+| BUG-6 TIME_EXIT 少标 | 属实(中) | ❌ 不属实 | 4 个候选里 3 个盈利的被 TRAILING_STOP(同 conf=0.6 先加入)覆盖，只剩1个亏损的标 TIME_EXIT，系统行为正确 |
+
+### 修复的 Bug
+
+#### 1. BUG-1：主动行为标签被持仓分类覆盖（高）
+
+**现象**：系统对真实交割单产出 behavior 维度 CHASE=0、FOMO=0，独立复算应有 CHASE=23、FOMO=22。所有"交易者主动行为"标签（CHASE/FOMO/PYRAMID/AVERAGE_DOWN/TURN/BOTTOM）被必然存在的"持仓时长分类"标签（SCALP/SWING/POSITION）覆盖，behavior 维度只剩持仓时长分类，主动行为诊断信息全部丢失。
+
+**根因**：`pattern.py:tag_position` 给 SCALP/SWING/POSITION 打 confidence=1.0，而 CHASE/FOMO 等主动行为 conf≤1.0。`resolve_per_category` 在 behavior 维度取 confidence 最高者 → 持仓分类永远胜出。代码行 306 注释给 TURN 加 conf=1.0 boost 证明开发者已知此问题，但 CHASE/FOMO 没加。
+
+**修复**：把 SCALP/SWING/POSITION 的 confidence 从 1.0 降到 0.5（它们是必然的持仓分类，`holding_days` 字段已单独保存时长信息，降级不丢信息）。主动行为 0.7-1.0 自然胜出；纯持仓分类间仍互斥。
+
+**验证**：真实 daily_bars 复算 behavior 分布修复前 SCALP=31/SWING=77/POSITION=17/CHASE=0/FOMO=0 → 修复后 SWING=55/CHASE=23/SCALP=17/POSITION=16/FOMO=12，CHASE 与独立三条件复算完全一致。
+
+#### 2. BUG-3：insight/whatif 慢路径不写快照（性能）
+
+**现象**：`get_insight`/`get_whatif` 慢路径成功计算后直接 return，不写回 `insight_snapshot`/`whatif_snapshot`，而 `get_stats` 慢路径有 self-heal 写回。导致：① 每次请求都走慢路径（慢）；② 若 `run_analysis` 的 `compute_all` 失败（mootdx TCP 错误），insight/whatif 永久 null。
+
+**修复**：`get_insight`/`get_whatif` 慢路径在 return 前写回快照并 commit，仿 `get_stats` 的 self-heal 模式（含 try/except rollback 防御）。
+
+### 验证
+
+- 独立复算脚本（`.tmp/audit/`，不 import 项目任何模块）：三方对比确认 BUG-1/3 属实、BUG-2/4/5/6 不属实
+- 后端全套测试：**422 passed / 0 failed**（新增 8 个测试：BUG-1 6 个 + BUG-3 2 个，TDD 红绿循环）
+- BUG-1 修复未破坏 drift 防护网（`test_compute_equivalence.py` 38 passed）与下游 insight/whatif/report/AI 测试
+
+### 涉及文件
+
+- 后端：`backend/app/engine/pattern.py`（SCALP/SWING/POSITION conf 1.0→0.5）、`backend/app/api/analysis.py`（get_insight/get_whatif 慢路径写回快照）
+- 测试：`backend/tests/test_engine/test_pattern.py`（+6 测试 + 更新 3 个旧 confidence 断言）、`backend/tests/test_engine/test_compute_equivalence.py`（+2 测试）
+
+### 审计误判教训
+
+审计员手工复算的 3 处错误值得记录，避免后续审计重蹈：
+1. **漏扣 commission**：手工 sim_pnl 不扣双边费用但 orig_pnl 含费用，导致 BUG-4/5 delta 偏正。FINANCE_DOMAIN.md §1 明确要求扣双边费。
+2. **漏解析 resolve_per_category**：手工只数 `tag_market_patterns` 产出，不模拟 behavior 维度互斥，导致 BUG-1 数值与系统不可比。
+3. **误解 HOLD_LOSER/CUT_WINNER 定义**：FINANCE_DOMAIN.md "持仓中位数"表述可整体可逐仓，审计员按整体判断，与代码逐仓位实现不符（代码实现合理）。
+
+---
+
 ## [V1.2.3] — 2026-06-30
 
 ### 概述

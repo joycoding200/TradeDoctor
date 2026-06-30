@@ -682,7 +682,7 @@ def get_insight(
         for (env, beh), d in sorted(cross_data.items(), key=lambda kv: kv[1]["total_pnl"], reverse=True)
     ]
 
-    return InsightResponse(
+    response = InsightResponse(
         patterns=all_items,
         market_env=market_env_items,
         behavior=behavior_items,
@@ -699,6 +699,19 @@ def get_insight(
         baseline_expectancy=round(baseline_expectancy, 4),
         cross_analysis=cross_analysis,
     )
+
+    # Self-heal: persist the snapshot so the next request hits the fast path.
+    # Mirrors get_stats. Without this, a failed compute_all at run_analysis
+    # time leaves insight_snapshot permanently null and every GET re-runs the
+    # full computation. See BUG-3 audit fix.
+    analysis.insight_snapshot = response.model_dump(mode="json")
+    try:
+        db.commit()
+    except Exception:
+        logger.exception("failed to cache insight snapshot for analysis %s", analysis.id)
+        db.rollback()
+
+    return response
 
 
 @router.get("/{analysis_id}/whatif", response_model=WhatIfResponse)
@@ -794,7 +807,7 @@ def get_whatif(
         for pat, val in sorted(shapley_values.items(), key=lambda x: -x[1])
     ]
 
-    return WhatIfResponse(
+    response = WhatIfResponse(
         items=whatif_items,
         stop_loss=stop_loss_sim,
         stop_loss_large_loss=stop_loss_large_loss_sim,
@@ -803,6 +816,17 @@ def get_whatif(
         trailing_take_profit=trailing_take_profit_sim,
         shapley=shapley_items,
     )
+
+    # Self-heal: persist the snapshot so the next request hits the fast path.
+    # Mirrors get_stats. See BUG-3 audit fix.
+    analysis.whatif_snapshot = response.model_dump(mode="json")
+    try:
+        db.commit()
+    except Exception:
+        logger.exception("failed to cache whatif snapshot for analysis %s", analysis.id)
+        db.rollback()
+
+    return response
 
 
 @router.get("", response_model=AnalysisListResponse)

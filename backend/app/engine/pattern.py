@@ -147,11 +147,16 @@ class PatternEngine:
         tags: list[PatternResult] = []
 
         # ----- Module 2: Holding period ---------------------------------
+        # conf=0.5 (BUG-1 audit fix): SCALP/SWING/POSITION are holding-duration
+        # buckets present on EVERY position; the actionable behaviors (CHASE/FOMO/
+        # PYRAMID/AVERAGE_DOWN/TURN/BOTTOM at 0.7-1.0) must outrank them in
+        # resolve_per_category. holding_days is already stored on the position, so
+        # demoting these tags loses no information.
         if pos.holding_days < 3:
             tags.append(
                 PatternResult(
                     "SCALP",
-                    1.0,
+                    0.5,
                     {"holding_days": pos.holding_days},
                 )
             )
@@ -159,7 +164,7 @@ class PatternEngine:
             tags.append(
                 PatternResult(
                     "SWING",
-                    1.0,
+                    0.5,
                     {"holding_days": pos.holding_days},
                 )
             )
@@ -167,7 +172,7 @@ class PatternEngine:
             tags.append(
                 PatternResult(
                     "POSITION",
-                    1.0,
+                    0.5,
                     {"holding_days": pos.holding_days},
                 )
             )

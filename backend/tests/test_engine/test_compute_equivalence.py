@@ -378,3 +378,50 @@ class TestStatsEquivalenceLargeSample:
         assert api_sl["what_if_return"] == eng_sl["what_if_return"]
         assert api_sl["delta"] == eng_sl["delta"]
         assert api_sl["affected_positions"] == eng_sl["affected_positions"]
+
+
+# ─── BUG-3 (审计 2026-06-30): insight/whatif 慢路径应写回快照 ───────────────
+# get_stats 慢路径成功后会写回 stats_snapshot (self-heal), 但 get_insight /
+# get_whatif 慢路径只返回不写快照, 导致每次请求都走慢路径 (慢), 且若 run_analysis
+# 的 compute_all 失败 (mootdx TCP 错误), insight/whatif 永久 null.
+# 修复: 慢路径成功后写回 insight_snapshot/whatif_snapshot 并 commit, 仿 get_stats.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class TestInsightSlowPathWritesSnapshot:
+    """get_insight slow path should persist insight_snapshot (self-heal)."""
+
+    def test_insight_slow_path_persists_snapshot(self, client, db_session, setup_analysis):
+        headers, aid, fid = setup_analysis
+        _null_snapshots(db_session, aid)
+
+        resp = client.get(f"/api/analysis/{aid}/insight", headers=headers)
+        assert resp.status_code == 200, resp.text
+
+        # After the slow-path GET, the snapshot must be written back so the
+        # next request hits the fast path (this is the self-heal contract that
+        # get_stats already honors).
+        db_session.rollback()
+        analysis = db_session.query(Analysis).filter_by(id=aid).first()
+        assert analysis.insight_snapshot is not None, (
+            "get_insight slow path did not persist insight_snapshot — every "
+            "subsequent request will re-run the full computation"
+        )
+
+
+class TestWhatIfSlowPathWritesSnapshot:
+    """get_whatif slow path should persist whatif_snapshot (self-heal)."""
+
+    def test_whatif_slow_path_persists_snapshot(self, client, db_session, setup_analysis):
+        headers, aid, fid = setup_analysis
+        _null_snapshots(db_session, aid)
+
+        resp = client.get(f"/api/analysis/{aid}/whatif", headers=headers)
+        assert resp.status_code == 200, resp.text
+
+        db_session.rollback()
+        analysis = db_session.query(Analysis).filter_by(id=aid).first()
+        assert analysis.whatif_snapshot is not None, (
+            "get_whatif slow path did not persist whatif_snapshot — every "
+            "subsequent request will re-run the full computation"
+        )
