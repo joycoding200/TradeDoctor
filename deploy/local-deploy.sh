@@ -41,43 +41,71 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ---- 1. 本地构建前端 ----
-# IMPORTANT: 必须每次部署前重新构建。否则 rsync 推上去的是旧 dist，
+# IMPORTANT: dist 必须是最新源码构建的，否则 rsync 推上去的是旧 dist，
 # 浏览器/CDN 拿到的还是旧 JS，导致"代码改了但页面没变化"。
-# 之前的版本只检查 dist 是否存在，不主动构建——这是最常见的"前端改动不生效"根因。
+#
+# ⚠️ WSL 陷阱：如果 node_modules 是在 Windows 上装的（含 rolldown 等原生
+# 二进制），在 WSL 里跑 npm run build 会因跨平台原生绑定崩溃
+# (ERR_REQUIRE_ESM / rolldown binding error)。
+# → WSL 环境（检测到 /mnt/ 路径）不自动构建，要求用户先在 Windows 上构建。
 if [ "$SKIP_BUILD" = false ]; then
-    step "1/3" "本地构建前端..."
+    step "1/3" "前端构建检查..."
     cd "$PROJECT_DIR/frontend"
 
-    # 检测 npm 是否可用
-    if ! command -v npm &>/dev/null; then
-        err "npm 不在 PATH 中！"
-        echo "  请在 Windows 上（Git Bash / PowerShell）执行本脚本，确保 npm 可用。"
-        echo "  或先手动构建：cd frontend && npm run build，再用 --skip-build 部署。"
-        exit 1
-    fi
-
-    # 源码比 dist 新时，npm run build 必然产出新 hash 文件名
-    log "执行 npm run build（约 10-30s）..."
-    if ! npm run build 2>&1 | tail -8; then
-        err "前端构建失败！请检查 TypeScript 错误。"
-        echo "  可单独运行: cd frontend && npm run build 看完整输出。"
-        exit 1
-    fi
-
-    if [ ! -d dist ]; then
-        err "构建完成但 dist/ 不存在，检查 vite 配置。"
-        exit 1
+    # 检测是否在 WSL 里跑（项目路径含 /mnt/ 说明 node_modules 是 Windows 装的）
+    if [[ "$PROJECT_DIR" == /mnt/* ]]; then
+        warn "检测到 WSL 环境（$PROJECT_DIR）。"
+        warn "node_modules 是 Windows 安装的，在 WSL 里构建会导致 rolldown 原生绑定崩溃。"
+        echo "  请先在 Windows 上构建（PowerShell / Git Bash / cmd）："
+        echo "    cd D:\\Dev\\Projects\\TradingJournalAnalyzer\\frontend"
+        echo "    npm run build"
+        echo "  构建完成后再跑本脚本（dist/ 会自动 rsync 上去）。"
+        echo ""
+        # 不构建，但要确保 dist 存在 + 校验新鲜度
+        if [ ! -d dist ]; then
+            err "frontend/dist/ 不存在！请先在 Windows 上执行 npm run build。"
+            exit 1
+        fi
+    else
+        # 原生 Linux 环境，可以安全构建
+        if ! command -v npm &>/dev/null; then
+            err "npm 不在 PATH 中！请在 Windows 上构建后用 --skip-build，或安装 Node.js。"
+            exit 1
+        fi
+        log "执行 npm run build（约 10-30s）..."
+        if ! npm run build 2>&1 | tail -8; then
+            err "前端构建失败！"
+            echo "  可单独运行: cd frontend && npm run build 看完整输出。"
+            exit 1
+        fi
+        if [ ! -d dist ]; then
+            err "构建完成但 dist/ 不存在，检查 vite 配置。"
+            exit 1
+        fi
+        log "前端构建完成: frontend/dist/"
     fi
     cd "$PROJECT_DIR"
-    log "前端构建完成: frontend/dist/"
 else
     step "1/3" "跳过前端构建（--skip-build）"
-    # 即便跳过构建，也要确保 dist 存在
     if [ ! -d "$PROJECT_DIR/frontend/dist" ]; then
         err "frontend/dist/ 不存在！请去掉 --skip-build 或先手动构建。"
         exit 1
     fi
     warn "跳过构建——请确认 dist 是最新源码构建的，否则前端改动不生效。"
+fi
+
+# dist 新鲜度校验：如果 src/ 里有比 dist/index.html 更新的 .tsx/.ts，
+# 警告（dist 可能是旧的）。不阻断部署，但提醒用户。
+if [ -f "$PROJECT_DIR/frontend/dist/index.html" ]; then
+    NEWEST_SRC=$(find "$PROJECT_DIR/frontend/src" -name "*.tsx" -o -name "*.ts" 2>/dev/null \
+        | xargs stat -c %Y 2>/dev/null | sort -rn | head -1)
+    DIST_MTIME=$(stat -c %Y "$PROJECT_DIR/frontend/dist/index.html" 2>/dev/null || echo 0)
+    if [ -n "$NEWEST_SRC" ] && [ "$NEWEST_SRC" -gt "$DIST_MTIME" ]; then
+        warn "检测到 src/ 有比 dist/ 更新的源码——dist 可能是旧构建！"
+        warn "请在 Windows 上重新 npm run build 后再部署，否则前端改动不生效。"
+        echo "  （如确认 dist 已是最新，可忽略此警告继续。）"
+        echo ""
+    fi
 fi
 echo ""
 
