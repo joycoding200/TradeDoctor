@@ -2,6 +2,11 @@
 # ============================================================
 # TradeDoctor — 本地一键推送+部署脚本
 # ============================================================
+# ⚠️ 注意：此脚本只 git push + 触发服务器 update.sh，**不做 rsync 同步**，
+#    且 update.sh **不 git pull**。服务器代码不会因此更新！
+#    → 改了代码请用 local-deploy.sh（rsync 全量同步），而非本脚本。
+#    → 本脚本仅适用于：代码已用 local-deploy.sh 同步过，只需重启服务时。
+#
 # 用法：
 #   bash deploy/local-push.sh          # push 并触发服务器更新
 #   bash deploy/local-push.sh --no-push # 只触发服务器更新（不 push）

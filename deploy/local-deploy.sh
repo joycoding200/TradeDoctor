@@ -41,18 +41,43 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ---- 1. 本地构建前端 ----
+# IMPORTANT: 必须每次部署前重新构建。否则 rsync 推上去的是旧 dist，
+# 浏览器/CDN 拿到的还是旧 JS，导致"代码改了但页面没变化"。
+# 之前的版本只检查 dist 是否存在，不主动构建——这是最常见的"前端改动不生效"根因。
 if [ "$SKIP_BUILD" = false ]; then
     step "1/3" "本地构建前端..."
     cd "$PROJECT_DIR/frontend"
-    if [ ! -d dist ]; then
-        err "frontend/dist/ 不存在！请先在 Windows 上执行: cd frontend && npm run build"
+
+    # 检测 npm 是否可用
+    if ! command -v npm &>/dev/null; then
+        err "npm 不在 PATH 中！"
+        echo "  请在 Windows 上（Git Bash / PowerShell）执行本脚本，确保 npm 可用。"
+        echo "  或先手动构建：cd frontend && npm run build，再用 --skip-build 部署。"
         exit 1
     fi
-    log "使用已有 dist/（请在 Windows 上构建，勿在 WSL 中构建前端）"
+
+    # 源码比 dist 新时，npm run build 必然产出新 hash 文件名
+    log "执行 npm run build（约 10-30s）..."
+    if ! npm run build 2>&1 | tail -8; then
+        err "前端构建失败！请检查 TypeScript 错误。"
+        echo "  可单独运行: cd frontend && npm run build 看完整输出。"
+        exit 1
+    fi
+
+    if [ ! -d dist ]; then
+        err "构建完成但 dist/ 不存在，检查 vite 配置。"
+        exit 1
+    fi
     cd "$PROJECT_DIR"
     log "前端构建完成: frontend/dist/"
 else
-    step "1/3" "跳过前端构建（使用已有 dist/）"
+    step "1/3" "跳过前端构建（--skip-build）"
+    # 即便跳过构建，也要确保 dist 存在
+    if [ ! -d "$PROJECT_DIR/frontend/dist" ]; then
+        err "frontend/dist/ 不存在！请去掉 --skip-build 或先手动构建。"
+        exit 1
+    fi
+    warn "跳过构建——请确认 dist 是最新源码构建的，否则前端改动不生效。"
 fi
 echo ""
 
