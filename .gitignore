@@ -42,5 +42,8 @@ AGENTS.md
 Thumbs.db
 .playwright-mcp/
 
+# Local MCP config (contains API keys — use .mcp.json.example as template)
+.mcp.json
+
 # User uploads (runtime data, never commit)
 backend/uploads/
